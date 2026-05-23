@@ -318,6 +318,7 @@ def queue_verification_task(self, file_id: str):
             file_record.pass_rate = pass_rate
             file_record.completed_at = end_time
             file_record.duration_seconds = duration
+            file_record.page_count = page_count
             file_record.verification_result = json.dumps(verification_result)
 
             # Update Task tracking record
@@ -346,5 +347,14 @@ def queue_verification_task(self, file_id: str):
             await db.commit()
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
 
-    # Run the async operations inside the sync Celery context
-    asyncio.run(_async_verification())
+    # Run the async operations inside the sync Celery context and cleanly dispose connections
+    try:
+        asyncio.run(_async_verification())
+    finally:
+        async def _dispose():
+            from app.core.database import engine
+            await engine.dispose()
+        try:
+            asyncio.run(_dispose())
+        except Exception:
+            pass

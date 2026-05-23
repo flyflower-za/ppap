@@ -19,81 +19,104 @@
       </div>
     </div>
 
-    <!-- Filter Control Center -->
+    <!-- Collapsible Filter Control Center -->
     <el-card class="glass-card control-filter-card mb-6" shadow="hover">
-      <el-form :model="filters" label-position="top" class="premium-filter-form">
-        <el-row :gutter="20">
-          <el-col :xs="24" :sm="8" :md="5">
-            <el-form-item label="校验状态">
-              <el-select 
-                v-model="filters.status" 
-                placeholder="全部状态" 
-                clearable 
-                class="premium-select"
-                @change="handleSearch"
-              >
-                <el-option label="等待中" value="pending" />
-                <el-option label="校验中" value="processing" />
-                <el-option label="已通过 (合规)" value="completed" />
-                <el-option label="有警告 (含风险)" value="warning" />
-                <el-option label="校验失败 (不合格)" value="failed" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="8" :md="5">
-            <el-form-item label="文件类型">
-              <el-select 
-                v-model="filters.file_type" 
-                placeholder="全部类型" 
-                clearable 
-                class="premium-select"
-                @change="handleSearch"
-              >
-                <el-option label="生产计划单" value="production_plan" />
-                <el-option label="质量检测报告" value="quality_report" />
-                <el-option label="采购订单" value="purchase_order" />
-                <el-option label="供应商资质" value="supplier_qualification" />
-                <el-option label="产品规格书" value="product_specification" />
-                <el-option label="常规合规文件" value="other" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="8" :md="6">
-            <el-form-item label="模糊匹配">
-              <el-input 
-                v-model="filters.keyword" 
-                placeholder="输入文件名关键词..." 
-                clearable
-                class="premium-input"
-                @keyup.enter="handleSearch"
-              />
-            </el-form-item>
-          </el-col>
-
-          <el-col :xs="24" :sm="24" :md="8">
-            <el-form-item label="上传时间范围">
-              <el-date-picker
-                v-model="dateRange"
-                type="daterange"
-                range-separator="至"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                value-format="YYYY-MM-DD"
-                class="premium-date-picker"
-                @change="handleDateRangeChange"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-        
-        <div class="flex-end-buttons mt-2">
-          <el-button class="reset-button-premium" @click="handleReset">重置筛选</el-button>
-          <el-button type="primary" class="search-button-premium" @click="handleSearch">执行筛选</el-button>
+      <div class="filter-card-header flex-between cursor-pointer" @click="isCollapsed = !isCollapsed">
+        <div class="header-left flex-align-center">
+          <span class="filter-icon">🔍</span>
+          <span class="filter-title-text font-bold ml-2">数据条件筛选</span>
+          <el-tag v-if="hasActiveFilters" size="small" type="warning" class="active-filter-tag ml-3">
+            已启用筛选条件
+          </el-tag>
         </div>
-      </el-form>
+        <div class="header-right">
+          <el-button link type="primary" class="collapse-toggle-btn">
+            {{ isCollapsed ? '展开筛选面板' : '收起筛选面板' }}
+            <el-icon class="arrow-icon ml-1" :class="{ 'is-active': !isCollapsed }">
+              <ArrowDown />
+            </el-icon>
+          </el-button>
+        </div>
+      </div>
+
+      <el-collapse-transition>
+        <div v-show="!isCollapsed" class="filter-form-wrapper mt-4">
+          <el-form :model="filters" label-position="top" class="premium-filter-form">
+            <el-row :gutter="20">
+              <el-col :xs="24" :sm="8" :md="5">
+                <el-form-item label="校验状态">
+                  <el-select 
+                    v-model="filters.status" 
+                    placeholder="全部状态" 
+                    clearable 
+                    class="premium-select"
+                    @change="handleSearch"
+                  >
+                    <el-option label="等待中" value="pending" />
+                    <el-option label="校验中" value="processing" />
+                    <el-option label="已通过 (合规)" value="completed" />
+                    <el-option label="有警告 (含风险)" value="warning" />
+                    <el-option label="校验失败 (不合格)" value="failed" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+
+              <el-col :xs="24" :sm="8" :md="5">
+                <el-form-item label="文件类型">
+                  <el-select 
+                    v-model="filters.file_type" 
+                    placeholder="全部类型" 
+                    clearable 
+                    class="premium-select"
+                    @change="handleSearch"
+                  >
+                    <el-option label="生产计划单" value="production_plan" />
+                    <el-option label="质量检测报告" value="quality_report" />
+                    <el-option label="采购订单" value="purchase_order" />
+                    <el-option label="供应商资质" value="supplier_qualification" />
+                    <el-option label="产品规格书" value="product_specification" />
+                    <el-option label="常规合规文件" value="other" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+
+              <el-col :xs="24" :sm="8" :md="6">
+                <el-form-item label="模糊匹配">
+                  <el-input 
+                    v-model="filters.keyword" 
+                    placeholder="输入文件名关键词..." 
+                    clearable
+                    class="premium-input"
+                    @keyup.enter="handleSearch"
+                  />
+                </el-form-item>
+              </el-col>
+
+              <el-col :xs="24" :sm="24" :md="8">
+                <el-form-item label="上传时间范围">
+                  <el-date-picker
+                    v-model="dateRange"
+                    type="daterange"
+                    range-separator="至"
+                    start-placeholder="开始日期"
+                    end-placeholder="结束日期"
+                    value-format="YYYY-MM-DD"
+                    class="premium-date-picker"
+                    @change="handleDateRangeChange"
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            
+            <div class="flex-end-buttons mt-2">
+              <el-button class="reset-button-premium" @click="handleReset">重置筛选</el-button>
+              <el-button type="primary" class="search-button-premium" @click="handleSearch">执行筛选</el-button>
+            </div>
+          </el-form>
+        </div>
+      </el-collapse-transition>
     </el-card>
+
 
     <!-- Batch Control Toolbar -->
     <div v-if="selectedRows.length > 0" class="batch-control-banner mb-4 animate-slide-down">
@@ -243,10 +266,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Delete } from '@element-plus/icons-vue'
+import { Download, Delete, ArrowDown } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 
 const router = useRouter()
@@ -256,6 +279,7 @@ const exporting = ref(false)
 const tableData = ref<any[]>([])
 const selectedRows = ref<any[]>([])
 const dateRange = ref<[string, string] | null>(null)
+const isCollapsed = ref(true) // Collapsed by default
 
 const filters = reactive({
   status: '',
@@ -263,6 +287,10 @@ const filters = reactive({
   keyword: '',
   date_from: '',
   date_to: '',
+})
+
+const hasActiveFilters = computed(() => {
+  return !!(filters.status || filters.file_type || filters.keyword || filters.date_from || filters.date_to)
 })
 
 const pagination = reactive({
@@ -808,6 +836,43 @@ onMounted(() => {
   background-color: #3b82f6;
   color: #fff;
   border-radius: 4px;
+}
+
+/* Collapsible Filter Header Styles */
+.filter-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+  padding: 4px 2px;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.filter-icon {
+  font-size: 16px;
+}
+
+.filter-title-text {
+  font-size: 15px;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+.collapse-toggle-btn {
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.arrow-icon {
+  font-size: 13px;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.arrow-icon.is-active {
+  transform: rotate(180deg);
 }
 
 /* Micro-animations */
