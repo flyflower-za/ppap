@@ -48,6 +48,8 @@ class FileResponse(BaseModel):
     uploaded_at: datetime
     completed_at: Optional[datetime] = None
     duration_seconds: Optional[int] = None
+    notes_summary: Optional[str] = ""
+    verification_result_json: Optional[Dict[str, Any]] = None
 
 
 class FileDetailResponse(FileResponse):
@@ -64,7 +66,7 @@ class FileFilter(BaseModel):
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None
     page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=1, le=100)
+    page_size: int = Field(default=20, ge=1, le=1000)
 
 
 class FileListResponse(BaseModel):

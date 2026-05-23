@@ -4,6 +4,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 import uuid
+import json
 from app.core.database import Base
 
 
@@ -68,3 +69,24 @@ class File(Base):
     # Relationships
     tasks = relationship("Task", back_populates="file", cascade="all, delete-orphan")
     notes = relationship("Note", back_populates="file", cascade="all, delete-orphan")
+
+    @property
+    def notes_summary(self) -> str:
+        """Concatenates all review comments/notes for reporting."""
+        if "notes" not in self.__dict__:
+            return ""
+        if not self.notes:
+            return ""
+        # Sort notes by created_at to keep chronological order
+        sorted_notes = sorted(self.notes, key=lambda n: n.created_at or datetime.min)
+        return " | ".join([n.content.strip().replace("\n", " ") for n in sorted_notes if n.content])
+
+    @property
+    def verification_result_json(self) -> dict | None:
+        """Parses the JSON verification_result string field into a dictionary."""
+        if not self.verification_result:
+            return None
+        try:
+            return json.loads(self.verification_result)
+        except Exception:
+            return None

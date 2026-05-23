@@ -539,17 +539,82 @@ async function handleExport() {
       return
     }
 
-    let csvContent = '\uFEFF'
-    csvContent += '文件ID,原文件名,上传时间,文件分类,页数,诊断状态,指标通过率,核对通过项,风险警告项,不合格项,核对耗时(秒)\n'
+    let csvContent = '\uFEFF' // UTF-8 BOM for Excel compatibility
+    csvContent += '文件ID,原文件名,上传时间,文件分类,页数,诊断状态,指标通过率,核对通过项,风险警告项,不合格项,核对耗时(秒),规则1-文本层检测状态,规则1-文本层检测详情,规则2-数字签名校验状态,规则2-数字签名校验详情,规则3-二维码识别状态,规则3-二维码识别详情,规则4-装订完整性校验状态,规则4-装订完整性校验详情,业务属性规则校验项,业务属性规则校验状态,业务属性规则校验详情,人工审核备注\n'
     
     records.forEach((row: any) => {
-      const escapedName = `"${row.original_filename.replace(/"/g, '""')}"`
+      const escapedName = `"${(row.original_filename || '').replace(/"/g, '""')}"`
       const typeText = getFileTypeText(row.file_type)
       const statusLabel = statusText(row.status)
       const passRate = row.pass_rate !== null ? `${row.pass_rate}%` : '--'
       const duration = row.duration_seconds !== null ? `${row.duration_seconds}` : '--'
       
-      csvContent += `${row.id},${escapedName},${formatDateTime(row.uploaded_at)},${typeText},${row.page_count || 1},${statusLabel},${passRate},${row.pass_count},${row.warning_count},${row.fail_count},${duration}\n`
+      // Extract the 4 standardized PDF checker rules and business rules
+      let textPdfStatus = '未检测'
+      let textPdfMsg = '未检测'
+      let signatureStatus = '未检测'
+      let signatureMsg = '未检测'
+      let qrCodeStatus = '未检测'
+      let qrCodeMsg = '未检测'
+      let bindingStatus = '未检测'
+      let bindingMsg = '未检测'
+
+      let businessCheckName = '无'
+      let businessCheckStatus = '无'
+      let businessCheckMsg = '无此分类下的业务指标核对规则'
+
+      const vr = row.verification_result_json
+      if (vr && vr.checks) {
+        const c1 = vr.checks.find((c: any) => c.name.includes('文本'))
+        if (c1) {
+          textPdfStatus = c1.status === 'pass' ? '通过' : (c1.status === 'warning' ? '警告' : '不合格')
+          textPdfMsg = c1.message || ''
+        }
+
+        const c2 = vr.checks.find((c: any) => c.name.includes('签名'))
+        if (c2) {
+          signatureStatus = c2.status === 'pass' ? '通过' : (c2.status === 'warning' ? '警告' : '不合格')
+          signatureMsg = c2.message || ''
+        }
+
+        const c3 = vr.checks.find((c: any) => c.name.includes('二维码') || c.name.includes('QR'))
+        if (c3) {
+          qrCodeStatus = c3.status === 'pass' ? '通过' : (c3.status === 'warning' ? '警告' : '不合格')
+          qrCodeMsg = c3.message || ''
+        }
+
+        const c4 = vr.checks.find((c: any) => c.name.includes('完整性') || c.name.includes('装订'))
+        if (c4) {
+          bindingStatus = c4.status === 'pass' ? '通过' : (c4.status === 'warning' ? '警告' : '不合格')
+          bindingMsg = c4.message || ''
+        }
+
+        // Find simulated business rule
+        const standardNames = ['文本', '签名', '二维码', 'QR', '完整性', '装订']
+        const bus = vr.checks.find((c: any) => {
+          return !standardNames.some((name: string) => c.name.includes(name))
+        })
+        if (bus) {
+          businessCheckName = bus.name || ''
+          businessCheckStatus = bus.status === 'pass' ? '通过' : (bus.status === 'warning' ? '警告' : '不合格')
+          businessCheckMsg = bus.message || ''
+        }
+      }
+
+      const escapedNotes = `"${(row.notes_summary || '').replace(/"/g, '""')}"`
+      const escapedTextPdfStatus = `"${textPdfStatus.replace(/"/g, '""')}"`
+      const escapedTextPdfMsg = `"${textPdfMsg.replace(/"/g, '""')}"`
+      const escapedSignatureStatus = `"${signatureStatus.replace(/"/g, '""')}"`
+      const escapedSignatureMsg = `"${signatureMsg.replace(/"/g, '""')}"`
+      const escapedQrCodeStatus = `"${qrCodeStatus.replace(/"/g, '""')}"`
+      const escapedQrCodeMsg = `"${qrCodeMsg.replace(/"/g, '""')}"`
+      const escapedBindingStatus = `"${bindingStatus.replace(/"/g, '""')}"`
+      const escapedBindingMsg = `"${bindingMsg.replace(/"/g, '""')}"`
+      const escapedBusinessCheckName = `"${businessCheckName.replace(/"/g, '""')}"`
+      const escapedBusinessCheckStatus = `"${businessCheckStatus.replace(/"/g, '""')}"`
+      const escapedBusinessCheckMsg = `"${businessCheckMsg.replace(/"/g, '""')}"`
+      
+      csvContent += `${row.id},${escapedName},${formatDateTime(row.uploaded_at)},${typeText},${row.page_count || 1},${statusLabel},${passRate},${row.pass_count},${row.warning_count},${row.fail_count},${duration},${escapedTextPdfStatus},${escapedTextPdfMsg},${escapedSignatureStatus},${escapedSignatureMsg},${escapedQrCodeStatus},${escapedQrCodeMsg},${escapedBindingStatus},${escapedBindingMsg},${escapedBusinessCheckName},${escapedBusinessCheckStatus},${escapedBusinessCheckMsg},${escapedNotes}\n`
     })
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })

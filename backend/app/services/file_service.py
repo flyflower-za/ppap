@@ -1,6 +1,7 @@
 from typing import List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta
 import uuid
 import json
@@ -112,7 +113,7 @@ class FileService:
     ) -> Tuple[List[File], int]:
         """List files with filtering and pagination."""
         # Build query
-        query = select(File).where(File.is_deleted == False)
+        query = select(File).options(selectinload(File.notes)).where(File.is_deleted == False)
 
         # Apply filters
         if filters.status:
