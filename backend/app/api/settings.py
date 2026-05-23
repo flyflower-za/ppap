@@ -3,7 +3,7 @@ Settings API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, field_validator
 from typing import Optional, Literal
 import os
 import json
@@ -33,12 +33,38 @@ class SmtpConfig(BaseModel):
     from_name: str = "文件校验平台"
     password: Optional[str] = None
 
-    @validator('host', 'username')
-    def validate_smtp_fields(cls, v, values):
+    @field_validator('host', 'username')
+    @classmethod
+    def validate_smtp_fields(cls, v, info):
         """Validate SMTP fields when enabled"""
-        if values.get('enabled', False):
+        if info.data.get('enabled', False):
             if v is None or v == '':
                 raise ValueError('启用 SMTP 时必须填写该字段')
+        return v
+
+
+class FileRetentionSettings(BaseModel):
+    """File Retention Settings Schema"""
+    retention_days: int = 30
+    auto_cleanup_enabled: bool = True
+    cleanup_hour: int = 2  # Hour of day (0-23) to run cleanup
+
+    @field_validator('retention_days')
+    @classmethod
+    def validate_retention_days(cls, v):
+        """Validate retention days is positive and reasonable"""
+        if v < 1:
+            raise ValueError('保留天数必须大于0')
+        if v > 3650:  # 10 years max
+            raise ValueError('保留天数不能超过3650天（10年）')
+        return v
+
+    @field_validator('cleanup_hour')
+    @classmethod
+    def validate_cleanup_hour(cls, v):
+        """Validate cleanup hour is valid"""
+        if v < 0 or v > 23:
+            raise ValueError('清理时间必须在0-23之间')
         return v
 
 
@@ -88,7 +114,8 @@ async def update_notification_settings(
     # TODO: Check if user is admin
     from app.models.setting import Setting
 
-    json_str = settings.json()
+    # Convert Pydantic model to JSON string
+    json_str = json.dumps(settings.dict())
 
     # Check if setting exists
     result = await db.get(Setting, "notification_settings")
@@ -422,3 +449,97 @@ async def delete_email_template(
     await db.commit()
 
     return {"message": "模板删除成功"}
+
+
+# ==================== File Retention Settings APIs ====================
+
+@router.get("/file-retention")
+async def get_file_retention_settings(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get file retention settings
+
+    Only admin users can access this endpoint.
+    """
+    # Check if user is admin
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role != "ADMIN":
+        raise HTTPException(status_code=403, detail="只有管理员可以访问此设置")
+
+    # Try to load from database
+    result = await db.get(Setting, "file_retention_settings")
+    if result:
+        try:
+            data = json.loads(result.value)
+            return FileRetentionSettings(**data)
+        except Exception:
+            pass
+
+    # Return defaults
+    return FileRetentionSettings()
+
+
+@router.post("/file-retention")
+async def update_file_retention_settings(
+    settings: FileRetentionSettings,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update file retention settings
+
+    Only admin users can access this endpoint.
+    """
+    # Check if user is admin
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role != "ADMIN":
+        raise HTTPException(status_code=403, detail="只有管理员可以访问此设置")
+
+    from app.models.setting import Setting
+    import json
+
+    # Convert Pydantic model to JSON string
+    json_str = json.dumps(settings.dict())
+
+    # Check if setting exists
+    result = await db.get(Setting, "file_retention_settings")
+    if result:
+        result.value = json_str
+    else:
+        new_setting = Setting(key="file_retention_settings", value=json_str)
+        db.add(new_setting)
+
+    await db.commit()
+
+    return {
+        "message": "文件保留设置已更新",
+        "settings": settings.dict()
+    }
+
+
+@router.post("/file-retention/cleanup-now")
+async def trigger_cleanup_now(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manually trigger file cleanup task
+
+    Only admin users can access this endpoint.
+    """
+    # Check if user is admin
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    if user_role != "ADMIN":
+        raise HTTPException(status_code=403, detail="只有管理员可以执行此操作")
+
+    from app.tasks.cleanup_tasks import cleanup_expired_files
+
+    # Trigger the cleanup task asynchronously
+    task = cleanup_expired_files.delay()
+
+    return {
+        "message": "文件清理任务已启动",
+        "task_id": task.id
+    }

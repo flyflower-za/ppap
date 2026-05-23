@@ -16,6 +16,7 @@ celery_app.conf.update(
     imports=[
         "app.tasks.verification_tasks",
         "app.tasks.scheduler_tasks",
+        "app.tasks.cleanup_tasks",
     ],
 )
 

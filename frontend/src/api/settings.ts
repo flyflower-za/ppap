@@ -34,6 +34,12 @@ export interface EmailTemplatePreview {
   context: Record<string, any>
 }
 
+export interface FileRetentionSettings {
+  retention_days: number
+  auto_cleanup_enabled: boolean
+  cleanup_hour: number
+}
+
 export const settingsApi = {
   /**
    * Get notification settings
@@ -123,6 +129,30 @@ export const settingsApi = {
    */
   async previewEmailTemplate(preview: EmailTemplatePreview): Promise<{ html_content: string }> {
     const response = await client.post('/settings/email-templates/preview', preview)
+    return response.data
+  },
+
+  /**
+   * Get file retention settings
+   */
+  async getFileRetentionSettings(): Promise<FileRetentionSettings> {
+    const response = await client.get<FileRetentionSettings>('/settings/file-retention')
+    return response.data
+  },
+
+  /**
+   * Update file retention settings
+   */
+  async updateFileRetentionSettings(settings: FileRetentionSettings): Promise<{ message: string; settings: FileRetentionSettings }> {
+    const response = await client.post('/settings/file-retention', settings)
+    return response.data
+  },
+
+  /**
+   * Trigger immediate file cleanup
+   */
+  async triggerCleanupNow(): Promise<{ message: string; task_id: string }> {
+    const response = await client.post('/settings/file-retention/cleanup-now')
     return response.data
   }
 }

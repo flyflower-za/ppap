@@ -49,9 +49,30 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
         if embedded_sigs:
             results["signed"] = True
             
+            # --- EXTRACT SPATIAL COORDINATES WITH FITZ ---
+            sig_coords = {}
+            try:
+                import fitz
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                for page_idx, page in enumerate(doc):
+                    for widget in page.widgets():
+                        if widget.field_name:
+                            sig_coords[widget.field_name] = {
+                                "page": page_idx + 1,
+                                "rect": [float(widget.rect.x0), float(widget.rect.y0), float(widget.rect.x1), float(widget.rect.y1)]
+                            }
+                doc.close()
+            except Exception as fitz_err:
+                print(f"Warning: PyMuPDF coords extraction error: {fitz_err}")
+            # ---------------------------------------------
+            
             for sig_field in embedded_sigs:
                 # Use field_name directly from the signature object
                 sig_name = getattr(sig_field, 'field_name', 'Unknown')
+                
+                coords = sig_coords.get(sig_name, {})
+                page_num = coords.get("page", 1)
+                rect_coords = coords.get("rect", None)
 
                 try:
                     # Validate the signature asynchronously to play nice with running loops
@@ -142,7 +163,9 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
                         "expired": bool(expired),
                         "signing_time": signing_time,
                         "cert_info": cert_info,
-                        "raw_signature_info": raw_signature_info
+                        "raw_signature_info": raw_signature_info,
+                        "page": page_num,
+                        "rect": rect_coords
                     })
                 except Exception as sig_err:
                     print(f"Error checking signature field {sig_name}: {sig_err}")
@@ -153,7 +176,9 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
                         "expired": True,
                         "signing_time": None,
                         "cert_info": {},
-                        "raw_signature_info": {}
+                        "raw_signature_info": {},
+                        "page": page_num,
+                        "rect": rect_coords
                     })
         
         stream.close()

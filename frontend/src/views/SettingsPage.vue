@@ -13,6 +13,10 @@
             <el-icon><Bell /></el-icon>
             <span>通知设置</span>
           </el-menu-item>
+          <el-menu-item index="file-retention" v-if="canAccessSettings('file_retention')">
+            <el-icon><FolderOpened /></el-icon>
+            <span>文件保留设置</span>
+          </el-menu-item>
           <el-menu-item index="smtp" v-if="canAccessSettings('smtp')">
             <el-icon><Setting /></el-icon>
             <span>SMTP 配置</span>
@@ -112,6 +116,111 @@
             type="success"
             title="设置已保存"
             description="通知设置已成功保存"
+            :closable="false"
+            show-icon
+            class="mt-4"
+          />
+        </el-card>
+
+        <!-- File Retention Settings Section -->
+        <el-card v-if="activeMenu === 'file-retention'" shadow="never" v-loading="loadingFileRetention">
+          <template #header>
+            <div class="flex-between">
+              <span>PDF文件保留设置</span>
+              <el-tag :type="fileRetentionSettings.auto_cleanup_enabled ? 'success' : 'info'" size="small">
+                {{ fileRetentionSettings.auto_cleanup_enabled ? '自动清理已启用' : '自动清理已禁用' }}
+              </el-tag>
+            </div>
+          </template>
+
+          <el-alert
+            type="info"
+            title="文件自动清理"
+            description="系统将自动删除超过保留天数的PDF文件，以释放存储空间。文件删除后无法恢复，请谨慎设置。"
+            :closable="false"
+            show-icon
+            class="mb-4"
+          />
+
+          <el-form
+            ref="fileRetentionFormRef"
+            :model="fileRetentionSettings"
+            :rules="fileRetentionRules"
+            label-width="180px"
+            class="file-retention-form"
+          >
+            <el-form-item label="启用自动清理">
+              <el-switch v-model="fileRetentionSettings.auto_cleanup_enabled" />
+              <span class="form-tip">启用后系统将自动清理过期的PDF文件</span>
+            </el-form-item>
+
+            <el-form-item label="文件保留天数" prop="retention_days">
+              <el-input-number
+                v-model="fileRetentionSettings.retention_days"
+                :min="1"
+                :max="3650"
+                :step="1"
+                :disabled="!fileRetentionSettings.auto_cleanup_enabled"
+                controls-position="right"
+                style="width: 200px"
+              />
+              <span class="form-tip">文件上传后保留的天数（1-3650天，默认30天）</span>
+            </el-form-item>
+
+            <el-form-item label="清理执行时间" prop="cleanup_hour">
+              <el-select
+                v-model="fileRetentionSettings.cleanup_hour"
+                :disabled="!fileRetentionSettings.auto_cleanup_enabled"
+                placeholder="选择小时"
+                style="width: 200px"
+              >
+                <el-option
+                  v-for="hour in 24"
+                  :key="hour - 1"
+                  :label="`${hour - 1}:00`"
+                  :value="hour - 1"
+                />
+              </el-select>
+              <span class="form-tip">每天执行清理任务的时间（0-23点，默认凌晨2点）</span>
+            </el-form-item>
+
+            <el-divider />
+
+            <el-form-item>
+              <el-button
+                type="primary"
+                :icon="Check"
+                :loading="savingFileRetention"
+                @click="handleSaveFileRetention"
+              >
+                保存设置
+              </el-button>
+              <el-button
+                :icon="Delete"
+                :loading="triggeringCleanup"
+                :disabled="!fileRetentionSettings.auto_cleanup_enabled"
+                @click="handleTriggerCleanup"
+              >
+                立即执行清理
+              </el-button>
+            </el-form-item>
+          </el-form>
+
+          <el-alert
+            v-if="fileRetentionSaveSuccess"
+            type="success"
+            title="设置已保存"
+            description="文件保留设置已成功保存"
+            :closable="false"
+            show-icon
+            class="mt-4"
+          />
+
+          <el-alert
+            v-if="cleanupTriggerSuccess"
+            type="success"
+            title="清理任务已启动"
+            :description="cleanupTriggerMessage"
             :closable="false"
             show-icon
             class="mt-4"
@@ -657,8 +766,8 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled } from '@element-plus/icons-vue'
-import type { EmailTemplate } from '@/api/settings'
+import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete } from '@element-plus/icons-vue'
+import type { EmailTemplate, FileRetentionSettings } from '@/api/settings'
 import type { LDAPConfig, UserInfo } from '@/api/ldap'
 
 const authStore = useAuthStore()
@@ -698,6 +807,7 @@ function canAccessSettings(setting: string): boolean {
   const permissions: Record<string, string[]> = {
     profile: ['USER', 'MANAGER', 'ADMIN'],
     notification: ['USER', 'MANAGER', 'ADMIN'],
+    file_retention: ['ADMIN'],
     smtp: ['ADMIN'],
     email_templates: ['ADMIN'],
     ldap: ['ADMIN'],
@@ -717,6 +827,31 @@ const savingNotif = ref(false)
 const testing = ref(false)
 const saveSuccess = ref(false)
 const notifSaveSuccess = ref(false)
+
+// File Retention Settings
+const loadingFileRetention = ref(false)
+const savingFileRetention = ref(false)
+const triggeringCleanup = ref(false)
+const fileRetentionSaveSuccess = ref(false)
+const cleanupTriggerSuccess = ref(false)
+const cleanupTriggerMessage = ref('')
+const fileRetentionFormRef = ref<FormInstance>()
+
+const fileRetentionSettings = reactive<FileRetentionSettings>({
+  retention_days: 30,
+  auto_cleanup_enabled: true,
+  cleanup_hour: 2
+})
+
+const fileRetentionRules: FormRules = {
+  retention_days: [
+    { required: true, message: '请输入文件保留天数', trigger: 'blur' },
+    { type: 'number', min: 1, max: 3650, message: '保留天数必须在1-3650之间', trigger: 'blur' }
+  ],
+  cleanup_hour: [
+    { required: true, message: '请选择清理执行时间', trigger: 'change' }
+  ]
+}
 
 const smtpFormRef = ref<FormInstance>()
 
@@ -1060,6 +1195,8 @@ watch(activeMenu, (newIndex) => {
     loadSmtpConfig()
   } else if (newIndex === 'notification') {
     loadNotificationSettings()
+  } else if (newIndex === 'file-retention') {
+    loadFileRetentionSettings()
   } else if (newIndex === 'templates') {
     loadEmailTemplates()
   } else if (newIndex === 'ldap') {
@@ -1142,6 +1279,70 @@ async function handleRoleChange(user: UserInfo) {
   }
 }
 
+// File Retention Settings Functions
+async function loadFileRetentionSettings() {
+  loadingFileRetention.value = true
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    const response = await settingsApi.getFileRetentionSettings()
+    Object.assign(fileRetentionSettings, response)
+  } catch (error) {
+    console.error('Failed to load file retention settings:', error)
+    ElMessage.error('加载文件保留设置失败')
+  } finally {
+    loadingFileRetention.value = false
+  }
+}
+
+async function handleSaveFileRetention() {
+  if (!fileRetentionFormRef.value) return
+
+  await fileRetentionFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    savingFileRetention.value = true
+    fileRetentionSaveSuccess.value = false
+
+    try {
+      const { settingsApi } = await import('@/api/settings')
+      await settingsApi.updateFileRetentionSettings(fileRetentionSettings)
+
+      fileRetentionSaveSuccess.value = true
+      ElMessage.success('文件保留设置已保存')
+
+      setTimeout(() => {
+        fileRetentionSaveSuccess.value = false
+      }, 3000)
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存失败')
+    } finally {
+      savingFileRetention.value = false
+    }
+  })
+}
+
+async function handleTriggerCleanup() {
+  triggeringCleanup.value = true
+  cleanupTriggerSuccess.value = false
+
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    const response = await settingsApi.triggerCleanupNow()
+
+    cleanupTriggerMessage.value = `任务ID: ${response.task_id}`
+    cleanupTriggerSuccess.value = true
+    ElMessage.success('清理任务已启动，请稍后查看结果')
+
+    setTimeout(() => {
+      cleanupTriggerSuccess.value = false
+    }, 5000)
+  } catch (error: any) {
+    ElMessage.error(error.message || '启动清理任务失败')
+  } finally {
+    triggeringCleanup.value = false
+  }
+}
+
 onMounted(() => {
   // Data loading is handled by watch with immediate: true
 })
@@ -1202,5 +1403,13 @@ onMounted(() => {
 
 .mr-1 {
   margin-right: 4px;
+}
+
+.file-retention-form {
+  max-width: 700px;
+}
+
+.mb-4 {
+  margin-bottom: 16px;
 }
 </style>
