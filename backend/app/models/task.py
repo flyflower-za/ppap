@@ -1,7 +1,9 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Enum, Text, Float
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
+import uuid
 from app.core.database import Base
 
 
@@ -19,10 +21,10 @@ class Task(Base):
 
     __tablename__ = "tasks"
 
-    id = Column(String(36), primary_key=True, index=True)
-    file_id = Column(String(36), ForeignKey("files.id"), nullable=False)
+    id = Column(UUID(as_uuid=False), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    file_id = Column(UUID(as_uuid=False), ForeignKey("files.id"), nullable=False)
     task_type = Column(String(50), default="verify")  # verify, re_verify, etc.
-    status = Column(Enum(TaskStatus), default=TaskStatus.PENDING, index=True)
+    status = Column(Enum(TaskStatus, native_enum=False), default=TaskStatus.PENDING, index=True)
 
     # Progress tracking
     progress = Column(Integer, default=0)  # 0-100

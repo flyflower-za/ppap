@@ -4,7 +4,7 @@ from app.schemas.user import (
 from app.schemas.file import (
     FileUpload, FileResponse, FileDetailResponse, FileFilter,
     FileListResponse, VerificationResult, FileVerificationUpdate,
-    FileTypeEnum, FileStatusEnum,
+    FileTypeEnum, FileStatusEnum, BatchDeleteRequest,
 )
 from app.schemas.task import (
     TaskResponse, TaskCreate, TaskStatusEnum
@@ -26,7 +26,7 @@ __all__ = [
     # File
     "FileUpload", "FileResponse", "FileDetailResponse", "FileFilter",
     "FileListResponse", "VerificationResult", "FileVerificationUpdate",
-    "FileTypeEnum", "FileStatusEnum",
+    "FileTypeEnum", "FileStatusEnum", "BatchDeleteRequest",
     # Task
     "TaskResponse", "TaskCreate", "TaskStatusEnum",
     # Notification

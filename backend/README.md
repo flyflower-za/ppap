@@ -1,4 +1,4 @@
-# Brose PPAP File Verification Platform - Backend
+# PPAP File Verification Platform - Backend
 
 FastAPI backend for AI-powered PDF file verification.
 

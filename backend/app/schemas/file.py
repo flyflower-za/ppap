@@ -88,4 +88,9 @@ class FileVerificationUpdate(BaseModel):
     status: FileStatusEnum
     progress: int = Field(ge=0, le=100)
     result: Optional[Dict[str, Any]] = None
+
+
+class BatchDeleteRequest(BaseModel):
+    """Batch delete files request schema."""
+    file_ids: List[str]
     error_message: Optional[str] = None

@@ -5,12 +5,13 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.schemas.file import (
     FileUpload, FileResponse, FileDetailResponse, FileFilter,
-    FileListResponse, FileTypeEnum,
+    FileListResponse, FileTypeEnum, FileStatusEnum, BatchDeleteRequest,
 )
 from app.services.file_service import FileService
 from app.models.user import User
 from app.api.deps import get_current_user
 from app.models.file import FileType
+from app.tasks.verification_tasks import queue_verification_task
 
 router = APIRouter(prefix="/files", tags=["Files"])
 
@@ -52,16 +53,16 @@ async def upload_file(
         file_type=file_type_enum,
     )
 
-    # TODO: Queue verification task
-    # await queue_verification_task.delay(db_file.id)
+    # Queue verification task asynchronously in Celery background
+    queue_verification_task.delay(db_file.id)
 
     return FileResponse.model_validate(db_file)
 
 
 @router.get("", response_model=FileListResponse)
 async def list_files(
-    status: FileTypeEnum = None,
-    file_type: FileTypeEnum = None,
+    status: FileStatusEnum = Query(default=None),
+    file_type: FileTypeEnum = Query(default=None),
     keyword: str = Query(default=None),
     date_from: str = Query(default=None),
     date_to: str = Query(default=None),
@@ -151,10 +152,10 @@ async def delete_file(
 
 @router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
 async def batch_delete_files(
-    file_ids: List[str],
+    request: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Batch delete files."""
     file_service = FileService(db)
-    await file_service.batch_delete(file_ids)
+    await file_service.batch_delete(request.file_ids)

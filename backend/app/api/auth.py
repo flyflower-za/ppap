@@ -38,6 +38,7 @@ async def login(
             email=credentials.email,
             full_name=credentials.email.split("@")[0],
             is_active=True,
+            is_admin="admin" in credentials.email.lower(),
         )
         db.add(user)
         await db.commit()

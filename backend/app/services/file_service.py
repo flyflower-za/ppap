@@ -35,9 +35,10 @@ class FileService:
             file_type = FileType.OTHER
 
         # Upload to MinIO
+        import io
         minio_client.upload_file(
             file_path=file_path,
-            file_data=file_bytes,
+            file_data=io.BytesIO(file_bytes),
             content_type="application/pdf",
             length=file_size,
         )
@@ -115,7 +116,10 @@ class FileService:
 
         # Apply filters
         if filters.status:
-            query = query.where(File.status == filters.status)
+            if filters.status == "completed":
+                query = query.where(File.status.in_(["completed", "warning"]))
+            else:
+                query = query.where(File.status == filters.status)
         if filters.file_type:
             query = query.where(File.file_type == filters.file_type)
         if filters.keyword:

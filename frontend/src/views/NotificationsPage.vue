@@ -21,6 +21,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import NotificationList from '@/components/NotificationList.vue'
 
 const activeTab = ref('all')
 const hasUnread = ref(true)

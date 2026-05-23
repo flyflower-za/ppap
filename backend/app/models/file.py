@@ -1,7 +1,9 @@
 from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, Enum, Text, Boolean
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
+import uuid
 from app.core.database import Base
 
 
@@ -29,16 +31,16 @@ class File(Base):
 
     __tablename__ = "files"
 
-    id = Column(String(36), primary_key=True, index=True)
+    id = Column(UUID(as_uuid=False), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     filename = Column(String(255), nullable=False)
     original_filename = Column(String(255), nullable=False)
     file_path = Column(String(500), nullable=False)  # MinIO path
     file_size = Column(BigInteger, nullable=False)  # bytes
-    file_type = Column(Enum(FileType), default=FileType.OTHER)
+    file_type = Column(Enum(FileType, native_enum=False), default=FileType.OTHER)
     page_count = Column(Integer)
 
     # Verification status
-    status = Column(Enum(FileStatus), default=FileStatus.PENDING, index=True)
+    status = Column(Enum(FileStatus, native_enum=False), default=FileStatus.PENDING, index=True)
     verification_progress = Column(Integer, default=0)  # 0-100
     verification_model = Column(String(100))  # e.g., "Aliyun Agent v1.2"
 
@@ -55,7 +57,7 @@ class File(Base):
     duration_seconds = Column(Integer)
 
     # Relationships
-    uploaded_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
     uploaded_by_user = relationship("User", back_populates="files")
 
     # Deletion

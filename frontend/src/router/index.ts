@@ -10,13 +10,13 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/',
-    redirect: '/tasks',
-  },
-  {
-    path: '/',
     component: () => import('@/layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
+      {
+        path: '',
+        redirect: { name: 'TaskCenter' },
+      },
       {
         path: 'tasks',
         name: 'TaskCenter',
@@ -52,8 +52,20 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
+
+  // Auto-fetch user details on page refresh / initialization if authenticated
+  if (authStore.isAuthenticated && !authStore.user) {
+    try {
+      await authStore.fetchMe()
+    } catch (error) {
+      console.error('Failed to fetch user profile, logging out:', error)
+      authStore.logout()
+      next({ name: 'Login', query: { redirect: to.fullPath } })
+      return
+    }
+  }
 
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
@@ -65,3 +77,4 @@ router.beforeEach((to, _from, next) => {
 })
 
 export default router
+

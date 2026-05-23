@@ -1,4 +1,4 @@
--- Brose PPAP File Verification Platform
+-- PPAP File Verification Platform
 -- Database Initialization Script
 
 -- Extensions
@@ -114,7 +114,7 @@ CREATE INDEX idx_notes_author_id ON notes(author_id);
 INSERT INTO users (id, email, full_name, is_active, is_admin)
 VALUES (
     '01234567-0123-0123-0123-0123456789ab',
-    'admin@brose.com',
+    'admin@example.com',
     'System Administrator',
     true,
     true

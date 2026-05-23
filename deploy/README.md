@@ -91,7 +91,7 @@ ALIYUN_ACCESS_KEY_SECRET=<your-secret>
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name ppap.brose.com;
+    server_name ppap.example.com;
 
     ssl_certificate /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;

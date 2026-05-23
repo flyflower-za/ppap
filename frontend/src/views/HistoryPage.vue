@@ -1,87 +1,243 @@
 <template>
-  <div>
-    <div class="flex-between mb-4">
-      <h2>历史记录</h2>
-      <el-button :icon="Download" @click="handleExport">导出 Excel</el-button>
+  <div class="history-dashboard-container animate-fade-in">
+    <!-- Header Hero Banner with Statistics -->
+    <div class="hero-statistics-row mb-6">
+      <div class="hero-left">
+        <h2 class="dashboard-title">合规历史审计中心</h2>
+        <p class="dashboard-subtitle">实时审计并追溯所有历史上传 PDF 的文本层、印章签名及二维码追溯结果</p>
+      </div>
+      <div class="hero-right">
+        <el-button 
+          type="primary" 
+          class="export-button-premium"
+          :icon="Download" 
+          @click="handleExport"
+          :loading="exporting"
+        >
+          导出 Excel 审计报表
+        </el-button>
+      </div>
     </div>
 
-    <!-- Filter Bar -->
-    <el-card shadow="never" class="mb-4">
-      <el-form :inline="true" :model="filters">
-        <el-form-item label="状态">
-          <el-select v-model="filters.status" placeholder="全部" clearable style="width: 120px;">
-            <el-option label="已完成" value="completed" />
-            <el-option label="失败" value="failed" />
-            <el-option label="有警告" value="warning" />
-          </el-select>
-        </el-form-item>
+    <!-- Filter Control Center -->
+    <el-card class="glass-card control-filter-card mb-6" shadow="hover">
+      <el-form :model="filters" label-position="top" class="premium-filter-form">
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8" :md="5">
+            <el-form-item label="校验状态">
+              <el-select 
+                v-model="filters.status" 
+                placeholder="全部状态" 
+                clearable 
+                class="premium-select"
+                @change="handleSearch"
+              >
+                <el-option label="等待中" value="pending" />
+                <el-option label="校验中" value="processing" />
+                <el-option label="已通过 (合规)" value="completed" />
+                <el-option label="有警告 (含风险)" value="warning" />
+                <el-option label="校验失败 (不合格)" value="failed" />
+              </el-select>
+            </el-form-item>
+          </el-col>
 
-        <el-form-item label="文件类型">
-          <el-select v-model="filters.file_type" placeholder="全部" clearable style="width: 140px;">
-            <el-option label="生产计划单" value="production_plan" />
-            <el-option label="质量检测报告" value="quality_report" />
-            <el-option label="采购订单" value="purchase_order" />
-            <el-option label="供应商资质" value="supplier_qualification" />
-          </el-select>
-        </el-form-item>
+          <el-col :xs="24" :sm="8" :md="5">
+            <el-form-item label="文件类型">
+              <el-select 
+                v-model="filters.file_type" 
+                placeholder="全部类型" 
+                clearable 
+                class="premium-select"
+                @change="handleSearch"
+              >
+                <el-option label="生产计划单" value="production_plan" />
+                <el-option label="质量检测报告" value="quality_report" />
+                <el-option label="采购订单" value="purchase_order" />
+                <el-option label="供应商资质" value="supplier_qualification" />
+                <el-option label="产品规格书" value="product_specification" />
+                <el-option label="常规合规文件" value="other" />
+              </el-select>
+            </el-form-item>
+          </el-col>
 
-        <el-form-item label="关键词">
-          <el-input v-model="filters.keyword" placeholder="输入文件名关键词" style="width: 200px;" />
-        </el-form-item>
+          <el-col :xs="24" :sm="8" :md="6">
+            <el-form-item label="模糊匹配">
+              <el-input 
+                v-model="filters.keyword" 
+                placeholder="输入文件名关键词..." 
+                clearable
+                class="premium-input"
+                @keyup.enter="handleSearch"
+              />
+            </el-form-item>
+          </el-col>
 
-        <el-form-item>
-          <el-button type="primary" @click="handleSearch">筛选</el-button>
-          <el-button @click="handleReset">重置</el-button>
-        </el-form-item>
+          <el-col :xs="24" :sm="24" :md="8">
+            <el-form-item label="上传时间范围">
+              <el-date-picker
+                v-model="dateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                value-format="YYYY-MM-DD"
+                class="premium-date-picker"
+                @change="handleDateRangeChange"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <div class="flex-end-buttons mt-2">
+          <el-button class="reset-button-premium" @click="handleReset">重置筛选</el-button>
+          <el-button type="primary" class="search-button-premium" @click="handleSearch">执行筛选</el-button>
+        </div>
       </el-form>
     </el-card>
 
-    <!-- Batch Actions -->
-    <div v-if="selectedRows.length > 0" class="batch-actions mb-4">
-      <el-tag type="warning">已选择 {{ selectedRows.length }} 项</el-tag>
-      <el-button-group style="margin-left: 12px;">
-        <el-button size="small">批量下载报告</el-button>
-        <el-button size="small">归档</el-button>
-        <el-button size="small" type="danger" @click="handleBatchDelete">删除</el-button>
-      </el-button-group>
+    <!-- Batch Control Toolbar -->
+    <div v-if="selectedRows.length > 0" class="batch-control-banner mb-4 animate-slide-down">
+      <div class="batch-left">
+        <span class="pulse-dot"></span>
+        <span class="selected-text">已选中 <strong>{{ selectedRows.length }}</strong> 项历史合规记录</span>
+      </div>
+      <div class="batch-right">
+        <el-button-group>
+          <el-button 
+            size="small" 
+            type="primary" 
+            plain 
+            :icon="Download" 
+            @click="handleBatchDownload"
+          >
+            批量下载 PDF
+          </el-button>
+          <el-button 
+            size="small" 
+            type="danger" 
+            :icon="Delete" 
+            @click="handleBatchDelete"
+          >
+            批量删除记录
+          </el-button>
+        </el-button-group>
+      </div>
     </div>
 
-    <!-- Data Table -->
-    <el-card shadow="never">
+    <!-- Data Display Table -->
+    <el-card class="glass-card table-wrapper-card" shadow="hover">
       <el-table
         :data="tableData"
         v-loading="loading"
         @selection-change="handleSelectionChange"
+        row-key="id"
+        class="premium-table"
+        stripe
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="uploaded_at" label="上传时间" width="180" />
-        <el-table-column prop="original_filename" label="文件名" width="220" />
-        <el-table-column prop="file_type" label="类型" width="120" />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column type="selection" width="55" reserve-selection />
+        
+        <el-table-column prop="uploaded_at" label="上传时间" width="170">
           <template #default="{ row }">
-            <span class="status-badge" :class="row.status">{{ statusText(row.status) }}</span>
+            <span class="font-mono text-secondary">{{ formatDateTime(row.uploaded_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="verification_result" label="校验结果摘要" />
-        <el-table-column label="操作" width="240" fixed="right">
+        
+        <el-table-column prop="original_filename" label="文件名" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="handleView(row)">查看详情</el-button>
-            <el-button link type="primary" size="small" @click="handleDownload(row)">下载报告</el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+            <div class="file-name-cell">
+              <span class="pdf-icon">📄</span>
+              <span class="file-title-text" @click="handleView(row)">{{ row.original_filename }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="file_type" label="文件类型" width="130">
+          <template #default="{ row }">
+            <el-tag :type="getFileTypeTag(row.file_type)" effect="plain" class="type-tag-premium">
+              {{ getFileTypeText(row.file_type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="page_count" label="页数" width="70" align="center">
+          <template #default="{ row }">
+            <span class="font-mono">{{ row.page_count || 1 }} 页</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column prop="status" label="校验状态" width="120">
+          <template #default="{ row }">
+            <div class="status-wrapper">
+              <span class="status-indicator-dot" :class="row.status"></span>
+              <span class="status-label" :class="row.status">{{ statusText(row.status) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="pass_rate" label="指标通过率" width="180">
+          <template #default="{ row }">
+            <div v-if="row.status !== 'pending' && row.status !== 'processing'" class="progress-premium-container">
+              <div class="progress-header font-mono">
+                <span class="rate-value" :class="getPassRateClass(row.pass_rate)">{{ row.pass_rate }}%</span>
+                <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }} 项</span>
+              </div>
+              <el-progress 
+                :percentage="row.pass_rate || 0" 
+                :status="getProgressStatus(row.status)" 
+                :stroke-width="5"
+                :show-text="false"
+                class="progress-bar-premium"
+              />
+            </div>
+            <div v-else class="status-placeholder text-secondary">
+              {{ row.status === 'processing' ? '正在诊断中...' : '等待诊断队列...' }}
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="duration_seconds" label="核对耗时" width="90" align="center">
+          <template #default="{ row }">
+            <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds} 秒` : '--' }}</span>
+          </template>
+        </el-table-column>
+        
+        <el-table-column label="操作" width="220" fixed="right">
+          <template #default="{ row }">
+            <div class="table-actions-row">
+              <el-button link type="primary" size="small" class="action-btn-view" @click="handleView(row)">
+                查看详情
+              </el-button>
+              <el-button 
+                link 
+                type="primary" 
+                size="small" 
+                class="action-btn-download" 
+                @click="handleDownload(row)"
+                :disabled="row.status === 'pending' || row.status === 'processing'"
+              >
+                下载报告
+              </el-button>
+              <el-button link type="danger" size="small" class="action-btn-delete" @click="handleDelete(row)">
+                删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.page_size"
-        :total="pagination.total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        class="mt-4"
-        @size-change="fetchData"
-        @current-change="fetchData"
-      />
+      <!-- Pagination Footer -->
+      <div class="pagination-footer-container mt-6">
+        <el-pagination
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.page_size"
+          :total="pagination.total"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          class="premium-pagination"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
     </el-card>
   </div>
 </template>
@@ -90,18 +246,23 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download } from '@element-plus/icons-vue'
+import { Download, Delete } from '@element-plus/icons-vue'
+import { filesApi } from '@/api/files'
 
 const router = useRouter()
 
 const loading = ref(false)
-const tableData = ref([])
-const selectedRows = ref([])
+const exporting = ref(false)
+const tableData = ref<any[]>([])
+const selectedRows = ref<any[]>([])
+const dateRange = ref<[string, string] | null>(null)
 
 const filters = reactive({
   status: '',
   file_type: '',
   keyword: '',
+  date_from: '',
+  date_to: '',
 })
 
 const pagination = reactive({
@@ -110,24 +271,101 @@ const pagination = reactive({
   total: 0,
 })
 
+function formatDateTime(isoString: string): string {
+  if (!isoString) return '--'
+  try {
+    const d = new Date(isoString)
+    return d.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).replace(/\//g, '-')
+  } catch {
+    return isoString
+  }
+}
+
 function statusText(status: string): string {
   const map: Record<string, string> = {
     pending: '等待中',
-    processing: '校验中',
-    completed: '已完成',
-    failed: '失败',
-    warning: '有警告',
+    processing: '诊断中',
+    completed: '合规通过',
+    failed: '不合格',
+    warning: '有风险警告',
   }
   return map[status] || status
+}
+
+function getFileTypeText(type: string): string {
+  const map: Record<string, string> = {
+    production_plan: '生产计划单',
+    quality_report: '质量检测报告',
+    purchase_order: '采购订单',
+    supplier_qualification: '供应商资质',
+    product_specification: '产品规格书',
+    other: '常规合规文件',
+  }
+  return map[type] || '未定类型'
+}
+
+function getFileTypeTag(type: string): string {
+  const map: Record<string, string> = {
+    production_plan: 'success',
+    quality_report: 'warning',
+    purchase_order: 'primary',
+    supplier_qualification: 'info',
+    product_specification: 'danger',
+  }
+  return map[type] || ''
+}
+
+function getProgressStatus(status: string): string {
+  if (status === 'completed') return 'success'
+  if (status === 'warning') return 'warning'
+  if (status === 'failed') return 'exception'
+  return ''
+}
+
+function getPassRateClass(rate: number | null): string {
+  if (rate === null) return 'text-secondary'
+  if (rate >= 90) return 'text-success'
+  if (rate >= 60) return 'text-warning'
+  return 'text-danger'
+}
+
+function handleDateRangeChange(val: [string, string] | null) {
+  if (val && val.length === 2) {
+    filters.date_from = `${val[0]}T00:00:00`
+    filters.date_to = `${val[1]}T23:59:59`
+  } else {
+    filters.date_from = ''
+    filters.date_to = ''
+  }
+  handleSearch()
 }
 
 async function fetchData() {
   loading.value = true
   try {
-    // TODO: Call API
-    // const response = await filesApi.list({ ...filters, ...pagination })
-    // tableData.value = response.items
-    // pagination.total = response.total
+    const params = {
+      status: filters.status || undefined,
+      file_type: filters.file_type || undefined,
+      keyword: filters.keyword || undefined,
+      date_from: filters.date_from || undefined,
+      date_to: filters.date_to || undefined,
+      page: pagination.page,
+      page_size: pagination.page_size,
+    }
+    const response = await filesApi.list(params)
+    tableData.value = response.items || []
+    pagination.total = response.total || 0
+  } catch (err: any) {
+    console.error('Failed to fetch historical files:', err)
+    ElMessage.error(err.response?.data?.detail || '拉取历史数据失败，请重试')
   } finally {
     loading.value = false
   }
@@ -143,11 +381,25 @@ function handleReset() {
     status: '',
     file_type: '',
     keyword: '',
+    date_from: '',
+    date_to: '',
   })
+  dateRange.value = null
   handleSearch()
 }
 
-function handleSelectionChange(selection: unknown[]) {
+function handleSizeChange(size: number) {
+  pagination.page_size = size
+  pagination.page = 1
+  fetchData()
+}
+
+function handleCurrentChange(page: number) {
+  pagination.page = page
+  fetchData()
+}
+
+function handleSelectionChange(selection: any[]) {
   selectedRows.value = selection
 }
 
@@ -155,37 +407,139 @@ function handleView(row: { id: string }) {
   router.push(`/files/${row.id}`)
 }
 
-function handleDownload(row: { original_filename: string }) {
-  ElMessage.success(`下载 ${row.original_filename} 报告`)
+async function handleDownload(row: { id: string; original_filename: string }) {
+  try {
+    const res = await filesApi.getDownloadUrl(row.id)
+    if (res && res.download_url) {
+      window.open(res.download_url, '_blank')
+      ElMessage.success(`开始下载: ${row.original_filename}`)
+    } else {
+      throw new Error('未获取到合法的下载链接')
+    }
+  } catch (err: any) {
+    console.error('Failed to get download URL:', err)
+    ElMessage.error(err.message || '获取下载地址失败，请检查文件是否在库')
+  }
+}
+
+async function handleBatchDownload() {
+  if (selectedRows.value.length === 0) return
+  ElMessage.info(`正在批量准备 ${selectedRows.value.length} 份报告链接...`)
+  
+  let successCount = 0
+  for (const row of selectedRows.value) {
+    try {
+      const res = await filesApi.getDownloadUrl(row.id)
+      if (res && res.download_url) {
+        const a = document.createElement('a')
+        a.href = res.download_url
+        a.download = row.original_filename
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        successCount++
+      }
+      await new Promise(resolve => setTimeout(resolve, 300))
+    } catch {
+      // Continue next
+    }
+  }
+  ElMessage.success(`成功触发 ${successCount} 个文件的下载`)
 }
 
 async function handleDelete(row: { id: string; original_filename: string }) {
   try {
-    await ElMessageBox.confirm(`确定要删除 ${row.original_filename} 吗？`, '确认删除', {
-      type: 'warning',
-    })
-    ElMessage.success('删除成功')
+    await ElMessageBox.confirm(
+      `您确定要永久删除文件【${row.original_filename}】及全部关联诊断报告吗？此操作无法撤销。`,
+      '危险删除警告',
+      {
+        confirmButtonText: '确定永久删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+        type: 'warning',
+      }
+    )
+    await filesApi.delete(row.id)
+    ElMessage.success('记录已安全移除')
     fetchData()
   } catch {
-    // User cancelled
+    // cancelled
   }
 }
 
 async function handleBatchDelete() {
+  if (selectedRows.value.length === 0) return
   try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedRows.value.length} 项吗？`, '确认删除', {
-      type: 'warning',
-    })
-    ElMessage.success('批量删除成功')
+    await ElMessageBox.confirm(
+      `您确定要永久删除所选的 ${selectedRows.value.length} 项诊断记录吗？此操作将彻底删除归档，不可恢复。`,
+      '批量删除危险提示',
+      {
+        confirmButtonText: '确定批量删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger',
+        type: 'warning',
+      }
+    )
+    const ids = selectedRows.value.map(row => row.id)
+    await filesApi.batchDelete(ids)
+    ElMessage.success(`成功删除 ${ids.length} 项记录`)
     selectedRows.value = []
     fetchData()
   } catch {
-    // User cancelled
+    // cancelled
   }
 }
 
-function handleExport() {
-  ElMessage.success('正在导出 Excel，请稍候...')
+async function handleExport() {
+  exporting.value = true
+  try {
+    const params = {
+      status: filters.status || undefined,
+      file_type: filters.file_type || undefined,
+      keyword: filters.keyword || undefined,
+      date_from: filters.date_from || undefined,
+      date_to: filters.date_to || undefined,
+      page: 1,
+      page_size: 1000,
+    }
+    const response = await filesApi.list(params)
+    const records = response.items || []
+
+    if (records.length === 0) {
+      ElMessage.warning('当前筛选条件下无数据可供导出')
+      return
+    }
+
+    let csvContent = '\uFEFF'
+    csvContent += '文件ID,原文件名,上传时间,文件分类,页数,诊断状态,指标通过率,核对通过项,风险警告项,不合格项,核对耗时(秒)\n'
+    
+    records.forEach((row: any) => {
+      const escapedName = `"${row.original_filename.replace(/"/g, '""')}"`
+      const typeText = getFileTypeText(row.file_type)
+      const statusLabel = statusText(row.status)
+      const passRate = row.pass_rate !== null ? `${row.pass_rate}%` : '--'
+      const duration = row.duration_seconds !== null ? `${row.duration_seconds}` : '--'
+      
+      csvContent += `${row.id},${escapedName},${formatDateTime(row.uploaded_at)},${typeText},${row.page_count || 1},${statusLabel},${passRate},${row.pass_count},${row.warning_count},${row.fail_count},${duration}\n`
+    })
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const dateStr = new Date().toISOString().slice(0, 10)
+    link.href = URL.createObjectURL(blob)
+    link.setAttribute('download', `PPAP_合规诊断审计报表_${dateStr}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    ElMessage.success(`成功导出 ${records.length} 条审计记录！`)
+  } catch (err) {
+    console.error('Export failed:', err)
+    ElMessage.error('报表导出失败，请重试')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(() => {
@@ -194,11 +548,290 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.batch-actions {
+/* Dashboard Container & Grid Theme */
+.history-dashboard-container {
+  padding: 12px 4px;
+}
+
+.dashboard-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.5px;
+}
+
+.dashboard-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+.hero-statistics-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+/* Premium Filter Layout */
+.premium-filter-form {
+  padding: 8px 4px;
+}
+
+.flex-end-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.reset-button-premium {
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.search-button-premium,
+.export-button-premium {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+  transition: all 0.2s ease;
+}
+
+.search-button-premium:hover,
+.export-button-premium:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(59, 130, 246, 0.35);
+  opacity: 0.95;
+}
+
+/* Glassmorphism Panel styles */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 10px 25px -5px rgba(59, 130, 246, 0.05), 0 8px 10px -6px rgba(59, 130, 246, 0.05);
+}
+
+/* Premium Form Elements */
+.premium-select :deep(.el-input__wrapper),
+.premium-input :deep(.el-input__wrapper),
+.premium-date-picker :deep(.el-input__wrapper) {
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: none !important;
+  transition: border-color 0.2s ease;
+}
+
+.premium-select :deep(.el-input__wrapper):hover,
+.premium-input :deep(.el-input__wrapper):hover,
+.premium-date-picker :deep(.el-input__wrapper):hover {
+  border-color: #cbd5e1;
+}
+
+.premium-select :deep(.el-input__wrapper).is-focus,
+.premium-input :deep(.el-input__wrapper).is-focus,
+.premium-date-picker :deep(.el-input__wrapper).is-focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Table Style & Typo */
+.premium-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.font-mono {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  font-size: 13px;
+}
+
+.text-secondary {
+  color: #64748b;
+}
+
+.file-name-cell {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  background: #fff3e0;
+  gap: 8px;
+}
+
+.pdf-icon {
+  font-size: 16px;
+}
+
+.file-title-text {
+  font-weight: 500;
+  color: #1e293b;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.file-title-text:hover {
+  color: #3b82f6;
+  text-decoration: underline;
+}
+
+.type-tag-premium {
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* Pulse indicator dot */
+.status-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  position: relative;
+}
+
+.status-indicator-dot.pending { background-color: #94a3b8; }
+.status-indicator-dot.processing {
+  background-color: #3b82f6;
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  animation: pulse 1.6s infinite;
+}
+.status-indicator-dot.completed { background-color: #10b981; }
+.status-indicator-dot.warning { background-color: #f59e0b; }
+.status-indicator-dot.failed { background-color: #ef4444; }
+
+.status-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+.status-label.pending { color: #64748b; }
+.status-label.processing { color: #3b82f6; }
+.status-label.completed { color: #10b981; }
+.status-label.warning { color: #d97706; }
+.status-label.failed { color: #ef4444; }
+
+/* Pass rate styles */
+.progress-premium-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.rate-value {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.rate-value.text-success { color: #10b981; }
+.rate-value.text-warning { color: #d97706; }
+.rate-value.text-danger { color: #ef4444; }
+
+.progress-bar-premium :deep(.el-progress-bar__inner) {
   border-radius: 4px;
+  background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+}
+
+.progress-bar-premium :deep(.el-progress-bar__outer) {
+  border-radius: 4px;
+  background-color: #f1f5f9;
+}
+
+/* Action button items */
+.table-actions-row {
+  display: flex;
+  gap: 12px;
+}
+
+.action-btn-view, .action-btn-download, .action-btn-delete {
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.action-btn-view:hover { color: #2563eb; }
+.action-btn-download:hover { color: #059669; }
+.action-btn-delete:hover { color: #dc2626; }
+
+/* Batch banner */
+.batch-control-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(239, 246, 255, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 8px;
+  padding: 10px 16px;
+  backdrop-filter: blur(8px);
+}
+
+.pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse 1.2s infinite;
+}
+
+.selected-text {
+  font-size: 13px;
+  color: #1e3a8a;
+}
+
+/* Pagination container */
+.pagination-footer-container {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.premium-pagination :deep(.el-pager li.is-active) {
+  background-color: #3b82f6;
+  color: #fff;
+  border-radius: 4px;
+}
+
+/* Micro-animations */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(59, 130, 246, 0); }
+  100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
 }
 </style>

@@ -1,7 +1,7 @@
 {
   "name": "ppap-frontend",
   "version": "1.0.0",
-  "description": "Brose PPAP File Verification Platform - Frontend",
+  "description": "PPAP File Verification Platform - Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -40,3 +40,10 @@ pytest==7.4.4
 pytest-asyncio==0.23.3
 black==24.1.1
 ruff==0.1.14
+
+# Localized Checkers & MCP
+pymupdf>=1.23.0
+pyhanko>=0.21.0
+opencv-python-headless>=4.8.0
+cryptography>=41.0.0
+

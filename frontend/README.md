@@ -1,4 +1,4 @@
-# Brose PPAP File Verification Platform - Frontend
+# PPAP File Verification Platform - Frontend
 
 Vue 3 + TypeScript + Element Plus frontend for the file verification platform.
 
