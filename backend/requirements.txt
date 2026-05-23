@@ -1,0 +1,42 @@
+# FastAPI Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Database
+sqlalchemy>=2.0.25
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
+pydantic[email]>=2.6.0
+pydantic-settings>=2.1.0
+
+# Redis & Cache
+redis==5.0.1
+celery==5.3.6
+
+# File Storage & Processing
+minio==7.2.0
+pypdf==3.17.4
+pdfplumber==0.10.3
+
+# Aliyun SDK (add when integrating specific services)
+# For Aliyun Agent/Bailian: pip install alibabacloud-bailian20230601
+# alibabacloud-tea-openapi==0.3.9
+
+# HTTP Client
+httpx==0.26.0
+aiofiles==23.2.1
+
+# Utilities
+python-dateutil==2.8.2
+
+# Development
+pytest==7.4.4
+pytest-asyncio==0.23.3
+black==24.1.1
+ruff==0.1.14
