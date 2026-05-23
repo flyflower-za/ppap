@@ -272,6 +272,28 @@ async def get_email_templates(
     ]
 
 
+@router.get("/debug/permissions")
+async def debug_permissions(
+    current_user: User = Depends(get_current_user)
+):
+    """Debug endpoint to check user permissions"""
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+
+    return {
+        "user_email": current_user.email,
+        "user_role": user_role,
+        "is_admin": current_user.is_admin,
+        "can_access": {
+            "profile": True,
+            "notification": True,
+            "smtp": user_role == "ADMIN",
+            "email_templates": user_role == "ADMIN",
+            "ldap": user_role == "ADMIN",
+            "users": user_role == "ADMIN",
+        }
+    }
+
+
 @router.get("/email-templates/{template_id}")
 async def get_email_template(
     template_id: str,

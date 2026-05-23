@@ -5,6 +5,7 @@ export interface User {
   full_name: string
   department?: string
   avatar_url?: string
+  role: 'ADMIN' | 'MANAGER' | 'USER'
   is_active: boolean
   is_admin: boolean
   email_notifications_enabled: boolean

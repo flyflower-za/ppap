@@ -60,15 +60,36 @@ def decode_pdf_qrcodes(pdf_bytes: bytes, pages: list[int] | None = None) -> list
             else:
                 img = img_data
 
+            def extract_rect(box_points):
+                if box_points is None or len(box_points) == 0:
+                    return None
+                try:
+                    pts = np.array(box_points).reshape(-1, 2)
+                    xs = pts[:, 0]
+                    ys = pts[:, 1]
+                    scale_x = page.rect.width / pix.width
+                    scale_y = page.rect.height / pix.height
+                    x1 = float(np.min(xs)) * scale_x
+                    y1 = float(np.min(ys)) * scale_y
+                    x2 = float(np.max(xs)) * scale_x
+                    y2 = float(np.max(ys)) * scale_y
+                    return [x1, y1, x2, y2]
+                except Exception:
+                    return None
+
             # --- Strategy 1: Try detectAndDecodeMulti (OpenCV 4.7+) ---
             try:
                 retval, decoded_texts, points, _ = detector.detectAndDecodeMulti(img)
                 if retval and decoded_texts:
-                    for text in decoded_texts:
+                    for i, text in enumerate(decoded_texts):
                         if text and text.strip():
+                            rect = None
+                            if points is not None and len(points) > i:
+                                rect = extract_rect(points[i])
                             results.append({
                                 "page": page_idx + 1,
-                                "data": text.strip()
+                                "data": text.strip(),
+                                "rect": rect
                             })
                     continue  # Successfully decoded, move to next page
             except (cv2.error, AttributeError):
@@ -80,7 +101,8 @@ def decode_pdf_qrcodes(pdf_bytes: bytes, pages: list[int] | None = None) -> list
                 if data and data.strip():
                     results.append({
                         "page": page_idx + 1,
-                        "data": data.strip()
+                        "data": data.strip(),
+                        "rect": extract_rect(bbox)
                     })
             except cv2.error:
                 pass
@@ -98,7 +120,8 @@ def decode_pdf_qrcodes(pdf_bytes: bytes, pages: list[int] | None = None) -> list
                     if data and data.strip():
                         results.append({
                             "page": page_idx + 1,
-                            "data": data.strip()
+                            "data": data.strip(),
+                            "rect": extract_rect(bbox)
                         })
                 except cv2.error:
                     pass

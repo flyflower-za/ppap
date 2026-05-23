@@ -13,13 +13,21 @@
             <el-icon><Bell /></el-icon>
             <span>通知设置</span>
           </el-menu-item>
-          <el-menu-item index="smtp">
+          <el-menu-item index="smtp" v-if="canAccessSettings('smtp')">
             <el-icon><Setting /></el-icon>
             <span>SMTP 配置</span>
           </el-menu-item>
-          <el-menu-item index="templates">
+          <el-menu-item index="templates" v-if="canAccessSettings('email_templates')">
             <el-icon><Document /></el-icon>
             <span>邮件模板</span>
+          </el-menu-item>
+          <el-menu-item index="ldap" v-if="canAccessSettings('ldap')">
+            <el-icon><Lock /></el-icon>
+            <span>LDAP/SSO配置</span>
+          </el-menu-item>
+          <el-menu-item index="users" v-if="canAccessSettings('users')">
+            <el-icon><UserFilled /></el-icon>
+            <span>用户管理</span>
           </el-menu-item>
         </el-menu>
       </el-col>
@@ -389,6 +397,257 @@
             <el-button @click="previewDialogVisible = false">关闭</el-button>
           </template>
         </el-dialog>
+
+        <!-- LDAP/SSO Configuration Section -->
+        <el-card v-if="activeMenu === 'ldap'" shadow="never" v-loading="loadingLDAP">
+          <template #header>
+            <div class="flex-between">
+              <span>LDAP/SSO 认证配置</span>
+              <el-tag :type="ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? 'success' : 'info'" size="small">
+                {{ ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? '已启用' : '未启用' }}
+              </el-tag>
+            </div>
+          </template>
+
+          <el-form
+            ref="ldapFormRef"
+            :model="ldapConfig"
+            label-width="200px"
+            class="ldap-form"
+          >
+            <el-divider content-position="left">基本设置</el-divider>
+
+            <el-form-item label="保留本地管理员账号">
+              <el-switch v-model="ldapConfig.local_admin_enabled" />
+              <span class="form-tip">保留本地管理员账号，用于紧急访问</span>
+            </el-form-item>
+
+            <el-form-item label="自动创建用户">
+              <el-switch v-model="ldapConfig.auto_create_users" />
+              <span class="form-tip">用户首次登录时自动创建账号</span>
+            </el-form-item>
+
+            <el-form-item label="默认用户角色">
+              <el-radio-group v-model="ldapConfig.default_role">
+                <el-radio label="USER">普通用户</el-radio>
+                <el-radio label="MANAGER">经理</el-radio>
+                <el-radio label="ADMIN">管理员</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
+            <el-divider content-position="left">LDAP 配置</el-divider>
+
+            <el-form-item label="启用 LDAP">
+              <el-switch v-model="ldapConfig.ldap_enabled" />
+            </el-form-item>
+
+            <el-form-item label="LDAP 服务器" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_server"
+                placeholder="例如: ldap.example.com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="端口" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model.number="ldapConfig.ldap_port"
+                type="number"
+                placeholder="389"
+                clearable
+              />
+              <span class="form-tip">常用端口: 389 (标准), 636 (SSL)</span>
+            </el-form-item>
+
+            <el-form-item label="使用 SSL/TLS" v-if="ldapConfig.ldap_enabled">
+              <el-switch v-model="ldapConfig.ldap_use_ssl" />
+            </el-form-item>
+
+            <el-form-item label="绑定 DN" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_bind_dn"
+                placeholder="例如: cn=admin,dc=example,dc=com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="绑定密码" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_bind_password"
+                type="password"
+                placeholder="请输入绑定密码"
+                show-password
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="搜索基础 DN" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_search_base"
+                placeholder="例如: dc=example,dc=com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="邮箱属性" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_email_attribute"
+                placeholder="mail"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="姓名属性" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_name_attribute"
+                placeholder="cn"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="部门属性" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ldap_department_attribute"
+                placeholder="department"
+                clearable
+              />
+            </el-form-item>
+
+            <el-divider content-position="left">AD 组映射（权限分配）</el-divider>
+
+            <el-form-item label="管理员组 DN" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ad_admin_group"
+                placeholder="例如: cn=PPAP-Admins,ou=groups,dc=example,dc=com"
+                clearable
+              />
+              <span class="form-tip">该组成员将被分配管理员权限</span>
+            </el-form-item>
+
+            <el-form-item label="经理组 DN" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ad_manager_group"
+                placeholder="例如: cn=PPAP-Managers,ou=groups,dc=example,dc=com"
+                clearable
+              />
+              <span class="form-tip">该组成员将被分配经理权限</span>
+            </el-form-item>
+
+            <el-form-item label="用户组 DN" v-if="ldapConfig.ldap_enabled">
+              <el-input
+                v-model="ldapConfig.ad_user_group"
+                placeholder="例如: cn=PPAP-Users,ou=groups,dc=example,dc=com"
+                clearable
+              />
+              <span class="form-tip">该组成员将被分配普通用户权限</span>
+            </el-form-item>
+
+            <el-divider content-position="left">SSO 配置（SAML）</el-divider>
+
+            <el-form-item label="启用 SSO">
+              <el-switch v-model="ldapConfig.sso_enabled" />
+            </el-form-item>
+
+            <el-form-item label="SSO 提供商" v-if="ldapConfig.sso_enabled">
+              <el-input
+                v-model="ldapConfig.sso_provider"
+                placeholder="例如: AzureAD, Okta"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="实体 ID" v-if="ldapConfig.sso_enabled">
+              <el-input
+                v-model="ldapConfig.sso_entity_id"
+                placeholder="例如: https://ppap.example.com"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="ACS URL" v-if="ldapConfig.sso_enabled">
+              <el-input
+                v-model="ldapConfig.sso_acs_url"
+                placeholder="断言消费服务 URL"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="IdP SSO URL" v-if="ldapConfig.sso_enabled">
+              <el-input
+                v-model="ldapConfig.sso_idp_sso_url"
+                placeholder="身份提供者登录 URL"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item>
+              <el-button
+                type="primary"
+                :icon="Check"
+                :loading="savingLDAP"
+                @click="handleSaveLDAP"
+              >
+                保存配置
+              </el-button>
+              <el-button
+                v-if="ldapConfig.ldap_enabled"
+                :icon="MessageBox"
+                :loading="testingLDAP"
+                @click="handleTestLDAP"
+              >
+                测试 LDAP 连接
+              </el-button>
+            </el-form-item>
+          </el-form>
+
+          <el-alert
+            v-if="ldapSaveSuccess"
+            type="success"
+            title="配置已保存"
+            description="LDAP/SSO 配置已成功保存"
+            :closable="false"
+            show-icon
+            class="mt-4"
+          />
+        </el-card>
+
+        <!-- User Management Section -->
+        <el-card v-if="activeMenu === 'users'" shadow="never" v-loading="loadingUsers">
+          <template #header>
+            <span>用户管理</span>
+          </template>
+
+          <el-table :data="users" style="width: 100%">
+            <el-table-column prop="email" label="邮箱" width="250" />
+            <el-table-column prop="full_name" label="姓名" width="150" />
+            <el-table-column prop="department" label="部门" />
+            <el-table-column label="角色" width="120">
+              <template #default="scope">
+                <el-select
+                  v-model="scope.row.role"
+                  size="small"
+                  @change="handleRoleChange(scope.row)"
+                >
+                  <el-option label="管理员" value="ADMIN" />
+                  <el-option label="经理" value="MANAGER" />
+                  <el-option label="普通用户" value="USER" />
+                </el-select>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
+                  {{ scope.row.is_active ? '激活' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="最后登录" width="180">
+              <template #default="scope">
+                {{ scope.row.last_login_at ? new Date(scope.row.last_login_at).toLocaleString() : '-' }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
       </el-col>
     </el-row>
   </div>
@@ -398,14 +657,58 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit } from '@element-plus/icons-vue'
+import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled } from '@element-plus/icons-vue'
 import type { EmailTemplate } from '@/api/settings'
+import type { LDAPConfig, UserInfo } from '@/api/ldap'
 
 const authStore = useAuthStore()
 
 // Restore active menu from localStorage
 const savedMenu = localStorage.getItem('settingsActiveMenu')
 const activeMenu = ref(savedMenu || 'profile')
+
+// Auto-fix user role on mount (in case of stale data)
+async function ensureUserRole() {
+  try {
+    await authStore.fetchMe()
+    console.log('[Settings] User info refreshed:', authStore.user)
+  } catch (error) {
+    console.error('[Settings] Failed to refresh user info:', error)
+  }
+}
+
+// Call refresh on mount
+ensureUserRole()
+
+// Check if user can access specific settings
+function canAccessSettings(setting: string): boolean {
+  const user = authStore.user
+  const role = user?.role || 'USER'
+
+  // Debug logging
+  console.log('[Settings] Checking permission:', {
+    setting,
+    userRole: role,
+    userEmail: user?.email,
+    isAdmin: user?.is_admin,
+    rawUser: user
+  })
+
+  // Define which roles can access which settings
+  const permissions: Record<string, string[]> = {
+    profile: ['USER', 'MANAGER', 'ADMIN'],
+    notification: ['USER', 'MANAGER', 'ADMIN'],
+    smtp: ['ADMIN'],
+    email_templates: ['ADMIN'],
+    ldap: ['ADMIN'],
+    users: ['ADMIN'],
+  }
+
+  const hasAccess = permissions[setting]?.includes(role) || false
+  console.log('[Settings] Permission check result:', { setting, hasAccess })
+
+  return hasAccess
+}
 
 const loading = ref(false)
 const loadingNotif = ref(false)
@@ -461,6 +764,46 @@ const editingTemplate = ref<EmailTemplate | null>(null)
 const savingTemplate = ref(false)
 const templateFormRef = ref<FormInstance>()
 const previewHtml = ref('')
+
+// LDAP/SSO Configuration
+const loadingLDAP = ref(false)
+const savingLDAP = ref(false)
+const testingLDAP = ref(false)
+const ldapSaveSuccess = ref(false)
+const ldapFormRef = ref<FormInstance>()
+
+const ldapConfig = reactive<LDAPConfig>({
+  ldap_enabled: false,
+  ldap_server: null,
+  ldap_port: null,
+  ldap_use_ssl: false,
+  ldap_bind_dn: null,
+  ldap_bind_password: null,
+  ldap_search_base: null,
+  ldap_search_filter: '(sAMAccountName={username})',
+  ldap_email_attribute: 'mail',
+  ldap_name_attribute: 'cn',
+  ldap_department_attribute: 'department',
+  ad_admin_group: null,
+  ad_manager_group: null,
+  ad_user_group: null,
+  sso_enabled: false,
+  sso_provider: null,
+  sso_entity_id: null,
+  sso_acs_url: null,
+  sso_slo_url: null,
+  sso_idp_sso_url: null,
+  sso_idp_cert: null,
+  sso_sp_cert: null,
+  sso_sp_key: null,
+  local_admin_enabled: true,
+  auto_create_users: true,
+  default_role: 'USER'
+})
+
+// User Management
+const users = ref<UserInfo[]>([])
+const loadingUsers = ref(false)
 
 const templateForm = reactive({
   id: '',
@@ -719,8 +1062,85 @@ watch(activeMenu, (newIndex) => {
     loadNotificationSettings()
   } else if (newIndex === 'templates') {
     loadEmailTemplates()
+  } else if (newIndex === 'ldap') {
+    loadLDAPConfig()
+  } else if (newIndex === 'users') {
+    loadUsers()
   }
 }, { immediate: true })
+
+async function loadLDAPConfig() {
+  loadingLDAP.value = true
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    const config = await ldapApi.getLDAPConfig()
+    Object.assign(ldapConfig, config)
+  } catch (error) {
+    console.error('Failed to load LDAP config:', error)
+  } finally {
+    loadingLDAP.value = false
+  }
+}
+
+async function handleSaveLDAP() {
+  savingLDAP.value = true
+  ldapSaveSuccess.value = false
+
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.updateLDAPConfig(ldapConfig)
+
+    ldapSaveSuccess.value = true
+    ElMessage.success('LDAP/SSO 配置已保存')
+
+    setTimeout(() => {
+      ldapSaveSuccess.value = false
+    }, 3000)
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存失败')
+  } finally {
+    savingLDAP.value = false
+  }
+}
+
+async function handleTestLDAP() {
+  testingLDAP.value = true
+
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.testLDAPConnection()
+    ElMessage.success('LDAP 连接测试成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '连接测试失败')
+  } finally {
+    testingLDAP.value = false
+  }
+}
+
+async function loadUsers() {
+  loadingUsers.value = true
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    users.value = await ldapApi.getAllUsers()
+  } catch (error) {
+    console.error('Failed to load users:', error)
+    ElMessage.error('加载用户列表失败')
+  } finally {
+    loadingUsers.value = false
+  }
+}
+
+async function handleRoleChange(user: UserInfo) {
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.updateUserRole(user.id, user.role as 'ADMIN' | 'MANAGER' | 'USER')
+    ElMessage.success(`用户 ${user.full_name} 的角色已更新为 ${user.role}`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '更新角色失败')
+    // Revert the change
+    await loadUsers()
+  }
+}
 
 onMounted(() => {
   // Data loading is handled by watch with immediate: true

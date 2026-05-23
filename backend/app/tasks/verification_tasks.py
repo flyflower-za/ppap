@@ -11,6 +11,7 @@ from app.core.minio_client import minio_client
 from app.models.file import File, FileStatus, FileType
 from app.models.task import Task, TaskStatus
 from app.models.notification import Notification, NotificationType
+from app.core.redis import redis_client
 
 # Import localized checker modules
 from app.checkers.qr_decoder import decode_pdf_qrcodes
@@ -40,6 +41,23 @@ def queue_verification_task(self, file_id: str):
                 logger.error(f"File {file_id} not found in database.")
                 return
 
+            # Helper to publish progress dynamically
+            async def publish_progress(progress_val: int, status_val: str, step_msg: str):
+                try:
+                    if not redis_client.redis:
+                        await redis_client.connect()
+                    await redis_client.redis.publish(
+                        f"file_progress:{file_id}",
+                        json.dumps({
+                            "file_id": file_id,
+                            "progress": progress_val,
+                            "status": status_val,
+                            "current_step": step_msg
+                        })
+                    )
+                except Exception as pub_err:
+                    logger.warning(f"Failed to publish progress to Redis: {pub_err}")
+
             # Initialize timing
             start_time = datetime.utcnow()
 
@@ -60,6 +78,7 @@ def queue_verification_task(self, file_id: str):
             file_record.verification_progress = 10
             file_record.verification_model = "Local Checker Engine v3.0 (PDF Standardized)"
             await db.commit()
+            await publish_progress(10, FileStatus.PROCESSING.value, "初始化智能校验引擎...")
 
             # ============================================================
             # Stage 1: Download PDF from MinIO
@@ -69,6 +88,7 @@ def queue_verification_task(self, file_id: str):
             task_record.current_step = "正在下载原 PDF 文件..."
             file_record.verification_progress = 20
             await db.commit()
+            await publish_progress(20, FileStatus.PROCESSING.value, "正在下载原 PDF 文件...")
 
             # Download the actual PDF bytes from MinIO
             pdf_bytes = None
@@ -86,6 +106,7 @@ def queue_verification_task(self, file_id: str):
             task_record.current_step = "正在核对 PDF 文本层类型 (文本型/扫描型)..."
             file_record.verification_progress = 40
             await db.commit()
+            await publish_progress(40, FileStatus.PROCESSING.value, "正在核对 PDF 文本层类型 (文本型/扫描型)...")
 
             text_results = {
                 "is_text_pdf": False,
@@ -109,6 +130,7 @@ def queue_verification_task(self, file_id: str):
             task_record.current_step = "正在检测并解析文档内嵌二维码..."
             file_record.verification_progress = 60
             await db.commit()
+            await publish_progress(60, FileStatus.PROCESSING.value, "正在检测并解析文档内嵌二维码...")
 
             qr_results = []
             if pdf_bytes:
@@ -126,6 +148,7 @@ def queue_verification_task(self, file_id: str):
             task_record.current_step = "正在验证 PDF 数字签名安全与证书主体..."
             file_record.verification_progress = 80
             await db.commit()
+            await publish_progress(80, FileStatus.PROCESSING.value, "正在验证 PDF 数字签名安全与证书主体...")
 
             sig_results = {"signed": False, "signatures": []}
             if pdf_bytes:
@@ -143,6 +166,7 @@ def queue_verification_task(self, file_id: str):
             task_record.current_step = "正在执行结构合规性比对与报告编译..."
             file_record.verification_progress = 95
             await db.commit()
+            await publish_progress(95, FileStatus.PROCESSING.value, "正在执行结构合规性比对与报告编译...")
 
             # --- Build the final checks list based on the 4 key points ---
             checks = []
@@ -345,6 +369,7 @@ def queue_verification_task(self, file_id: str):
             db.add(notification)
 
             await db.commit()
+            await publish_progress(100, final_status.value, "PDF 标准合规校验完成，报告已归档。")
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
 
     # Run the async operations inside the sync Celery context and cleanly dispose connections

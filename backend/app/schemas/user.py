@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 
 
@@ -32,6 +32,7 @@ class UserResponse(UserBase):
 
     id: str
     avatar_url: Optional[str] = None
+    role: Literal["ADMIN", "MANAGER", "USER"] = "USER"
     is_active: bool
     is_admin: bool
     email_notifications_enabled: bool

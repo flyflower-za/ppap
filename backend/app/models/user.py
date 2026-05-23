@@ -9,9 +9,9 @@ from app.core.database import Base
 
 class UserRole(str, enum.Enum):
     """User role enumeration"""
-    ADMIN = "admin"
-    MANAGER = "manager"
-    USER = "user"
+    ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
+    USER = "USER"
 
 
 class User(Base):

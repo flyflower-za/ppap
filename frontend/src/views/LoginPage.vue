@@ -87,6 +87,10 @@
                 <span class="role admin-badge">管理员</span>
                 <span class="email">admin@example.com</span>
               </button>
+              <button class="demo-btn" @click="fillDemo('manager@example.com')">
+                <span class="role manager-badge">经理</span>
+                <span class="email">manager@example.com</span>
+              </button>
               <button class="demo-btn" @click="fillDemo('user@example.com')">
                 <span class="role user-badge">普通用户</span>
                 <span class="email">user@example.com</span>
@@ -537,6 +541,11 @@ async function handleLogin() {
 .user-badge {
   background: #dbeafe;
   color: #2563eb;
+}
+
+.manager-badge {
+  background: #fef3c7;
+  color: #d97706;
 }
 
 .demo-btn .email {

@@ -536,13 +536,15 @@ async function fetchFileDetail(silent = false) {
     const res = await filesApi.getDetail(fileId)
     file.value = res
     
-    // Check if we need to poll
+    // Check if we need to poll or connect to WebSocket
     if (res.status === 'pending' || res.status === 'processing') {
-      startPolling()
+      connectWebSocket()
     } else {
+      closeWebSocket()
       stopPolling()
     }
   } catch (error) {
+    closeWebSocket()
     stopPolling()
     ElMessage.error('无法载入文件详情')
   } finally {
@@ -628,12 +630,72 @@ async function handleDeleteNote(noteId: string) {
   }
 }
 
-// Live Polling Scheduler
+// WebSocket Connection Management
+let socket: WebSocket | null = null
+
+function connectWebSocket() {
+  if (socket) return
+  
+  const token = localStorage.getItem('token') || ''
+  const fileId = route.params.id as string
+  
+  let wsUrl = ''
+  const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+  
+  if (apiBase.startsWith('http')) {
+    wsUrl = apiBase.replace(/^http/, 'ws') + `/files/ws/${fileId}?token=${token}`
+  } else {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    wsUrl = `${protocol}//${host}${apiBase}/files/ws/${fileId}?token=${token}`
+  }
+  
+  console.log('Connecting to verification progress WebSocket:', wsUrl)
+  socket = new WebSocket(wsUrl)
+  
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.error) {
+      console.error('WebSocket progress channel error:', data.error)
+      startPolling() // Fallback
+      return
+    }
+    
+    if (file.value) {
+      file.value.verification_progress = data.progress
+      file.value.status = data.status
+      
+      if (data.status !== 'pending' && data.status !== 'processing') {
+        fetchFileDetail(true)
+        fetchNotes(true)
+        closeWebSocket()
+      }
+    }
+  }
+  
+  socket.onerror = (err) => {
+    console.error('WebSocket encountered an error:', err)
+    startPolling() // Fallback to HTTP Polling
+  }
+  
+  socket.onclose = () => {
+    socket = null
+  }
+}
+
+function closeWebSocket() {
+  if (socket) {
+    socket.close()
+    socket = null
+  }
+}
+
+// Live Polling Scheduler (Fallback)
 function startPolling() {
   if (pollTimer) return
+  console.log('Falling back to standard HTTP short polling...')
   pollTimer = setInterval(async () => {
     await fetchFileDetail(true)
-    // If completed or failed during poll, also refresh notes to pick up potential machine summaries
     if (file.value && file.value.status !== 'pending' && file.value.status !== 'processing') {
       fetchNotes(true)
     }
@@ -656,6 +718,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  closeWebSocket()
   stopPolling()
 })
 </script>

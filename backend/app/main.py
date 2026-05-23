@@ -40,6 +40,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to initialize default email templates: {e}")
 
+    # Migrate User Roles
+    try:
+        from app.data.migrate_user_roles import migrate_user_roles
+        await migrate_user_roles()
+        logger.info("User role migration completed.")
+    except Exception as e:
+        logger.warning(f"Failed to migrate user roles: {e}")
+
     # Initialize Redis
     try:
         await redis_client.connect()
