@@ -22,6 +22,24 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting PPAP File Verification Platform...")
 
+    # Initialize Database Tables
+    try:
+        from app.core.database import engine, Base
+        import app.models  # Registers all models in Base.metadata
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database tables initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}")
+
+    # Initialize Default Email Templates
+    try:
+        from app.data.default_templates import init_default_templates
+        await init_default_templates()
+        logger.info("Default email templates initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize default email templates: {e}")
+
     # Initialize Redis
     try:
         await redis_client.connect()

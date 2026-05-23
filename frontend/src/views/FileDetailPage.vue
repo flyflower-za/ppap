@@ -173,6 +173,170 @@
             </div>
           </div>
 
+          <!-- Digital Signature Details Card -->
+          <div
+            v-if="file.verification_result?.digital_signatures"
+            class="glass-card section-panel mb-4 small-card"
+          >
+            <div class="section-title flex-between">
+              <h3>数字签名详情</h3>
+              <el-tag
+                :type="file.verification_result.digital_signatures.signed ? 'success' : 'info'"
+                size="small"
+              >
+                {{ file.verification_result.digital_signatures.signed ? '已签名' : '未签名' }}
+              </el-tag>
+            </div>
+
+            <!-- No Signatures -->
+            <el-empty
+              v-if="!file.verification_result.digital_signatures.signed"
+              description="该文档未包含数字签名"
+              :image-size="60"
+              class="compact-empty"
+            />
+
+            <!-- Signature List -->
+            <div v-else class="signatures-list">
+              <div
+                v-for="(sig, index) in file.verification_result.digital_signatures.signatures"
+                :key="index"
+                class="signature-card"
+                :class="{ 'sig-invalid': !sig.integrity || sig.expired }"
+              >
+                <!-- Signature Header -->
+                <div class="sig-header flex-between">
+                  <div class="sig-name-group">
+                    <el-icon class="sig-icon" :color="sig.integrity && !sig.expired ? '#67C23A' : '#F56C6C'">
+                      <Key />
+                    </el-icon>
+                    <span class="sig-field-name">{{ sig.signature_name }}</span>
+                  </div>
+                  <div class="sig-badges">
+                    <el-tag
+                      :type="sig.integrity ? 'success' : 'danger'"
+                      size="small"
+                      effect="plain"
+                    >
+                      {{ sig.integrity ? '完整' : '已篡改' }}
+                    </el-tag>
+                    <el-tag
+                      :type="sig.expired ? 'danger' : 'success'"
+                      size="small"
+                      effect="plain"
+                    >
+                      {{ sig.expired ? '已过期' : '有效' }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <!-- Signature Details -->
+                <div class="sig-details">
+                  <div class="sig-detail-row">
+                    <span class="sig-detail-label">签署主体</span>
+                    <span class="sig-detail-value text-bold">{{ sig.signer_cn }}</span>
+                  </div>
+                  <div class="sig-detail-row" v-if="sig.signing_time">
+                    <span class="sig-detail-label">签署时间</span>
+                    <span class="sig-detail-value">{{ formatDate(sig.signing_time) }}</span>
+                  </div>
+                  <div class="sig-detail-row">
+                    <span class="sig-detail-label">数据完整性</span>
+                    <span
+                      class="sig-detail-value"
+                      :class="sig.integrity ? 'color-pass' : 'color-fail'"
+                    >
+                      {{ sig.integrity ? '未被篡改' : '已遭篡改/损坏' }}
+                    </span>
+                  </div>
+                  <div class="sig-detail-row">
+                    <span class="sig-detail-label">证书时效性</span>
+                    <span
+                      class="sig-detail-value"
+                      :class="!sig.expired ? 'color-pass' : 'color-fail'"
+                    >
+                      {{ sig.expired ? '已过期' : '有效期内' }}
+                    </span>
+                  </div>
+
+                  <!-- Toggle Expansion Button -->
+                  <div v-if="sig.cert_info && Object.keys(sig.cert_info).length > 0" class="sig-expand-toggle-row">
+                    <el-button 
+                      link 
+                      type="primary" 
+                      size="small" 
+                      @click="toggleSigExpand(index)"
+                      class="expand-toggle-btn"
+                    >
+                      {{ expandedSigs[index] ? '收起证书详情' : '展开详细证书识别信息' }}
+                      <el-icon class="ml-1">
+                        <component :is="expandedSigs[index] ? ArrowUp : ArrowDown" />
+                      </el-icon>
+                    </el-button>
+                  </div>
+
+                  <!-- Expanded Certificate Details (Collapsible) -->
+                  <el-collapse-transition>
+                    <div v-show="expandedSigs[index]" class="cert-expanded-section mt-2">
+                      <el-divider class="compact-divider" />
+                      
+                      <!-- Subject Details -->
+                      <div class="cert-sub-group" v-if="sig.cert_info.subject">
+                        <span class="cert-group-title">证书主体识别 (Subject)</span>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organization_name">
+                          <span class="sig-detail-label">组织 (O)</span>
+                          <span class="sig-detail-value">{{ sig.cert_info.subject.organization_name }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organizational_unit_name">
+                          <span class="sig-detail-label">部门 (OU)</span>
+                          <span class="sig-detail-value">{{ sig.cert_info.subject.organizational_unit_name }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.user_id">
+                          <span class="sig-detail-label">用户 ID</span>
+                          <span class="sig-detail-value text-monospace">{{ sig.cert_info.subject.user_id }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.country_name">
+                          <span class="sig-detail-label">国家 (C)</span>
+                          <span class="sig-detail-value">{{ sig.cert_info.subject.country_name }}</span>
+                        </div>
+                      </div>
+
+                      <!-- Issuer Details -->
+                      <div class="cert-sub-group mt-2" v-if="sig.cert_info.issuer">
+                        <span class="cert-group-title">颁发机构 (Issuer CA)</span>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.common_name">
+                          <span class="sig-detail-label">机构 CN</span>
+                          <span class="sig-detail-value">{{ sig.cert_info.issuer.common_name }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.organization_name">
+                          <span class="sig-detail-label">颁发组织</span>
+                          <span class="sig-detail-value">{{ sig.cert_info.issuer.organization_name }}</span>
+                        </div>
+                      </div>
+
+                      <!-- Validity & Serial Details -->
+                      <div class="cert-sub-group mt-2">
+                        <span class="cert-group-title">证书有效期与凭证</span>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_before">
+                          <span class="sig-detail-label">生效时间</span>
+                          <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_before) }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_after">
+                          <span class="sig-detail-label">失效时间</span>
+                          <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_after) }}</span>
+                        </div>
+                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.serial_number">
+                          <span class="sig-detail-label">证书序列号</span>
+                          <span class="sig-detail-value text-monospace word-break-serial">{{ sig.cert_info.serial_number }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </el-collapse-transition>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Reviewer Notes Panel -->
           <div class="glass-card section-panel notes-panel">
             <div class="section-title">
@@ -258,7 +422,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, Close, Delete } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, Close, Delete, Key, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -271,6 +435,11 @@ const authStore = useAuthStore()
 const file = ref<FileDetail | null>(null)
 const notes = ref<Note[]>([])
 const newNote = ref('')
+const expandedSigs = ref<Record<number, boolean>>({})
+
+function toggleSigExpand(index: number) {
+  expandedSigs.value[index] = !expandedSigs.value[index]
+}
 
 const loading = ref(true)
 const notesLoading = ref(false)
@@ -1142,7 +1311,176 @@ onUnmounted(() => {
   background: #3367d6;
 }
 
+/* ==================== Digital Signature Card Styles ==================== */
+.signatures-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.signature-card {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.25s ease;
+}
+
+.signature-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(66, 133, 244, 0.2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.signature-card.sig-invalid {
+  background: rgba(255, 243, 235, 0.5);
+  border-color: rgba(245, 63, 54, 0.2);
+}
+
+.signature-card.sig-invalid:hover {
+  background: rgba(255, 243, 235, 0.75);
+  border-color: rgba(245, 63, 54, 0.3);
+}
+
+.sig-header {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.sig-name-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sig-icon {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+.sig-field-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.sig-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.sig-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sig-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sig-detail-label {
+  color: #8792a2;
+  font-weight: 500;
+}
+
+.sig-detail-value {
+  font-weight: 600;
+  color: #2c3e50;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-word;
+}
+
+.compact-empty {
+  padding: 12px 0;
+}
+
+.compact-empty :deep(.el-empty__description) {
+  font-size: 13px;
+  color: #8792a2;
+}
+
 .my-3 {
   margin: 12px 0;
+}
+
+/* Enhanced Digital Signature styles */
+.text-bold {
+  font-weight: 700;
+}
+
+.compact-divider {
+  margin: 10px 0;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.cert-expanded-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cert-sub-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.015);
+  border-radius: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.cert-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7d8b99;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+  display: block;
+}
+
+.small-txt {
+  font-size: 12px !important;
+}
+
+.word-break-serial {
+  word-break: break-all;
+  font-size: 11px;
+  max-width: 70%;
+  color: #64748b;
+}
+
+.mt-2 {
+  margin-top: 8px;
+}
+
+.sig-expand-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.expand-toggle-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4285f4;
+  transition: all 0.2s ease;
+  padding: 4px 0;
+}
+
+.expand-toggle-btn:hover {
+  color: #3367d6;
+  text-decoration: none;
+  transform: translateY(-0.5px);
+}
+
+.ml-1 {
+  margin-left: 4px;
 }
 </style>

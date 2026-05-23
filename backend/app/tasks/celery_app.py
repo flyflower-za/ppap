@@ -15,5 +15,9 @@ celery_app.conf.update(
     enable_utc=True,
     imports=[
         "app.tasks.verification_tasks",
+        "app.tasks.scheduler_tasks",
     ],
 )
+
+# Import beat schedule
+from app.tasks.scheduler_tasks import *  # noqa

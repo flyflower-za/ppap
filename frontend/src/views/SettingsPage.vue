@@ -13,6 +13,14 @@
             <el-icon><Bell /></el-icon>
             <span>通知设置</span>
           </el-menu-item>
+          <el-menu-item index="smtp">
+            <el-icon><Setting /></el-icon>
+            <span>SMTP 配置</span>
+          </el-menu-item>
+          <el-menu-item index="templates">
+            <el-icon><Document /></el-icon>
+            <span>邮件模板</span>
+          </el-menu-item>
         </el-menu>
       </el-col>
 
@@ -43,9 +51,9 @@
         </el-card>
 
         <!-- Notification Section -->
-        <el-card v-if="activeMenu === 'notification'" shadow="never">
+        <el-card v-if="activeMenu === 'notification'" shadow="never" v-loading="loadingNotif">
           <template #header>
-            <span>邮件通知</span>
+            <span>邮件通知设置</span>
           </template>
 
           <div class="notification-setting">
@@ -77,27 +85,646 @@
               <el-switch v-model="dailySummary" />
             </div>
           </div>
+
+          <el-divider class="my-4" />
+
+          <div class="notification-actions">
+            <el-button
+              type="primary"
+              :icon="Check"
+              :loading="savingNotif"
+              @click="handleSaveNotification"
+            >
+              保存通知设置
+            </el-button>
+          </div>
+
+          <el-alert
+            v-if="notifSaveSuccess"
+            type="success"
+            title="设置已保存"
+            description="通知设置已成功保存"
+            :closable="false"
+            show-icon
+            class="mt-4"
+          />
         </el-card>
+
+        <!-- SMTP Configuration Section -->
+        <el-card v-if="activeMenu === 'smtp'" shadow="never" v-loading="loading">
+          <template #header>
+            <div class="flex-between">
+              <span>SMTP 邮件服务器配置</span>
+              <el-tag :type="smtpConfig.enabled ? 'success' : 'info'" size="small">
+                {{ smtpConfig.enabled ? '已启用' : '未启用' }}
+              </el-tag>
+            </div>
+          </template>
+
+          <el-form
+            ref="smtpFormRef"
+            :model="smtpConfig"
+            :rules="smtpRules"
+            label-width="140px"
+            class="smtp-form"
+          >
+            <el-form-item label="启用 SMTP">
+              <el-switch
+                v-model="smtpConfig.enabled"
+              />
+              <span class="form-tip">启用后将使用 SMTP 服务器发送邮件通知</span>
+            </el-form-item>
+
+            <el-divider content-position="left">服务器配置</el-divider>
+
+            <el-form-item label="SMTP 服务器" prop="host">
+              <el-input
+                v-model="smtpConfig.host"
+                placeholder="例如: smtp.gmail.com"
+                :disabled="!smtpConfig.enabled"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="端口" prop="port">
+              <el-input
+                v-model="smtpConfig.port"
+                type="number"
+                placeholder="587"
+                :disabled="!smtpConfig.enabled"
+                clearable
+              />
+              <span class="form-tip">常用端口: 25, 465 (SSL), 587 (TLS)</span>
+            </el-form-item>
+
+            <el-form-item label="加密方式">
+              <el-radio-group v-model="smtpConfig.encryption" :disabled="!smtpConfig.enabled">
+                <el-radio label="none">不加密</el-radio>
+                <el-radio label="tls">TLS</el-radio>
+                <el-radio label="ssl">SSL</el-radio>
+              </el-radio-group>
+            </el-form-item>
+
+            <el-divider content-position="left">账户认证</el-divider>
+
+            <el-form-item label="发件人邮箱" prop="username">
+              <el-input
+                v-model="smtpConfig.username"
+                placeholder="例如:noreply@example.com"
+                :disabled="!smtpConfig.enabled"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="发件人名称" prop="from_name">
+              <el-input
+                v-model="smtpConfig.from_name"
+                placeholder="例如:文件校验平台"
+                :disabled="!smtpConfig.enabled"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="密码/授权码" prop="password">
+              <el-input
+                v-model="smtpConfig.password"
+                type="password"
+                placeholder="请输入邮箱密码或授权码"
+                :disabled="!smtpConfig.enabled"
+                show-password
+                clearable
+              />
+              <span class="form-tip">对于 Gmail 等服务，请使用应用专用密码</span>
+            </el-form-item>
+
+            <el-form-item>
+              <el-button
+                type="primary"
+                :icon="MessageBox"
+                :loading="testing"
+                :disabled="!smtpConfig.enabled"
+                @click="handleTestEmail"
+              >
+                发送测试邮件
+              </el-button>
+              <el-button
+                type="success"
+                :icon="Check"
+                :loading="saving"
+                @click="handleSaveSmtp"
+              >
+                保存配置
+              </el-button>
+            </el-form-item>
+          </el-form>
+
+          <el-alert
+            v-if="saveSuccess"
+            type="success"
+            title="配置已保存"
+            description="SMTP 配置已成功保存，将在下次发送邮件时使用"
+            :closable="false"
+            show-icon
+            class="mt-4"
+          />
+        </el-card>
+
+        <!-- Email Templates Section -->
+        <el-card v-if="activeMenu === 'templates'" shadow="never" v-loading="loadingTemplates">
+          <template #header>
+            <div class="flex-between">
+              <span>邮件模板管理</span>
+              <el-button
+                type="primary"
+                :icon="Plus"
+                size="small"
+                @click="handleCreateTemplate"
+              >
+                新建模板
+              </el-button>
+            </div>
+          </template>
+
+          <el-table :data="templates" style="width: 100%">
+            <el-table-column prop="name" label="模板名称" width="200" />
+            <el-table-column prop="id" label="模板ID" width="180" />
+            <el-table-column prop="description" label="描述" show-overflow-tooltip />
+            <el-table-column label="变量" width="300">
+              <template #default="scope">
+                <el-tag
+                  v-for="variable in scope.row.variables"
+                  :key="variable"
+                  size="small"
+                  class="mr-1"
+                >
+                  {{ formatVariable(variable) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="scope">
+                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
+                  {{ scope.row.is_active ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="scope">
+                <el-button
+                  type="primary"
+                  :icon="Edit"
+                  size="small"
+                  link
+                  @click="handleEditTemplate(scope.row)"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  type="primary"
+                  size="small"
+                  link
+                  @click="handlePreviewTemplate(scope.row)"
+                >
+                  预览
+                </el-button>
+                <el-popconfirm
+                  title="确定要删除这个模板吗？"
+                  @confirm="handleDeleteTemplate(scope.row.id)"
+                >
+                  <template #reference>
+                    <el-button type="danger" size="small" link>删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+
+        <!-- Template Edit Dialog -->
+        <el-dialog
+          v-model="templateDialogVisible"
+          :title="editingTemplate?.id ? '编辑邮件模板' : '新建邮件模板'"
+          width="80%"
+          :close-on-click-modal="false"
+        >
+          <el-form
+            ref="templateFormRef"
+            :model="templateForm"
+            :rules="templateRules"
+            label-width="120px"
+          >
+            <el-form-item label="模板ID" prop="id">
+              <el-input
+                v-model="templateForm.id"
+                placeholder="例如: verification_complete"
+                :disabled="!!editingTemplate?.id"
+                clearable
+              />
+              <span class="form-tip">唯一标识符，用于系统调用模板</span>
+            </el-form-item>
+
+            <el-form-item label="模板名称" prop="name">
+              <el-input
+                v-model="templateForm.name"
+                placeholder="例如: 文件校验完成通知"
+                clearable
+              />
+            </el-form-item>
+
+            <el-form-item label="描述">
+              <el-input
+                v-model="templateForm.description"
+                type="textarea"
+                :rows="2"
+                placeholder="模板用途描述"
+              />
+            </el-form-item>
+
+            <el-form-item label="邮件主题" prop="subject">
+              <el-input
+                v-model="templateForm.subject"
+                placeholder="例如: 文件校验完成 - {filename}"
+                clearable
+              />
+              <span class="form-tip">可使用变量占位符，如 {filename}</span>
+            </el-form-item>
+
+            <el-form-item label="HTML内容" prop="html_content">
+              <el-input
+                v-model="templateForm.html_content"
+                type="textarea"
+                :rows="15"
+                placeholder="邮件HTML内容，可使用变量占位符"
+              />
+              <span class="form-tip">可使用变量占位符，如 {filename}, {status} 等</span>
+            </el-form-item>
+
+            <el-form-item label="启用状态">
+              <el-switch v-model="templateForm.is_active" />
+              <span class="form-tip">启用后，系统将使用此模板发送邮件</span>
+            </el-form-item>
+          </el-form>
+
+          <template #footer>
+            <el-button @click="templateDialogVisible = false">取消</el-button>
+            <el-button
+              type="primary"
+              :icon="Check"
+              :loading="savingTemplate"
+              @click="handleSaveTemplate"
+            >
+              保存
+            </el-button>
+          </template>
+        </el-dialog>
+
+        <!-- Template Preview Dialog -->
+        <el-dialog
+          v-model="previewDialogVisible"
+          title="模板预览"
+          width="70%"
+        >
+          <div v-html="previewHtml"></div>
+          <template #footer>
+            <el-button @click="previewDialogVisible = false">关闭</el-button>
+          </template>
+        </el-dialog>
       </el-col>
     </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { User, Bell } from '@element-plus/icons-vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit } from '@element-plus/icons-vue'
+import type { EmailTemplate } from '@/api/settings'
 
 const authStore = useAuthStore()
-const activeMenu = ref('profile')
+
+// Restore active menu from localStorage
+const savedMenu = localStorage.getItem('settingsActiveMenu')
+const activeMenu = ref(savedMenu || 'profile')
+
+const loading = ref(false)
+const loadingNotif = ref(false)
+const saving = ref(false)
+const savingNotif = ref(false)
+const testing = ref(false)
+const saveSuccess = ref(false)
+const notifSaveSuccess = ref(false)
+
+const smtpFormRef = ref<FormInstance>()
+
+const smtpConfig = reactive({
+  enabled: false,
+  host: '',
+  port: 587,
+  encryption: 'tls',
+  username: '',
+  from_name: '文件校验平台',
+  password: ''
+})
+
+const smtpRules: FormRules = {
+  host: [
+    { required: true, message: '请输入 SMTP 服务器地址', trigger: 'blur' }
+  ],
+  port: [
+    { required: true, message: '请输入端口号', trigger: 'blur' }
+  ],
+  username: [
+    { required: true, message: '请输入发件人邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  from_name: [
+    { required: true, message: '请输入发件人名称', trigger: 'blur' }
+  ]
+}
 
 const emailEnabled = ref(true)
 const notifyOnFailure = ref(true)
 const dailySummary = ref(false)
 
+// Helper function to format variable display
+function formatVariable(variable: string) {
+  return `{${variable}}`
+}
+
+// Email templates
+const templates = ref<EmailTemplate[]>([])
+const loadingTemplates = ref(false)
+const templateDialogVisible = ref(false)
+const previewDialogVisible = ref(false)
+const editingTemplate = ref<EmailTemplate | null>(null)
+const savingTemplate = ref(false)
+const templateFormRef = ref<FormInstance>()
+const previewHtml = ref('')
+
+const templateForm = reactive({
+  id: '',
+  name: '',
+  subject: '',
+  html_content: '',
+  description: '',
+  variables: [] as string[],
+  is_active: true
+})
+
+const templateRules: FormRules = {
+  id: [
+    { required: true, message: '请输入模板ID', trigger: 'blur' },
+    { pattern: /^[a-z_][a-z0-9_]*$/, message: '模板ID只能包含小写字母、数字和下划线，且必须以字母或下划线开头', trigger: 'blur' }
+  ],
+  name: [
+    { required: true, message: '请输入模板名称', trigger: 'blur' }
+  ],
+  subject: [
+    { required: true, message: '请输入邮件主题', trigger: 'blur' }
+  ],
+  html_content: [
+    { required: true, message: '请输入HTML内容', trigger: 'blur' }
+  ]
+}
+
 function handleMenuSelect(index: string) {
   activeMenu.value = index
 }
+
+async function loadNotificationSettings() {
+  loadingNotif.value = true
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    const response = await settingsApi.getNotificationSettings()
+    emailEnabled.value = response.email_enabled
+    notifyOnFailure.value = response.notify_on_failure
+    dailySummary.value = response.daily_summary
+  } catch (error) {
+    console.error('Failed to load notification settings:', error)
+  } finally {
+    loadingNotif.value = false
+  }
+}
+
+async function loadSmtpConfig() {
+  loading.value = true
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    const response = await settingsApi.getSmtpConfig()
+    Object.assign(smtpConfig, response)
+  } catch (error) {
+    console.error('Failed to load SMTP config:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleSaveNotification() {
+  savingNotif.value = true
+  notifSaveSuccess.value = false
+
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    await settingsApi.updateNotificationSettings({
+      email_enabled: emailEnabled.value,
+      notify_on_failure: notifyOnFailure.value,
+      daily_summary: dailySummary.value
+    })
+
+    notifSaveSuccess.value = true
+    ElMessage.success('通知设置已保存')
+
+    setTimeout(() => {
+      notifSaveSuccess.value = false
+    }, 3000)
+  } catch (error: any) {
+    ElMessage.error(error.message || '保存失败')
+  } finally {
+    savingNotif.value = false
+  }
+}
+
+async function handleSaveSmtp() {
+  if (!smtpFormRef.value) return
+
+  await smtpFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    saving.value = true
+    saveSuccess.value = false
+
+    try {
+      const { settingsApi } = await import('@/api/settings')
+      await settingsApi.updateSmtpConfig(smtpConfig)
+
+      saveSuccess.value = true
+      ElMessage.success('SMTP 配置已保存')
+
+      // 3秒后隐藏成功提示
+      setTimeout(() => {
+        saveSuccess.value = false
+      }, 3000)
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存失败')
+    } finally {
+      saving.value = false
+    }
+  })
+}
+
+async function handleTestEmail() {
+  if (!smtpFormRef.value) return
+
+  await smtpFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    testing.value = true
+
+    try {
+      const { settingsApi } = await import('@/api/settings')
+      await settingsApi.testSmtpConfig(smtpConfig)
+
+      ElMessage.success('测试邮件已发送，请检查收件箱')
+    } catch (error: any) {
+      ElMessage.error(error.message || '发送失败，请检查配置')
+    } finally {
+      testing.value = false
+    }
+  })
+}
+
+async function loadEmailTemplates() {
+  loadingTemplates.value = true
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    templates.value = await settingsApi.getEmailTemplates()
+  } catch (error) {
+    console.error('Failed to load email templates:', error)
+    ElMessage.error('加载邮件模板失败')
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
+function handleCreateTemplate() {
+  editingTemplate.value = null
+  Object.assign(templateForm, {
+    id: '',
+    name: '',
+    subject: '',
+    html_content: '',
+    description: '',
+    variables: [],
+    is_active: true
+  })
+  templateDialogVisible.value = true
+}
+
+async function handleEditTemplate(template: EmailTemplate) {
+  editingTemplate.value = template
+  Object.assign(templateForm, template)
+  templateDialogVisible.value = true
+}
+
+async function handleSaveTemplate() {
+  if (!templateFormRef.value) return
+
+  await templateFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    savingTemplate.value = true
+
+    try {
+      const { settingsApi } = await import('@/api/settings')
+
+      if (editingTemplate.value?.id) {
+        // Update existing template
+        await settingsApi.updateEmailTemplate(editingTemplate.value.id, templateForm)
+        ElMessage.success('模板更新成功')
+      } else {
+        // Create new template
+        await settingsApi.createEmailTemplate(templateForm)
+        ElMessage.success('模板创建成功')
+      }
+
+      templateDialogVisible.value = false
+      await loadEmailTemplates()
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存模板失败')
+    } finally {
+      savingTemplate.value = false
+    }
+  })
+}
+
+async function handleDeleteTemplate(templateId: string) {
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    await settingsApi.deleteEmailTemplate(templateId)
+    ElMessage.success('模板删除成功')
+    await loadEmailTemplates()
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除模板失败')
+  }
+}
+
+async function handlePreviewTemplate(template: EmailTemplate) {
+  try {
+    const { settingsApi } = await import('@/api/settings')
+
+    // Create sample context based on template variables
+    const context: Record<string, any> = {}
+    template.variables.forEach(variable => {
+      if (variable === 'filename') context[variable] = '示例文件.pdf'
+      else if (variable === 'status_emoji') context[variable] = '✅'
+      else if (variable === 'status_text') context[variable] = '通过'
+      else if (variable === 'pass_rate') context[variable] = '100'
+      else if (variable === 'status-class') context[variable] = 'status-completed'
+      else if (variable === 'date') context[variable] = '2025年01月15日'
+      else if (variable === 'total_count') context[variable] = '50'
+      else if (variable === 'completed_count') context[variable] = '45'
+      else if (variable === 'warning_count') context[variable] = '3'
+      else if (variable === 'failed_count') context[variable] = '2'
+      else if (variable === 'file_list_html') context[variable] = '<div>示例文件列表</div>'
+      else if (variable === 'from_name') context[variable] = '文件校验平台'
+      else if (variable === 'smtp_host') context[variable] = 'smtp.example.com'
+      else if (variable === 'smtp_port') context[variable] = '587'
+      else if (variable === 'encryption') context[variable] = 'TLS'
+      else if (variable === 'username') context[variable] = 'noreply@example.com'
+      else context[variable] = `[${variable}]`
+    })
+
+    const result = await settingsApi.previewEmailTemplate({
+      template_id: template.id,
+      context
+    })
+
+    previewHtml.value = result.html_content
+    previewDialogVisible.value = true
+  } catch (error: any) {
+    ElMessage.error(error.message || '预览模板失败')
+  }
+}
+
+// Watch for menu changes and load corresponding data (must be after function definitions)
+watch(activeMenu, (newIndex) => {
+  // Save to localStorage
+  localStorage.setItem('settingsActiveMenu', newIndex)
+
+  // Load corresponding data
+  if (newIndex === 'smtp') {
+    loadSmtpConfig()
+  } else if (newIndex === 'notification') {
+    loadNotificationSettings()
+  } else if (newIndex === 'templates') {
+    loadEmailTemplates()
+  }
+}, { immediate: true })
+
+onMounted(() => {
+  // Data loading is handled by watch with immediate: true
+})
 </script>
 
 <style scoped>
@@ -120,5 +747,40 @@ function handleMenuSelect(index: string) {
 .setting-info p {
   font-size: 13px;
   color: #999;
+}
+
+.smtp-form {
+  max-width: 600px;
+}
+
+.form-tip {
+  display: block;
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notification-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+}
+
+.my-4 {
+  margin: 16px 0;
+}
+
+.mr-1 {
+  margin-right: 4px;
 }
 </style>

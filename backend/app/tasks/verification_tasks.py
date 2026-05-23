@@ -130,7 +130,7 @@ def queue_verification_task(self, file_id: str):
             sig_results = {"signed": False, "signatures": []}
             if pdf_bytes:
                 try:
-                    sig_results = verify_pdf_signatures(pdf_bytes)
+                    sig_results = await verify_pdf_signatures(pdf_bytes)
                     logger.info(f"Signature verification: signed={sig_results['signed']}, count={len(sig_results['signatures'])}")
                 except Exception as e:
                     logger.error(f"Signature verifier error: {e}")

@@ -113,12 +113,13 @@ def test_sig_verifier_empty_pdf():
     """Test signature verifier handles empty/invalid input gracefully."""
     print("\n=== Test 5: Signature Verifier with empty input ===")
     from app.checkers.sig_verifier import verify_pdf_signatures
+    import asyncio
     
-    results = verify_pdf_signatures(b"")
+    results = asyncio.run(verify_pdf_signatures(b""))
     assert results["signed"] == False
     print(f"✅ Empty bytes: signed={results['signed']}, signatures={results['signatures']}")
     
-    results2 = verify_pdf_signatures(b"not a pdf at all")
+    results2 = asyncio.run(verify_pdf_signatures(b"not a pdf at all"))
     print(f"✅ Invalid PDF: signed={results2['signed']} (graceful failure)")
 
 
@@ -126,6 +127,7 @@ def test_sig_verifier_real_pdf():
     """Test signature verifier against a real PDF if available."""
     print("\n=== Test 6: Signature Verifier with real PDF ===")
     from app.checkers.sig_verifier import verify_pdf_signatures
+    import asyncio
     
     test_paths = ["test.pdf", "app/test.pdf"]
     for path in test_paths:
@@ -133,7 +135,7 @@ def test_sig_verifier_real_pdf():
             print(f"📄 Found test PDF: {path}")
             with open(path, "rb") as f:
                 pdf_bytes = f.read()
-            results = verify_pdf_signatures(pdf_bytes)
+            results = asyncio.run(verify_pdf_signatures(pdf_bytes))
             print(f"   Signed: {results['signed']}")
             for sig in results["signatures"]:
                 print(f"   - {sig['signature_name']}: integrity={sig['integrity']}, "

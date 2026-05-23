@@ -1,9 +1,17 @@
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
+import enum
 from app.core.database import Base
+
+
+class UserRole(str, enum.Enum):
+    """User role enumeration"""
+    ADMIN = "admin"
+    MANAGER = "manager"
+    USER = "user"
 
 
 class User(Base):
@@ -17,14 +25,18 @@ class User(Base):
     department = Column(String(255))
     avatar_url = Column(String(500))
 
+    # Role and permissions
+    role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
+    is_admin = Column(Boolean, default=False)  # Deprecated, use role instead (kept for compatibility)
+
     # SSO / LDAP fields
     sso_provider = Column(String(50))
     sso_id = Column(String(255), index=True)
     ldap_dn = Column(String(500))
+    ad_groups = Column(String(1000))  # Comma-separated list of AD group DNs
 
     # Status
     is_active = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)
 
     # Notification preferences
     email_notifications_enabled = Column(Boolean, default=True)

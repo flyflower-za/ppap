@@ -77,10 +77,11 @@ class MinIOClient:
         if not self.client:
             self.connect()
 
+        from datetime import timedelta
         return self.client.presigned_get_object(
             bucket_name=self.bucket,
             object_name=file_path,
-            expires=expires,
+            expires=timedelta(seconds=expires),
         )
 
     def file_exists(self, file_path: str) -> bool:
