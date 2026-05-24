@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -12,6 +12,7 @@ from app.schemas.rule import (
     DocumentCategoryCreate, DocumentCategoryUpdate, DocumentCategoryResponse, DocumentCategoryWithRules,
     VerificationRuleCreate, VerificationRuleUpdate, VerificationRuleResponse
 )
+from app.core.audit_logger import log_audit_event
 
 router = APIRouter()
 
@@ -105,6 +106,7 @@ async def list_rules(
 
 @router.post("/rules", response_model=VerificationRuleResponse)
 async def create_rule(
+    request: Request,
     rule_in: VerificationRuleCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -114,12 +116,24 @@ async def create_rule(
         data["category_id"] = str(data["category_id"])
     rule = VerificationRule(**data)
     db.add(rule)
+    
+    await log_audit_event(
+        db=db,
+        action="CREATE_RULE",
+        user=current_user,
+        resource_type="RULE",
+        resource_id=rule.id,
+        details={"rule_name": rule.rule_name, "rule_type": rule.rule_type},
+        request=request
+    )
+    
     await db.commit()
     await db.refresh(rule)
     return rule
 
 @router.put("/rules/{rule_id}", response_model=VerificationRuleResponse)
 async def update_rule(
+    request: Request,
     rule_id: UUID,
     rule_in: VerificationRuleUpdate,
     db: AsyncSession = Depends(get_db),
@@ -136,12 +150,23 @@ async def update_rule(
     for field, value in update_data.items():
         setattr(rule, field, value)
         
+    await log_audit_event(
+        db=db,
+        action="UPDATE_RULE",
+        user=current_user,
+        resource_type="RULE",
+        resource_id=rule.id,
+        details={"updated_fields": list(update_data.keys())},
+        request=request
+    )
+        
     await db.commit()
     await db.refresh(rule)
     return rule
 
 @router.delete("/rules/{rule_id}")
 async def delete_rule(
+    request: Request,
     rule_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
@@ -152,5 +177,16 @@ async def delete_rule(
         raise HTTPException(status_code=404, detail="Rule not found")
     
     await db.delete(rule)
+    
+    await log_audit_event(
+        db=db,
+        action="DELETE_RULE",
+        user=current_user,
+        resource_type="RULE",
+        resource_id=rule.id,
+        details={"rule_name": rule.rule_name},
+        request=request
+    )
+    
     await db.commit()
     return {"message": "Rule deleted successfully"}

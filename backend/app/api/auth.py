@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
@@ -9,6 +9,7 @@ from app.core.security import create_access_token, verify_password
 from app.models.user import User, UserRole
 from app.schemas.user import UserLogin, Token, UserResponse
 from app.api.deps import get_current_user
+from app.core.audit_logger import log_audit_event
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     credentials: UserLogin,
     db: AsyncSession = Depends(get_db),
 ):
@@ -64,6 +66,16 @@ async def login(
 
     # Update last login
     user.last_login_at = datetime.utcnow()
+    
+    await log_audit_event(
+        db=db,
+        action="LOGIN",
+        user=user,
+        resource_type="SYSTEM",
+        details={"email": credentials.email},
+        request=request
+    )
+    
     await db.commit()
 
     # Create access token

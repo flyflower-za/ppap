@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FormFile, Query
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FormFile, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.core.database import get_db
@@ -14,12 +14,14 @@ from app.models.user import User, UserRole
 from app.api.deps import get_current_user
 from app.models.file import FileType, File
 from app.tasks.verification_tasks import queue_verification_task
+from app.core.audit_logger import log_audit_event
 
 router = APIRouter(prefix="/files", tags=["Files"])
 
 
 @router.post("/upload", response_model=FileResponse)
 async def upload_file(
+    request: Request,
     file: UploadFile = FormFile(...),
     file_type: FileTypeEnum = Query(default=FileTypeEnum.OTHER),
     current_user: User = Depends(get_current_user),
@@ -57,6 +59,16 @@ async def upload_file(
 
     # Queue verification task asynchronously in Celery background
     queue_verification_task.delay(db_file.id)
+
+    await log_audit_event(
+        db=db,
+        action="UPLOAD_DOCUMENT",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=db_file.id,
+        details={"filename": file.filename, "file_type": db_file.file_type.value},
+        request=request
+    )
 
     return FileResponse.model_validate(db_file)
 
@@ -167,6 +179,7 @@ from app.schemas.file import FileReviewResolution
 
 @router.post("/{file_id}/resolve_review", response_model=FileDetailResponse)
 async def resolve_review(
+    request: Request,
     file_id: str,
     resolution: FileReviewResolution,
     current_user: User = Depends(get_current_user),
@@ -193,5 +206,15 @@ async def resolve_review(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File not found or not in NEEDS_REVIEW status",
         )
+
+    await log_audit_event(
+        db=db,
+        action="RESOLVE_REVIEW",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=file_id,
+        details={"action": resolution.action, "comment": resolution.comment},
+        request=request
+    )
 
     return file_detail
