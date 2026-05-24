@@ -121,7 +121,8 @@ class VerificationEngine:
                     qr_data = context.shared_state.get("qr_codes", [])
                     if len(qr_data) > 0:
                         rule_pass = True
-                        rule_msg = f"通过：检测到 {len(qr_data)} 个二维码"
+                        qr_texts = [qr.get("data", "未知") for qr in qr_data if isinstance(qr, dict)]
+                        rule_msg = f"通过：检测到 {len(qr_data)} 个二维码。内容：{', '.join(qr_texts)}"
                     else:
                         rule_msg = "未通过：未在页面上发现追溯二维码"
 
@@ -133,7 +134,8 @@ class VerificationEngine:
                     
                     if valid_sigs:
                         rule_pass = True
-                        rule_msg = "通过：检测到合法的数字签名"
+                        signers = [s.get("signer_cn", "未知签署人") for s in valid_sigs]
+                        rule_msg = f"通过：检测到合法的数字签名。签署人：{', '.join(signers)}"
                     else:
                         rule_msg = "未通过：该文档缺失强制要求的合法数字签名"
             elif rule.rule_type == RuleType.llm_prompt:
@@ -225,7 +227,8 @@ class VerificationEngine:
                                 node_msg = f"数字签名完整，但未匹配预期签发者 [{expected_issuer}]"
                         elif valid_sigs:
                             node_passed = True
-                            node_msg = "检测到合法的数字签名"
+                            signers = [s.get("signer_cn", "未知签署人") for s in valid_sigs]
+                            node_msg = f"检测到合法的数字签名。签署人：{', '.join(signers)}"
                         else:
                             node_passed = False
                             node_msg = "缺失合法数字签名"
@@ -234,7 +237,8 @@ class VerificationEngine:
                         qr_data = context.shared_state.get("qr_codes", [])
                         if len(qr_data) > 0:
                             node_passed = True
-                            node_msg = f"检测到 {len(qr_data)} 个二维码"
+                            qr_texts = [qr.get("data", "未知") for qr in qr_data if isinstance(qr, dict)]
+                            node_msg = f"检测到 {len(qr_data)} 个二维码。内容：{', '.join(qr_texts)}"
                         else:
                             node_passed = False
                             node_msg = "未检测到任何二维码"

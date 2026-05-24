@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FormFile, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.permissions import get_accessible_departments
@@ -12,7 +12,8 @@ from app.schemas.file import (
 from app.services.file_service import FileService
 from app.models.user import User, UserRole
 from app.api.deps import get_current_user
-from app.models.file import FileType, File
+from app.models.file import FileType, File, FileStatus
+from app.models.task import Task
 from app.tasks.verification_tasks import queue_verification_task
 from app.core.audit_logger import log_audit_event
 
@@ -173,6 +174,57 @@ async def batch_delete_files(
     """Batch delete files."""
     file_service = FileService(db)
     await file_service.batch_delete(request.file_ids)
+
+
+@router.post("/{file_id}/reverify", response_model=FileResponse)
+async def reverify_file(
+    request: Request,
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-verify an existing file."""
+    # Fetch the file
+    result = await db.execute(select(File).where(File.id == file_id, File.is_deleted == False))
+    db_file = result.scalars().first()
+    
+    if not db_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+        
+    # Reset file state
+    db_file.status = FileStatus.PENDING
+    db_file.verification_progress = 0
+    db_file.verification_result = None
+    db_file.pass_count = 0
+    db_file.warning_count = 0
+    db_file.fail_count = 0
+    db_file.pass_rate = 0.0
+    db_file.duration_seconds = None
+    db_file.completed_at = None
+    
+    # Delete old tasks
+    await db.execute(delete(Task).where(Task.file_id == db_file.id))
+    
+    await db.commit()
+    await db.refresh(db_file)
+    
+    # Re-queue
+    queue_verification_task.delay(db_file.id)
+    
+    await log_audit_event(
+        db=db,
+        action="REVERIFY_DOCUMENT",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=db_file.id,
+        details={"filename": db_file.filename},
+        request=request
+    )
+    
+    return FileResponse.model_validate(db_file)
 
 
 from app.schemas.file import FileReviewResolution

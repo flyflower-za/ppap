@@ -224,7 +224,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <div class="table-actions-row">
               <el-button link type="primary" size="small" class="action-btn-view" @click="handleView(row)">
@@ -239,6 +239,16 @@
                 :disabled="row.status === 'pending' || row.status === 'processing'"
               >
                 下载报告
+              </el-button>
+              <el-button 
+                link 
+                type="warning" 
+                size="small" 
+                class="action-btn-reverify" 
+                @click="handleReverify(row)"
+                :disabled="row.status === 'pending' || row.status === 'processing'"
+              >
+                重新校验
               </el-button>
               <el-button link type="danger" size="small" class="action-btn-delete" @click="handleDelete(row)">
                 删除
@@ -447,6 +457,26 @@ async function handleDownload(row: { id: string; original_filename: string }) {
   } catch (err: any) {
     console.error('Failed to get download URL:', err)
     ElMessage.error(err.message || '获取下载地址失败，请检查文件是否在库')
+  }
+}
+
+async function handleReverify(row: { id: string; original_filename: string }) {
+  try {
+    await ElMessageBox.confirm(
+      `您确定要对文件【${row.original_filename}】重新执行智能诊断吗？这将会清空之前的诊断结果并重新进入队列。人工备注将会保留。`,
+      '重新校验确认',
+      {
+        confirmButtonText: '确定重新校验',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    await filesApi.reverify(row.id)
+    ElMessage.success('已加入重新校验队列')
+    fetchData() // Refresh list
+  } catch {
+    // cancelled or failed
   }
 }
 

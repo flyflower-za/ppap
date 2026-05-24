@@ -230,22 +230,22 @@
 
           <!-- Digital Signature Details Card -->
           <div
-            v-if="file.verification_result?.digital_signatures"
+            v-if="digitalSignatures"
             class="glass-card section-panel mb-4 small-card"
           >
             <div class="section-title flex-between">
               <h3>数字签名详情</h3>
               <el-tag
-                :type="file.verification_result.digital_signatures.signed ? 'success' : 'info'"
+                :type="digitalSignatures.signed ? 'success' : 'info'"
                 size="small"
               >
-                {{ file.verification_result.digital_signatures.signed ? '已签名' : '未签名' }}
+                {{ digitalSignatures.signed ? '已签名' : '未签名' }}
               </el-tag>
             </div>
 
             <!-- No Signatures -->
             <el-empty
-              v-if="!file.verification_result.digital_signatures.signed"
+              v-if="!digitalSignatures.signed"
               description="该文档未包含数字签名"
               :image-size="60"
               class="compact-empty"
@@ -254,7 +254,7 @@
             <!-- Signature List -->
             <div v-else class="signatures-list">
               <div
-                v-for="(sig, index) in file.verification_result.digital_signatures.signatures"
+                v-for="(sig, index) in digitalSignatures.signatures"
                 :key="index"
                 class="signature-card"
                 :class="{ 'sig-invalid': !sig.integrity || sig.expired }"
@@ -505,6 +505,16 @@ const sniffedInstitution = computed(() => {
   return file.value?.verification_result_json?.operator_logs?.InstitutionSniffer?.extracted_data?.institution || ''
 })
 
+const digitalSignatures = computed(() => {
+  const v = file.value?.verification_result_json
+  return v?.operator_logs?.SignatureVerifier?.extracted_data?.digital_signatures || v?.digital_signatures || null
+})
+
+const qrCodes = computed(() => {
+  const v = file.value?.verification_result_json
+  return v?.operator_logs?.QRScanner?.extracted_data?.qr_codes || v?.qr_codes || null
+})
+
 function toggleSigExpand(index: number) {
   expandedSigs.value[index] = !expandedSigs.value[index]
 }
@@ -545,8 +555,9 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
         await page.render({ canvasContext: context, viewport }).promise
         
         // QR codes
-        if (verificationResult?.qr_codes?.qr_data) {
-          verificationResult.qr_codes.qr_data.forEach((qr: any) => {
+        const qrs = verificationResult?.operator_logs?.QRScanner?.extracted_data?.qr_codes || verificationResult?.qr_codes || []
+        if (qrs && Array.isArray(qrs)) {
+          qrs.forEach((qr: any) => {
             if (qr.page === pageNum && qr.rect) {
               drawHighlightBox(pageWrapper, qr.rect, viewport, 'rgba(64, 158, 255, 0.25)', '2px solid #409EFF')
             }
@@ -554,8 +565,9 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
         }
         
         // Signatures
-        if (verificationResult?.digital_signatures?.signatures) {
-          verificationResult.digital_signatures.signatures.forEach((sig: any) => {
+        const sigData = verificationResult?.operator_logs?.SignatureVerifier?.extracted_data?.digital_signatures || verificationResult?.digital_signatures
+        if (sigData?.signatures) {
+          sigData.signatures.forEach((sig: any) => {
             if (sig.page === pageNum && sig.rect) {
               const color = (sig.integrity && !sig.expired) ? '#67C23A' : '#F56C6C'
               const bg = (sig.integrity && !sig.expired) ? 'rgba(103, 194, 58, 0.25)' : 'rgba(245, 108, 108, 0.25)'
@@ -719,7 +731,7 @@ async function fetchFileDetail(silent = false) {
         filesApi.getDownloadUrl(fileId).then(urlRes => {
           if (urlRes && urlRes.download_url) {
             nextTick(() => {
-              renderPdf(urlRes.download_url, res.verification_result)
+              renderPdf(urlRes.download_url, res.verification_result_json || res.verification_result)
             })
           }
         }).catch(err => {

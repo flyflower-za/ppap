@@ -25,6 +25,9 @@ export const filesApi = {
   delete: (id: string) =>
     client.delete(`/files/${id}`),
 
+  reverify: (id: string) =>
+    client.post<any, FileDetail>(`/files/${id}/reverify`),
+
   batchDelete: (ids: string[]) =>
     client.post('/files/batch-delete', { file_ids: ids }),
 
