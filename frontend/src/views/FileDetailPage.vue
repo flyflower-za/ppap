@@ -125,6 +125,9 @@
                 <span class="counter-badge pass">{{ file.pass_count }} 通过</span>
                 <span class="counter-badge warning" v-if="file.warning_count > 0">{{ file.warning_count }} 警告</span>
                 <span class="counter-badge fail" v-if="file.fail_count > 0">{{ file.fail_count }} 不合规</span>
+                <el-button size="small" type="primary" plain class="ml-3 print-btn hide-on-print" @click="handlePrintReport">
+                  导出报告 (PDF)
+                </el-button>
               </div>
             </div>
 
@@ -140,7 +143,8 @@
                 v-for="(check, index) in file.verification_result.checks"
                 :key="index"
                 class="diagnostic-check-card"
-                :class="check.status"
+                :class="[check.status, check.page ? 'has-page-link' : '']"
+                @click="check.page ? scrollToPage(check.page) : null"
               >
                 <div class="check-left-indicator" :class="check.status"></div>
                 <div class="diagnostic-check-icon" :class="check.status">
@@ -150,7 +154,12 @@
                 </div>
                 <div class="diagnostic-check-body">
                   <div class="check-title-row flex-between">
-                    <h4>{{ check.name }}</h4>
+                    <h4 class="flex-align-center">
+                      {{ check.name }}
+                      <el-tag v-if="check.page" size="small" type="info" effect="plain" class="ml-2 page-tag">
+                        第 {{ check.page }} 页 <el-icon class="ml-1"><Position /></el-icon>
+                      </el-tag>
+                    </h4>
                     <span class="check-status-tag" :class="check.status">{{ checkStatusLabel(check.status) }}</span>
                   </div>
                   <p class="check-message">{{ check.message }}</p>
@@ -441,7 +450,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, Close, Delete, Key, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, Close, Delete, Key, ArrowDown, ArrowUp, Position } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -603,6 +612,26 @@ function formatDuration(seconds?: number): string {
   const min = Math.floor(seconds / 60)
   const sec = seconds % 60
   return `${min}分${sec}秒`
+}
+
+function scrollToPage(page: number) {
+  const el = document.getElementById(`pdf-page-${page}`)
+  if (el && pdfContainerRef.value) {
+    const containerTop = pdfContainerRef.value.getBoundingClientRect().top
+    const elTop = el.getBoundingClientRect().top
+    const scrollTop = pdfContainerRef.value.scrollTop + (elTop - containerTop) - 20
+    
+    pdfContainerRef.value.scrollTo({
+      top: scrollTop,
+      behavior: 'smooth'
+    })
+  } else {
+    ElMessage.warning(`无法定位到第 ${page} 页`)
+  }
+}
+
+function handlePrintReport() {
+  window.print()
 }
 
 function formatDate(dateStr?: string): string {
@@ -1668,5 +1697,64 @@ onUnmounted(() => {
 
 .ml-1 {
   margin-left: 4px;
+}
+
+.has-page-link {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.has-page-link:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.page-tag {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media print {
+  /* Hide unnecessary elements during print */
+  .navigation-header,
+  .live-progress-container,
+  .pdf-preview-panel,
+  .hide-on-print,
+  .notes-panel .add-note-form,
+  .notes-panel .delete-note-btn {
+    display: none !important;
+  }
+  
+  /* Reset max-height and scrolling for the right column to allow full print */
+  .right-scroll-col {
+    max-height: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  
+  .content-row {
+    display: block !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+  
+  .glass-card {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+    background: white !important;
+  }
+  
+  /* Make sure background colors for tags and badges print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
 </style>

@@ -56,6 +56,7 @@ class AliyunVerificationService:
                     "name": "数据一致性校验",
                     "status": "warning",
                     "message": "第 3 页数量合计与明细存在差异（合计：1000，明细：998），请核对",
+                    "page": 3
                 },
                 {
                     "name": "签名有效性校验",

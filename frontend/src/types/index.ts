@@ -68,6 +68,7 @@ export interface VerificationCheck {
   name: string
   status: 'pass' | 'warning' | 'fail'
   message: string
+  page?: number
   details?: Record<string, unknown>
 }
 

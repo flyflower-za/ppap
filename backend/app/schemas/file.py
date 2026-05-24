@@ -82,6 +82,7 @@ class VerificationResult(BaseModel):
     name: str
     status: str  # pass, fail, warning
     message: str
+    page: Optional[int] = None
     details: Optional[Dict[str, Any]] = None
 
 
