@@ -381,11 +381,16 @@ const resetGraph = () => {
 .graph-editor-workspace {
   display: flex;
   width: 100%;
-  height: 640px;
+  height: 600px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   overflow: hidden;
   background: #f8fafc;
+  transition: height 0.3s ease;
+}
+
+:global(.el-dialog.is-fullscreen) .graph-editor-workspace {
+  height: calc(100vh - 170px);
 }
 
 /* ─── Palette Sidebar ─── */
