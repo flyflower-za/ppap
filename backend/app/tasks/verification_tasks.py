@@ -101,249 +101,67 @@ def queue_verification_task(self, file_id: str):
                 logger.warning(f"Could not download PDF from MinIO: {e}.")
 
             # ============================================================
-            # Stage 2: PDF Text Layer & Metrics Check (Progress 40%)
+            # Stage 2: Initialize Context and Execute Dynamic Engine
             # ============================================================
             await asyncio.sleep(0.8)
             task_record.progress = 40
-            task_record.current_step = "正在核对 PDF 文本层类型 (文本型/扫描型)..."
+            task_record.current_step = "正在构建文档上下文并启动动态规则引擎..."
             file_record.verification_progress = 40
             await db.commit()
-            await publish_progress(40, FileStatus.PROCESSING.value, "正在核对 PDF 文本层类型 (文本型/扫描型)...")
+            await publish_progress(40, FileStatus.PROCESSING.value, "正在构建文档上下文并启动动态规则引擎...")
 
-            text_results = {
-                "is_text_pdf": False,
-                "page_count": 0,
-                "char_count": 0,
-                "sample_text": "",
-                "has_images": False
-            }
-            if pdf_bytes:
-                try:
-                    text_results = check_pdf_text_layer(pdf_bytes)
-                    logger.info(f"PDF info: is_text={text_results['is_text_pdf']}, pages={text_results['page_count']}")
-                except Exception as e:
-                    logger.error(f"PDF info checker error: {e}")
+            from app.engine.core import VerificationEngine
+            from app.engine.base import DocumentContext
+            from sqlalchemy import select
 
-            # ============================================================
-            # Stage 3: QR Code Detection (Progress 60%)
-            # ============================================================
-            await asyncio.sleep(0.8)
+            context = DocumentContext(
+                file_path=file_record.file_path,
+                file_type=file_record.file_type.value,
+                shared_state={"pdf_bytes": pdf_bytes} if pdf_bytes else {}
+            )
+
+            # Fetch active rules
+            result = await db.execute(select(VerificationRule).where(VerificationRule.is_active == True))
+            active_rules = result.scalars().all()
+
+            # Force inclusion of base operators if not explicitly defined in rules
+            # We want to keep backward compatibility with the basic checks
+            if not any(r.rule_content == "REQUIRE_QR_CODE" for r in active_rules):
+                active_rules.append(VerificationRule(rule_name="文档二维码识别与解析", rule_type=RuleType.plugin, rule_content="REQUIRE_QR_CODE", severity=Severity.warning))
+            if not any(r.rule_content == "REQUIRE_SIGNATURE" for r in active_rules):
+                active_rules.append(VerificationRule(rule_name="PDF 电子数字签名验证", rule_type=RuleType.plugin, rule_content="REQUIRE_SIGNATURE", severity=Severity.warning))
+
+            # Let Engine do the heavy lifting
             task_record.progress = 60
-            task_record.current_step = "正在检测并解析文档内嵌二维码..."
+            task_record.current_step = "引擎执行与分析算子调度中..."
             file_record.verification_progress = 60
             await db.commit()
-            await publish_progress(60, FileStatus.PROCESSING.value, "正在检测并解析文档内嵌二维码...")
+            await publish_progress(60, FileStatus.PROCESSING.value, "引擎执行与分析算子调度中...")
 
-            qr_results = []
-            if pdf_bytes:
-                try:
-                    qr_results = decode_pdf_qrcodes(pdf_bytes)
-                    logger.info(f"QR decode results: {len(qr_results)} codes found")
-                except Exception as e:
-                    logger.error(f"QR decoder error: {e}")
+            engine = VerificationEngine()
+            engine_result = await engine.run(context, active_rules)
 
             # ============================================================
-            # Stage 4: Digital Signature Verification (Progress 80%)
-            # ============================================================
-            await asyncio.sleep(0.8)
-            task_record.progress = 80
-            task_record.current_step = "正在验证 PDF 数字签名安全与证书主体..."
-            file_record.verification_progress = 80
-            await db.commit()
-            await publish_progress(80, FileStatus.PROCESSING.value, "正在验证 PDF 数字签名安全与证书主体...")
-
-            sig_results = {"signed": False, "signatures": []}
-            if pdf_bytes:
-                try:
-                    sig_results = await verify_pdf_signatures(pdf_bytes)
-                    logger.info(f"Signature verification: signed={sig_results['signed']}, count={len(sig_results['signatures'])}")
-                except Exception as e:
-                    logger.error(f"Signature verifier error: {e}")
-
-            # ============================================================
-            # Stage 5: Final Compliance Assessment & Structural Integrity
+            # Stage 3: Compile Final Report (Progress 100%)
             # ============================================================
             await asyncio.sleep(0.5)
             task_record.progress = 95
-            task_record.current_step = "正在执行结构合规性比对与报告编译..."
+            task_record.current_step = "正在汇总智能引擎判决报告..."
             file_record.verification_progress = 95
             await db.commit()
-            await publish_progress(95, FileStatus.PROCESSING.value, "正在执行结构合规性比对与报告编译...")
+            await publish_progress(95, FileStatus.PROCESSING.value, "正在汇总智能引擎判决报告...")
 
-            # --- Build the final checks list based on the 4 key points ---
-            checks = []
-            pass_count = 0
-            warning_count = 0
-            fail_count = 0
-
-            # ---- 1. 是否为文本型 PDF ----
-            if text_results["is_text_pdf"]:
-                checks.append({
-                    "name": "PDF 文本层类型检测",
-                    "status": "pass",
-                    "message": f"通过：此文件为【文本型 PDF】。内含可检索字元共 {text_results['char_count']} 个。文本预览: \"{text_results['sample_text']}\""
-                })
-                pass_count += 1
-            else:
-                checks.append({
-                    "name": "PDF 文本层类型检测",
-                    "status": "warning",
-                    "message": "警告：此文件为【图片/扫描型 PDF】，未检测到矢量文本图层。该文件可能由纸质件拍照或直接扫描生成，不支持直接进行高精度文本搜索或复制。"
-                })
-                warning_count += 1
-
-            # ---- 2. 是否包含数字签名 (列出数字签名的详细信息) ----
-            if sig_results["signed"]:
-                all_intact = all(s["integrity"] for s in sig_results["signatures"])
-                any_expired = any(s["expired"] for s in sig_results["signatures"])
-                
-                sig_details_list = []
-                for s in sig_results["signatures"]:
-                    integrity_str = "未被篡改" if s["integrity"] else "已遭篡改/损坏"
-                    expired_str = "已过期" if s["expired"] else "有效"
-                    sig_details_list.append(
-                        f"【签名域: {s['signature_name']}】签署主体: {s['signer_cn']} | 数据完整性: {integrity_str} | 证书状态: {expired_str}"
-                    )
-                sig_details = "；".join(sig_details_list)
-
-                if all_intact and not any_expired:
-                    checks.append({
-                        "name": "PDF 电子数字签名验证",
-                        "status": "pass",
-                        "message": f"通过：检测到 {len(sig_results['signatures'])} 个有效的电子数字签名。签名详情：{sig_details}"
-                    })
-                    pass_count += 1
-                elif not all_intact:
-                    checks.append({
-                        "name": "PDF 电子数字签名验证",
-                        "status": "fail",
-                        "message": f"错误：检测到数字签名，但完整性校验失败，文档内容在签署后可能已被非法篡改！签名详情：{sig_details}"
-                    })
-                    fail_count += 1
-                else:
-                    checks.append({
-                        "name": "PDF 电子数字签名验证",
-                        "status": "warning",
-                        "message": f"警告：数字签名证书已过期或处于非信任状态。签名详情：{sig_details}"
-                    })
-                    warning_count += 1
-            else:
-                checks.append({
-                    "name": "PDF 电子数字签名验证",
-                    "status": "warning",
-                    "message": "警告：本文件未包含任何电子数字签名或国密电子签章。无法通过密码学证明签署人身份，建议由责任人加盖有效数字证书后上传。"
-                })
-                warning_count += 1
-
-            # ---- 3. 文档二维码识别与解析 ----
-            if qr_results:
-                qr_details_list = [f"第 {r['page']} 页: {r['data']}" for r in qr_results]
-                qr_data_summary = "；".join(qr_details_list[:5])
-                checks.append({
-                    "name": "文档二维码识别与解析",
-                    "status": "pass",
-                    "message": f"通过：共识别并成功解析到 {len(qr_results)} 个二维码。解析数据：{qr_data_summary}"
-                })
-                pass_count += 1
-            else:
-                checks.append({
-                    "name": "文档二维码识别与解析",
-                    "status": "warning",
-                    "message": "警告：文档未包含可识别的二维码。如该供应商或产品要求通过追溯码进行溯源，请联系采购或质量负责人重新确认。"
-                })
-                warning_count += 1
-
-            # ---- 4. 页数与装订完整性 (对比数字签名) ----
-            page_count = text_results["page_count"]
-            if sig_results["signed"]:
-                all_intact = all(s["integrity"] for s in sig_results["signatures"])
-                if all_intact:
-                    checks.append({
-                        "name": "页数与装订完整性核查",
-                        "status": "pass",
-                        "message": f"通过：本文件共有 {page_count} 页。由于文档包含的电子签名完整且有效，经密码学交叉校验，该 PDF 的所有页面、顺序、布局及装订结构 100% 完整，绝对未遭任何增删或篡改。"
-                    })
-                    pass_count += 1
-                else:
-                    checks.append({
-                        "name": "页数与装订完整性核查",
-                        "status": "fail",
-                        "message": f"错误：本文件共有 {page_count} 页。警告：由于电子签名完整性校验失败，该文件的页面排列顺序、页面总数可能已遭到破坏或篡改，无法确认装订的完整性。"
-                    })
-                    fail_count += 1
-            else:
-                checks.append({
-                    "name": "页数与装订完整性核查",
-                    "status": "warning",
-                    "message": f"警告：本文件共有 {page_count} 页。由于文档没有加密的电子数字签名作为密码学锚定，无法通过技术验证其页面总数和物理装订顺序在流转中是否保持百分之百的原始性，存在单页替换或漏页的隐患。"
-                })
-                warning_count += 1
-
-            # ---- 5. Dynamic Rules Evaluation ----
-            result = await db.execute(select(VerificationRule).where(VerificationRule.is_active == True))
-            active_rules = result.scalars().all()
-            
-            # Simulated business logic for backwards compatibility if no rules
-            type_name = "受控合规性文件"
-            if file_record.file_type == FileType.PRODUCTION_PLAN:
-                type_name = "生产计划单"
-            elif file_record.file_type == FileType.QUALITY_REPORT:
-                type_name = "质量检测报告"
-            elif file_record.file_type == FileType.PURCHASE_ORDER:
-                type_name = "采购订单"
-
-            for rule in active_rules:
-                rule_pass = False
-                rule_msg = ""
-                full_text = text_results.get("full_text", "")
-                
-                if rule.rule_type == RuleType.keyword:
-                    if rule.rule_content in full_text:
-                        rule_pass = True
-                        rule_msg = f"通过：检测到必须包含的关键词 '{rule.rule_content}'"
-                    else:
-                        rule_msg = f"未通过：缺失关键内容 '{rule.rule_content}'"
-                elif rule.rule_type == RuleType.regex:
-                    try:
-                        if re.search(rule.rule_content, full_text):
-                            rule_pass = True
-                            rule_msg = f"通过：文档内容符合规则模式"
-                        else:
-                            rule_msg = f"未通过：文档内容不符合规定的文本模式"
-                    except:
-                        rule_msg = f"未通过：规则正则式异常"
-                else: # llm_prompt or plugin
-                    # Mock AI reasoning success
-                    rule_pass = True
-                    rule_msg = f"通过：智能合规检查通过 (基于 '{rule.rule_content[:15]}...')"
-                
-                if rule_pass:
-                    checks.append({
-                        "name": rule.rule_name,
-                        "status": "pass",
-                        "message": rule_msg
-                    })
-                    pass_count += 1
-                else:
-                    status_val = "fail" if rule.severity == Severity.fail else "warning"
-                    checks.append({
-                        "name": rule.rule_name,
-                        "status": status_val,
-                        "message": rule_msg
-                    })
-                    if status_val == "fail":
-                        fail_count += 1
-                    else:
-                        warning_count += 1
-
-            # ============================================================
-            # Stage 6: Compile Final Report (Progress 100%)
-            # ============================================================
-            total_checks = len(checks)
+            pass_count = engine_result.get("pass_count", 0)
+            warning_count = engine_result.get("warning_count", 0)
+            fail_count = engine_result.get("fail_count", 0)
+            needs_review = engine_result.get("needs_review", False)
+            total_checks = pass_count + warning_count + fail_count
             pass_rate = int((pass_count / total_checks) * 100) if total_checks > 0 else 0
 
-            # Determine final status based on real results
-            if fail_count > 0:
+            # Determine final status based on engine results
+            if needs_review:
+                final_status = FileStatus.NEEDS_REVIEW
+            elif fail_count > 0:
                 final_status = FileStatus.FAILED
             elif warning_count > 0:
                 final_status = FileStatus.WARNING
@@ -352,18 +170,17 @@ def queue_verification_task(self, file_id: str):
 
             # Build Result Payload
             verification_result = {
-                "status": "pass" if final_status == FileStatus.COMPLETED else ("warning" if final_status == FileStatus.WARNING else "fail"),
-                "model_version": "Local Checker Engine v3.0 (PDF Standardized)",
-                "checks": checks,
+                "status": final_status.value,
+                "model_version": "Next-Gen Dynamic Engine v4.0",
+                "checks": engine_result.get("checks", []),
                 "summary": {
                     "total": total_checks,
                     "pass": pass_count,
                     "warning": warning_count,
-                    "fail": fail_count
+                    "fail": fail_count,
+                    "needs_review": needs_review
                 },
-                "pdf_info": text_results,
-                "qr_codes": qr_results,
-                "digital_signatures": sig_results,
+                "operator_logs": engine_result.get("operator_logs", {})
             }
 
             end_time = datetime.utcnow()
@@ -378,7 +195,10 @@ def queue_verification_task(self, file_id: str):
             file_record.pass_rate = pass_rate
             file_record.completed_at = end_time
             file_record.duration_seconds = duration
-            file_record.page_count = page_count
+            # Extract page count from PDFInfoExtactor if it ran
+            pdf_info_op_res = engine_result.get("operator_logs", {}).get("PDFInfoExtractor", {})
+            if pdf_info_op_res.get("pass_status"):
+                 file_record.page_count = pdf_info_op_res.get("extracted_data", {}).get("pdf_info", {}).get("page_count", 0)
             file_record.verification_result = json.dumps(verification_result)
 
             # Update Task tracking record
@@ -389,9 +209,21 @@ def queue_verification_task(self, file_id: str):
             task_record.result = json.dumps(verification_result)
 
             # Generate User System Notification
-            notif_type = NotificationType.SUCCESS if final_status in [FileStatus.COMPLETED, FileStatus.WARNING] else NotificationType.ERROR
+            notif_type = NotificationType.WARNING if needs_review else (NotificationType.SUCCESS if final_status in [FileStatus.COMPLETED, FileStatus.WARNING] else NotificationType.ERROR)
+            
+            type_name = "受控合规性文件"
+            if file_record.file_type == FileType.PRODUCTION_PLAN:
+                type_name = "生产计划单"
+            elif file_record.file_type == FileType.QUALITY_REPORT:
+                type_name = "质量检测报告"
+            elif file_record.file_type == FileType.PURCHASE_ORDER:
+                type_name = "采购订单"
+
             notif_title = f"PDF【{file_record.original_filename}】标准化合规校验完成"
-            notif_msg = f"该【{type_name}】通过率：{pass_rate}%。标准 4 点项中：通过 {pass_count} 项，警告 {warning_count} 项，失败 {fail_count} 项。"
+            if needs_review:
+                notif_msg = f"该【{type_name}】存在存疑或置信度低的校验项，引擎已主动拦截并触发【人工仲裁】流程，请查阅报告并放行或驳回。"
+            else:
+                notif_msg = f"该【{type_name}】通过率：{pass_rate}%。共 {total_checks} 项检查中：通过 {pass_count} 项，警告 {warning_count} 项，失败 {fail_count} 项。"
             
             notification = Notification(
                 user_id=file_record.uploaded_by,

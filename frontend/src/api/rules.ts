@@ -15,6 +15,7 @@ export interface Rule {
   rule_content: string
   severity: string
   is_active: boolean
+  logic_config?: any
 }
 
 // Categories API

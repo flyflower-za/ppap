@@ -29,6 +29,7 @@ class VerificationRuleBase(BaseModel):
     rule_content: str
     severity: str
     is_active: bool = True
+    logic_config: Dict[str, Any] = Field(default_factory=dict)
 
 class VerificationRuleCreate(VerificationRuleBase):
     pass
@@ -40,6 +41,7 @@ class VerificationRuleUpdate(BaseModel):
     rule_content: Optional[str] = None
     severity: Optional[str] = None
     is_active: Optional[bool] = None
+    logic_config: Optional[Dict[str, Any]] = None
 
 class VerificationRuleResponse(VerificationRuleBase):
     id: UUID

@@ -161,3 +161,37 @@ async def batch_delete_files(
     """Batch delete files."""
     file_service = FileService(db)
     await file_service.batch_delete(request.file_ids)
+
+
+from app.schemas.file import FileReviewResolution
+
+@router.post("/{file_id}/resolve_review", response_model=FileDetailResponse)
+async def resolve_review(
+    file_id: str,
+    resolution: FileReviewResolution,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resolve a file currently in NEEDS_REVIEW status."""
+    if resolution.action not in ["approve", "reject"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Action must be 'approve' or 'reject'",
+        )
+
+    file_service = FileService(db)
+    file_detail = await file_service.resolve_review(
+        file_id=file_id,
+        action=resolution.action,
+        comment=resolution.comment,
+        user_id=current_user.id,
+        user_name=current_user.full_name or current_user.email,
+    )
+
+    if not file_detail:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File not found or not in NEEDS_REVIEW status",
+        )
+
+    return file_detail

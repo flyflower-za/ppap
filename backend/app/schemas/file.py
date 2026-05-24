@@ -22,6 +22,7 @@ class FileStatusEnum(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     WARNING = "warning"
+    NEEDS_REVIEW = "needs_review"
 
 
 class FileUpload(BaseModel):
@@ -46,10 +47,16 @@ class FileResponse(BaseModel):
     fail_count: int = 0
     pass_rate: Optional[int] = None
     uploaded_at: datetime
+    will_delete_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     duration_seconds: Optional[int] = None
     notes_summary: Optional[str] = ""
     verification_result_json: Optional[Dict[str, Any]] = None
+
+
+class FileReviewResolution(BaseModel):
+    action: str = Field(..., description="The review decision: 'approve' or 'reject'")
+    comment: Optional[str] = Field(None, description="Optional review comment or reason")
 
 
 class FileDetailResponse(FileResponse):

@@ -124,6 +124,7 @@ function statusText(status: string): string {
     completed: '合规通过',
     warning: '有风险警告',
     failed: '不合格',
+    needs_review: '需人工仲裁',
   }
   return map[status] || status
 }
@@ -135,6 +136,7 @@ function getFileStatusTag(status: string): string {
     completed: 'success',
     warning: 'warning',
     failed: 'danger',
+    needs_review: 'warning',
   }
   return map[status] || 'info'
 }

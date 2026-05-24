@@ -222,3 +222,43 @@ class FileService:
 
         await self.db.commit()
         return count
+
+    async def resolve_review(
+        self,
+        file_id: str,
+        action: str,
+        comment: Optional[str],
+        user_id: str,
+        user_name: str,
+    ) -> Optional[FileDetailResponse]:
+        """Resolve a NEEDS_REVIEW file to either COMPLETED or FAILED."""
+        file = await self.get_file(file_id)
+        if not file:
+            return None
+
+        if file.status != FileStatus.NEEDS_REVIEW:
+            return None
+
+        new_status = FileStatus.COMPLETED if action == 'approve' else FileStatus.FAILED
+        file.status = new_status
+        file.completed_at = datetime.utcnow()
+        if file.uploaded_at:
+            duration = int((file.completed_at - file.uploaded_at).total_seconds())
+            file.duration_seconds = duration
+
+        # Add note
+        from app.models.note import Note
+        note_content = f"已通过仲裁：{comment}" if action == 'approve' else f"已驳回仲裁：{comment}"
+        if not comment:
+            note_content = "已通过仲裁：无备注" if action == 'approve' else "已驳回仲裁：无备注"
+
+        note = Note(
+            file_id=file_id,
+            author_id=user_id,
+            author_name=user_name,
+            content=note_content,
+        )
+        self.db.add(note)
+        await self.db.commit()
+
+        return await self.get_file_detail(file_id)

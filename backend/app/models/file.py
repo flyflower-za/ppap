@@ -15,6 +15,7 @@ class FileStatus(str, enum.Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     WARNING = "warning"
+    NEEDS_REVIEW = "needs_review"
 
 
 class FileType(str, enum.Enum):

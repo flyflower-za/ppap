@@ -117,6 +117,27 @@
 
         <!-- Right Column: Verification Results & Details -->
         <el-col :xs="24" :lg="10" class="grid-column right-scroll-col" style="max-height: 85vh; overflow-y: auto; padding-right: 8px;">
+          
+          <!-- HITL Review Arbitration Panel -->
+          <div class="glass-card section-panel mb-4 arbitration-panel" v-if="file?.status === 'needs_review'">
+            <div class="section-title text-warning flex-between" style="color: #E6A23C;">
+              <h3 class="flex-align-center"><el-icon class="mr-2"><WarningFilled /></el-icon> 需人工仲裁介入</h3>
+            </div>
+            <div class="arbitration-content mt-2">
+              <p class="text-sm text-gray-600 mb-4" style="line-height: 1.5; margin-bottom: 16px;">
+                校验引擎大模型置信度偏低或触发高风险规则拦截，系统已自动挂起此文件。请结合左侧实时预览核实后，在下方作出仲裁决策。
+              </p>
+              <div class="arbitration-actions flex gap-4" style="display: flex; gap: 12px;">
+                <el-button type="success" :icon="Check" style="flex: 1" @click="handleReviewResolution('approve')">
+                  人工放行 (Approve)
+                </el-button>
+                <el-button type="danger" :icon="Close" style="flex: 1" @click="handleReviewResolution('reject')">
+                  确认驳回 (Reject)
+                </el-button>
+              </div>
+            </div>
+          </div>
+
           <!-- Verification Results -->
           <div class="glass-card section-panel mb-4">
             <div class="section-title flex-between">
@@ -450,7 +471,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, Close, Delete, Key, ArrowDown, ArrowUp, Position } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -574,6 +595,7 @@ function statusText(status: string): string {
     completed: '校验通过',
     failed: '校验未通过',
     warning: '合规性预警',
+    needs_review: '需人工仲裁',
   }
   return map[status] || status
 }
@@ -779,6 +801,45 @@ async function handleDeleteNote(noteId: string) {
     if (error !== 'cancel') {
       ElMessage.error('删除备注失败，请重试')
     }
+  }
+}
+
+// Handle Review Resolution
+async function handleReviewResolution(action: 'approve' | 'reject') {
+  if (!file.value) return
+  
+  const actionText = action === 'approve' ? '放行通过' : '驳回不合规'
+  
+  try {
+    const { value: comment } = await ElMessageBox.prompt(
+      `您正在执行【${actionText}】操作。请输入仲裁备注（选填）：`,
+      '人工仲裁确认',
+      {
+        confirmButtonText: '确认提交',
+        cancelButtonText: '取消',
+        inputPlaceholder: '如：已核对相关条款，确认无误',
+        type: action === 'approve' ? 'success' : 'error'
+      }
+    )
+    
+    // Call API
+    loading.value = true
+    const updatedFile = await filesApi.resolveReview(file.value.id, {
+      action,
+      comment
+    })
+    
+    ElMessage.success(`操作成功：已${actionText}`)
+    // Refresh the page data
+    await fetchFileDetail(true)
+    await fetchNotes(true)
+    
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('仲裁提交失败，请重试')
+    }
+  } finally {
+    loading.value = false
   }
 }
 

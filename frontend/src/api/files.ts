@@ -27,4 +27,7 @@ export const filesApi = {
 
   batchDelete: (ids: string[]) =>
     client.post('/files/batch-delete', { file_ids: ids }),
+
+  resolveReview: (id: string, data: { action: 'approve' | 'reject'; comment?: string }) =>
+    client.post<any, FileDetail>(`/files/${id}/resolve_review`, data),
 }

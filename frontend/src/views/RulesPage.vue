@@ -122,7 +122,7 @@
     </el-dialog>
 
     <!-- 规则弹窗 -->
-    <el-dialog :title="ruleForm.id ? '编辑规则' : '添加规则'" v-model="ruleDialogVisible" width="600px">
+    <el-dialog :title="ruleForm.id ? '编辑规则' : '添加规则'" v-model="ruleDialogVisible" width="80%">
       <el-form :model="ruleForm" label-width="100px">
         <el-form-item label="规则名称" required>
           <el-input v-model="ruleForm.rule_name" placeholder="例如：文档必须包含授权签字" />
@@ -132,6 +132,7 @@
             <el-option label="关键字 (Keyword)" value="keyword" />
             <el-option label="正则表达式 (Regex)" value="regex" />
             <el-option label="大模型分析 (LLM Prompt)" value="llm_prompt" />
+            <el-option label="可视化节点图 (Logic Graph)" value="logic_graph" />
           </el-select>
         </el-form-item>
         <el-form-item label="严重级别" required>
@@ -140,7 +141,14 @@
             <el-radio label="warning">警告 (提示风险)</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="规则内容" required>
+        
+        <!-- Logic Graph Editor -->
+        <el-form-item label="逻辑图配置" v-if="ruleForm.rule_type === 'logic_graph'" required>
+          <RuleGraphEditor v-model="ruleForm.logic_config" />
+        </el-form-item>
+        
+        <!-- Standard Content Input -->
+        <el-form-item label="规则内容" v-else required>
           <el-input 
             v-model="ruleForm.rule_content" 
             type="textarea" 
@@ -164,6 +172,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { Plus, MoreFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import { 
   getCategories, createCategory, updateCategory, deleteCategory,
   getRules, createRule, updateRule, deleteRule,
@@ -182,7 +191,13 @@ const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
-const ruleForm = ref<Partial<Rule>>({ rule_name: '', rule_type: 'llm_prompt', severity: 'fail', rule_content: '' })
+const ruleForm = ref<Partial<Rule>>({ 
+  rule_name: '', 
+  rule_type: 'llm_prompt', 
+  severity: 'fail', 
+  rule_content: '',
+  logic_config: null
+})
 
 const activeCategoryName = computed(() => {
   const cat = categories.value.find(c => c.id === activeCategoryId.value)
@@ -284,13 +299,18 @@ const saveCategory = async () => {
 const openRuleDialog = (rule?: Rule) => {
   if (rule) {
     ruleForm.value = { ...rule }
+    // Ensure logic_config is at least an object if it's supposed to be a logic_graph
+    if (rule.rule_type === 'logic_graph' && !rule.logic_config) {
+      ruleForm.value.logic_config = { nodes: [], edges: [] }
+    }
   } else {
     ruleForm.value = { 
       category_id: activeCategoryId.value,
       rule_name: '', 
-      rule_type: 'llm_prompt', 
+      rule_type: 'logic_graph', 
       severity: 'fail', 
-      rule_content: '',
+      rule_content: 'AST GRAPH CONFIG',
+      logic_config: { nodes: [], edges: [] },
       is_active: true
     }
   }
@@ -298,8 +318,12 @@ const openRuleDialog = (rule?: Rule) => {
 }
 
 const saveRule = async () => {
-  if (!ruleForm.value.rule_name || !ruleForm.value.rule_content) {
-    ElMessage.warning('请填写规则名称和规则内容')
+  if (!ruleForm.value.rule_name) {
+    ElMessage.warning('请填写规则名称')
+    return
+  }
+  if (ruleForm.value.rule_type !== 'logic_graph' && !ruleForm.value.rule_content) {
+    ElMessage.warning('请填写规则内容')
     return
   }
   saving.value = true
