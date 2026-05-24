@@ -240,7 +240,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted } from 'vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -306,7 +306,6 @@ function getNodeMeta(nodeType?: string): NodeMeta | undefined { return nodeType 
 // ─── Props & Emit ───
 const props = defineProps({ modelValue: { type: Object, default: () => null } })
 const emit = defineEmits(['update:modelValue'])
-const { addEdges } = useVueFlow()
 
 const nodes = ref<any[]>([])
 const edges = ref<any[]>([])
@@ -342,11 +341,13 @@ watch([nodes, edges], () => {
 }, { deep: true })
 
 const onConnect = (connection: any) => {
-  addEdges([{
+  edges.value.push({
     id: `e-${connection.source}-${connection.target}`,
-    source: connection.source, target: connection.target,
-    animated: true, style: { stroke: '#10b981', strokeWidth: 2 },
-  }])
+    source: connection.source,
+    target: connection.target,
+    animated: true,
+    style: { stroke: '#10b981', strokeWidth: 2 },
+  })
 }
 
 let nodeCounter = 0
