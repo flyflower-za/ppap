@@ -1,5 +1,5 @@
 <template>
-  <div class="graph-editor-workspace">
+  <div class="graph-editor-workspace" :style="{ height: workspaceHeight + 'px' }">
     <!-- LEFT: Node Palette (Drag Toolbox) -->
     <aside class="palette-sidebar">
       <div class="palette-header">
@@ -224,6 +224,18 @@
       </template>
     </aside>
   </div>
+
+  <!-- Drag-to-resize handle bar -->
+  <div 
+    class="editor-resize-bar" 
+    @mousedown="startResize" 
+    :class="{ 'is-resizing': isResizing }"
+  >
+    <div class="resize-bar-handle">
+      <span class="handle-line"></span>
+      <span class="handle-line"></span>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -374,6 +386,31 @@ const resetGraph = () => {
   edges.value = []
   selectedNode.value = null
 }
+
+// Height resizing logic
+const workspaceHeight = ref(600)
+const isResizing = ref(false)
+
+function startResize(e: MouseEvent) {
+  isResizing.value = true
+  const startY = e.clientY
+  const startHeight = workspaceHeight.value
+  
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    if (!isResizing.value) return
+    const deltaY = moveEvent.clientY - startY
+    workspaceHeight.value = Math.max(400, Math.min(1200, startHeight + deltaY))
+  }
+  
+  const onMouseUp = () => {
+    isResizing.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+  
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 </script>
 
 <style scoped>
@@ -383,14 +420,62 @@ const resetGraph = () => {
   width: 100%;
   height: 600px;
   border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border-radius: 12px 12px 0 0;
   overflow: hidden;
   background: #f8fafc;
-  transition: height 0.3s ease;
+  transition: height 0.1s ease;
 }
 
 :global(.el-dialog.is-fullscreen) .graph-editor-workspace {
-  height: calc(100vh - 170px);
+  height: calc(100vh - 170px) !important;
+  border-radius: 12px !important;
+}
+
+/* ─── Resize Bar ─── */
+.editor-resize-bar {
+  width: 100%;
+  height: 10px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  cursor: ns-resize;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  transition: background 0.15s, height 0.15s;
+  z-index: 10;
+}
+
+.editor-resize-bar:hover,
+.editor-resize-bar.is-resizing {
+  background: #cbd5e1;
+  height: 12px;
+}
+
+.resize-bar-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.handle-line {
+  width: 32px;
+  height: 2px;
+  background: #94a3b8;
+  border-radius: 1px;
+  transition: background 0.15s;
+}
+
+.editor-resize-bar:hover .handle-line,
+.editor-resize-bar.is-resizing .handle-line {
+  background: #64748b;
+}
+
+:global(.el-dialog.is-fullscreen) .editor-resize-bar {
+  display: none !important;
 }
 
 /* ─── Palette Sidebar ─── */
