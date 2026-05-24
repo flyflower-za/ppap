@@ -1,19 +1,20 @@
 import asyncio
 from app.core.database import async_session_maker
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
-from app.models.rule import DocumentCategory
-from app.schemas.rule import DocumentCategoryWithRules
+from app.models.file import File
+from app.schemas.file import FileDetailResponse
 
-async def test():
-    async with async_session_maker() as db:
-        result = await db.execute(select(DocumentCategory).options(selectinload(DocumentCategory.rules)))
-        categories = result.scalars().all()
-        for cat in categories:
-            try:
-                resp = DocumentCategoryWithRules.model_validate(cat)
-                print("Success:", resp)
-            except Exception as e:
-                print("Error:", e)
-
-asyncio.run(test())
+async def main():
+    async with async_session_maker() as session:
+        query = select(File).where(File.id == "4c71b944-b38f-4935-95ba-fb4052cbc6c5")
+        result = await session.execute(query)
+        db_file = result.scalar_one_or_none()
+        
+        if db_file:
+            response = FileDetailResponse.model_validate(db_file)
+            print("response json type:", type(response.verification_result_json))
+            if response.verification_result_json:
+                print("has operator_logs?", "operator_logs" in response.verification_result_json)
+        
+if __name__ == "__main__":
+    asyncio.run(main())
