@@ -82,56 +82,56 @@
         <div class="inspector-body">
           <!-- Basic: Node Label -->
           <div class="field-group">
-            <label class="field-label">显示名称</label>
-            <input v-model="selectedNode.label" type="text" class="field-input" />
+            <label class="field-label" for="node-display-name">显示名称</label>
+            <input id="node-display-name" v-model="selectedNode.label" type="text" class="field-input" />
           </div>
 
           <!-- === Type-Specific Fields === -->
 
           <!-- LLM Prompt -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'text-llm' || selectedNode.data?.nodeType === 'vision-llm'">
-            <label class="field-label">
+            <label class="field-label" for="node-prompt">
               Prompt 指令
               <span class="field-hint">告诉大模型要检查什么</span>
             </label>
-            <textarea v-model="selectedNode.data.prompt" class="field-textarea" rows="5" placeholder="请检查该文档是否包含..."></textarea>
+            <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="5" placeholder="请检查该文档是否包含..."></textarea>
           </div>
 
           <!-- Keyword -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'keyword'">
-            <label class="field-label">
+            <label class="field-label" for="node-keywords">
               关键词列表
               <span class="field-hint">逗号分隔，命中任一即通过</span>
             </label>
-            <input v-model="selectedNode.data.keywords" type="text" class="field-input" placeholder="华测,CTI,CNAS" />
+            <input id="node-keywords" v-model="selectedNode.data.keywords" type="text" class="field-input" placeholder="华测,CTI,CNAS" />
           </div>
 
           <!-- Regex -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'regex'">
-            <label class="field-label">
+            <label class="field-label" for="node-pattern">
               正则表达式
               <span class="field-hint">匹配内容将写入上下文</span>
             </label>
-            <input v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" />
+            <input id="node-pattern" v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" />
           </div>
 
           <!-- Signature -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'signature'">
-            <label class="field-label">
+            <label class="field-label" for="node-expected-issuer">
               预期签发者
               <span class="field-hint">留空则仅检查签名存在性</span>
             </label>
-            <input v-model="selectedNode.data.expected_issuer" type="text" class="field-input" placeholder="Centre Testing International" />
+            <input id="node-expected-issuer" v-model="selectedNode.data.expected_issuer" type="text" class="field-input" placeholder="Centre Testing International" />
           </div>
 
           <!-- Condition -->
           <div v-if="selectedNode.data?.nodeType === 'condition'">
             <div class="field-group">
-              <label class="field-label">
+              <label class="field-label" for="node-expression">
                 条件表达式
                 <span class="field-hint">满足条件走 ✅ 分支</span>
               </label>
-              <input v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" />
+              <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" />
             </div>
             <div class="field-hint-card">
               <p>💡 可用变量：<code>institution</code>, <code>has_signature</code>, <code>qr_count</code>, <code>page_count</code></p>
@@ -141,11 +141,11 @@
           <!-- HTTP Call -->
           <div v-if="selectedNode.data?.nodeType === 'http-call'">
             <div class="field-group">
-              <label class="field-label">请求 URL 模板</label>
-              <input v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" />
+              <label class="field-label" for="node-url-template">请求 URL 模板</label>
+              <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" />
             </div>
             <div class="field-group">
-              <label class="field-label">HTTP 方法</label>
+              <span class="field-label">HTTP 方法</span>
               <div class="field-radio-group">
                 <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'GET' }">
                   <input type="radio" v-model="selectedNode.data.http_method" value="GET" /> GET
@@ -160,37 +160,37 @@
           <!-- Data Compare -->
           <div v-if="selectedNode.data?.nodeType === 'data-compare'">
             <div class="field-group">
-              <label class="field-label">比较源 A</label>
-              <input v-model="selectedNode.data.source_a" type="text" class="field-input mono" placeholder="qr_report_id" />
+              <label class="field-label" for="node-source-a">比较源 A</label>
+              <input id="node-source-a" v-model="selectedNode.data.source_a" type="text" class="field-input mono" placeholder="qr_report_id" />
             </div>
             <div class="compare-arrow">⇅</div>
             <div class="field-group">
-              <label class="field-label">比较源 B</label>
-              <input v-model="selectedNode.data.source_b" type="text" class="field-input mono" placeholder="text_report_id" />
+              <label class="field-label" for="node-source-b">比较源 B</label>
+              <input id="node-source-b" v-model="selectedNode.data.source_b" type="text" class="field-input mono" placeholder="text_report_id" />
             </div>
           </div>
 
           <!-- Vote -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'vote'">
-            <label class="field-label">
+            <label class="field-label" for="node-min-pass">
               最低通过数 (N/M)
               <span class="field-hint">上游连入节点中，至少 N 个通过</span>
             </label>
-            <input v-model.number="selectedNode.data.min_pass" type="number" min="1" class="field-input" style="width: 80px;" />
+            <input id="node-min-pass" v-model.number="selectedNode.data.min_pass" type="number" min="1" class="field-input" style="width: 80px;" />
           </div>
 
           <!-- Human Review -->
           <div class="field-group" v-if="selectedNode.data?.nodeType === 'human-review'">
-            <label class="field-label">
+            <label class="field-label" for="node-review-hint">
               审核提示语
               <span class="field-hint">展示给审核人员的说明</span>
             </label>
-            <textarea v-model="selectedNode.data.review_hint" class="field-textarea" rows="3" placeholder="请人工核查签名信息..."></textarea>
+            <textarea id="node-review-hint" v-model="selectedNode.data.review_hint" class="field-textarea" rows="3" placeholder="请人工核查签名信息..."></textarea>
           </div>
 
           <!-- === Common: Severity === -->
           <div class="field-group" v-if="selectedNode.data?.hasSeverity">
-            <label class="field-label">不通过时的处理</label>
+            <span class="field-label">不通过时的处理</span>
             <div class="severity-options">
               <label
                 v-for="opt in severityOptions"
