@@ -44,115 +44,101 @@ export const settingsApi = {
   /**
    * Get notification settings
    */
-  async getNotificationSettings(): Promise<NotificationSettings> {
-    const response = await client.get<NotificationSettings>('/settings/notifications')
-    return response.data
+  getNotificationSettings(): Promise<NotificationSettings> {
+    return client.get<any, NotificationSettings>('/settings/notifications')
   },
 
   /**
    * Update notification settings
    */
-  async updateNotificationSettings(settings: NotificationSettings): Promise<{ message: string; settings: NotificationSettings }> {
-    const response = await client.post('/settings/notifications', settings)
-    return response.data
+  updateNotificationSettings(settings: NotificationSettings): Promise<{ message: string; settings: NotificationSettings }> {
+    return client.post<any, { message: string; settings: NotificationSettings }>('/settings/notifications', settings)
   },
 
   /**
    * Get SMTP configuration
    */
-  async getSmtpConfig(): Promise<SmtpConfig> {
-    const response = await client.get<SmtpConfig>('/settings/smtp')
-    return response.data
+  getSmtpConfig(): Promise<SmtpConfig> {
+    return client.get<any, SmtpConfig>('/settings/smtp')
   },
 
   /**
    * Update SMTP configuration
    */
-  async updateSmtpConfig(config: SmtpConfig): Promise<{ message: string; config: Partial<SmtpConfig> }> {
-    const response = await client.post('/settings/smtp', config)
-    return response.data
+  updateSmtpConfig(config: SmtpConfig): Promise<{ message: string; config: Partial<SmtpConfig> }> {
+    return client.post<any, { message: string; config: Partial<SmtpConfig> }>('/settings/smtp', config)
   },
 
   /**
    * Test SMTP configuration by sending a test email
    */
-  async testSmtpConfig(config: SmtpConfig, testEmail?: string): Promise<{ message: string; success: boolean }> {
-    const response = await client.post('/settings/smtp/test', {
+  testSmtpConfig(config: SmtpConfig, testEmail?: string): Promise<{ message: string; success: boolean }> {
+    return client.post<any, { message: string; success: boolean }>('/settings/smtp/test', {
       config,
       test_email: testEmail
     })
-    return response.data
   },
 
   /**
    * Get all email templates
    */
-  async getEmailTemplates(): Promise<EmailTemplate[]> {
-    const response = await client.get<EmailTemplate[]>('/settings/email-templates')
-    return response.data
+  getEmailTemplates(): Promise<EmailTemplate[]> {
+    return client.get<any, EmailTemplate[]>('/settings/email-templates')
   },
 
   /**
    * Get a specific email template
    */
-  async getEmailTemplate(templateId: string): Promise<EmailTemplate> {
-    const response = await client.get<EmailTemplate>(`/settings/email-templates/${templateId}`)
-    return response.data
+  getEmailTemplate(templateId: string): Promise<EmailTemplate> {
+    return client.get<any, EmailTemplate>(`/settings/email-templates/${templateId}`)
   },
 
   /**
    * Create a new email template
    */
-  async createEmailTemplate(template: EmailTemplate): Promise<{ message: string; template: EmailTemplate }> {
-    const response = await client.post('/settings/email-templates', template)
-    return response.data
+  createEmailTemplate(template: EmailTemplate): Promise<{ message: string; template: EmailTemplate }> {
+    return client.post<any, { message: string; template: EmailTemplate }>('/settings/email-templates', template)
   },
 
   /**
    * Update an existing email template
    */
-  async updateEmailTemplate(templateId: string, template: EmailTemplate): Promise<{ message: string }> {
-    const response = await client.put(`/settings/email-templates/${templateId}`, template)
-    return response.data
+  updateEmailTemplate(templateId: string, template: EmailTemplate): Promise<{ message: string }> {
+    return client.put<any, { message: string }>(`/settings/email-templates/${templateId}`, template)
   },
 
   /**
    * Delete an email template
    */
-  async deleteEmailTemplate(templateId: string): Promise<{ message: string }> {
-    const response = await client.delete(`/settings/email-templates/${templateId}`)
-    return response.data
+  deleteEmailTemplate(templateId: string): Promise<{ message: string }> {
+    return client.delete<any, { message: string }>(`/settings/email-templates/${templateId}`)
   },
 
   /**
    * Preview an email template
    */
-  async previewEmailTemplate(preview: EmailTemplatePreview): Promise<{ html_content: string }> {
-    const response = await client.post('/settings/email-templates/preview', preview)
-    return response.data
+  previewEmailTemplate(preview: EmailTemplatePreview): Promise<{ html_content: string }> {
+    return client.post<any, { html_content: string }>('/settings/email-templates/preview', preview)
   },
 
   /**
    * Get file retention settings
    */
-  async getFileRetentionSettings(): Promise<FileRetentionSettings> {
-    const response = await client.get<FileRetentionSettings>('/settings/file-retention')
-    return response.data
+  getFileRetentionSettings(): Promise<FileRetentionSettings> {
+    return client.get<any, FileRetentionSettings>('/settings/file-retention')
   },
 
   /**
    * Update file retention settings
    */
-  async updateFileRetentionSettings(settings: FileRetentionSettings): Promise<{ message: string; settings: FileRetentionSettings }> {
-    const response = await client.post('/settings/file-retention', settings)
-    return response.data
+  updateFileRetentionSettings(settings: FileRetentionSettings): Promise<{ message: string; settings: FileRetentionSettings }> {
+    return client.post<any, { message: string; settings: FileRetentionSettings }>('/settings/file-retention', settings)
   },
 
   /**
    * Trigger immediate file cleanup
    */
-  async triggerCleanupNow(): Promise<{ message: string; task_id: string }> {
-    const response = await client.post('/settings/file-retention/cleanup-now')
-    return response.data
+  triggerCleanupNow(): Promise<{ message: string; task_id: string }> {
+    return client.post<any, { message: string; task_id: string }>('/settings/file-retention/cleanup-now')
   }
 }

@@ -292,7 +292,7 @@ async def update_user_role(
 
     user.role = UserRole(role)
     # Also update is_admin for backward compatibility
-    user.is_admin = (role == "admin")
+    user.is_admin = (role == "ADMIN")
 
     await db.commit()
 

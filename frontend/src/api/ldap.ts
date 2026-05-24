@@ -47,42 +47,37 @@ export const ldapApi = {
   /**
    * Get LDAP/SSO configuration
    */
-  async getLDAPConfig(): Promise<LDAPConfig> {
-    const response = await client.get<LDAPConfig>('/settings/ldap-config')
-    return response.data
+  getLDAPConfig(): Promise<LDAPConfig> {
+    return client.get<any, LDAPConfig>('/settings/ldap-config')
   },
 
   /**
    * Update LDAP/SSO configuration
    */
-  async updateLDAPConfig(config: LDAPConfig): Promise<{ message: string; config: Partial<LDAPConfig> }> {
-    const response = await client.post('/settings/ldap-config', config)
-    return response.data
+  updateLDAPConfig(config: LDAPConfig): Promise<{ message: string; config: Partial<LDAPConfig> }> {
+    return client.post<any, { message: string; config: Partial<LDAPConfig> }>('/settings/ldap-config', config)
   },
 
   /**
    * Test LDAP connection
    */
-  async testLDAPConnection(): Promise<{ message: string; success: boolean }> {
-    const response = await client.post('/settings/ldap-config/test')
-    return response.data
+  testLDAPConnection(): Promise<{ message: string; success: boolean }> {
+    return client.post<any, { message: string; success: boolean }>('/settings/ldap-config/test')
   },
 
   /**
    * Get all users
    */
-  async getAllUsers(): Promise<UserInfo[]> {
-    const response = await client.get<UserInfo[]>('/settings/users')
-    return response.data
+  getAllUsers(): Promise<UserInfo[]> {
+    return client.get<any, UserInfo[]>('/settings/users')
   },
 
   /**
    * Update user role
    */
-  async updateUserRole(userId: string, role: 'ADMIN' | 'MANAGER' | 'USER'): Promise<{ message: string; role: string }> {
-    const response = await client.put(`/settings/users/${userId}/role`, null, {
+  updateUserRole(userId: string, role: 'ADMIN' | 'MANAGER' | 'USER'): Promise<{ message: string; role: string }> {
+    return client.put<any, { message: string; role: string }>(`/settings/users/${userId}/role`, null, {
       params: { role }
     })
-    return response.data
   }
 }
