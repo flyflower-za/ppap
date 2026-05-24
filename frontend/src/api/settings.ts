@@ -40,6 +40,16 @@ export interface FileRetentionSettings {
   cleanup_hour: number
 }
 
+export interface AiModelConfig {
+  enabled: boolean
+  base_url: string
+  api_key: string | null
+  text_model: string
+  vision_model: string
+  max_tokens: number
+  temperature: number
+}
+
 export const settingsApi = {
   /**
    * Get notification settings
@@ -140,5 +150,74 @@ export const settingsApi = {
    */
   triggerCleanupNow(): Promise<{ message: string; task_id: string }> {
     return client.post<any, { message: string; task_id: string }>('/settings/file-retention/cleanup-now')
+  },
+
+  // ==================== AI Model Configuration ====================
+
+  /**
+   * Get AI model configuration
+   */
+  getAiModelConfig(): Promise<AiModelConfig> {
+    return client.get<any, AiModelConfig>('/settings/ai-model')
+  },
+
+  /**
+   * Update AI model configuration
+   */
+  updateAiModelConfig(config: AiModelConfig): Promise<{ message: string }> {
+    return client.post<any, { message: string }>('/settings/ai-model', config)
+  },
+
+  /**
+   * Test AI model connection
+   */
+  testAiModelConfig(config: AiModelConfig): Promise<{ success: boolean; message: string }> {
+    return client.post<any, { success: boolean; message: string }>('/settings/ai-model/test', config)
+  },
+
+  // ==================== Multi-Model Profiles ====================
+
+  /** List all model profiles */
+  listModelProfiles(): Promise<ModelProfile[]> {
+    return client.get<any, ModelProfile[]>('/settings/ai-models')
+  },
+
+  /** Create a new model profile */
+  createModelProfile(profile: Omit<ModelProfile, 'id'>): Promise<{ message: string; profile: ModelProfile }> {
+    return client.post<any, { message: string; profile: ModelProfile }>('/settings/ai-models', profile)
+  },
+
+  /** Update a model profile */
+  updateModelProfile(id: string, profile: ModelProfile): Promise<{ message: string; profile: ModelProfile }> {
+    return client.put<any, { message: string; profile: ModelProfile }>(`/settings/ai-models/${id}`, profile)
+  },
+
+  /** Delete a model profile */
+  deleteModelProfile(id: string): Promise<{ message: string }> {
+    return client.delete<any, { message: string }>(`/settings/ai-models/${id}`)
+  },
+
+  /** Test a model profile by ID */
+  testModelProfile(id: string): Promise<{ success: boolean; message: string }> {
+    return client.post<any, { success: boolean; message: string }>(`/settings/ai-models/${id}/test`)
+  },
+
+  /** Set a profile as default for text or vision */
+  setDefaultModelProfile(id: string, forType: 'text' | 'vision'): Promise<{ message: string }> {
+    return client.post<any, { message: string }>(`/settings/ai-models/${id}/set-default`, { for_type: forType })
   }
+}
+
+export interface ModelProfile {
+  id: string
+  name: string
+  base_url: string
+  api_key: string | null
+  model_name: string
+  model_type: 'text' | 'vision' | 'both'
+  max_tokens: number
+  temperature: number
+  enabled: boolean
+  is_default_text: boolean
+  is_default_vision: boolean
 }

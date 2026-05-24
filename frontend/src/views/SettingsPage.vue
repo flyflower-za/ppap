@@ -29,6 +29,10 @@
             <el-icon><Lock /></el-icon>
             <span>LDAP/SSO配置</span>
           </el-menu-item>
+          <el-menu-item index="ai-model" v-if="canAccessSettings('ai_model')">
+            <el-icon><Cpu /></el-icon>
+            <span>AI 模型配置</span>
+          </el-menu-item>
           <el-menu-item index="users" v-if="canAccessSettings('users')">
             <el-icon><UserFilled /></el-icon>
             <span>用户管理</span>
@@ -720,6 +724,137 @@
           />
         </el-card>
 
+        <!-- AI Model Configuration Section -->
+        <el-card v-if="activeMenu === 'ai-model'" shadow="never" v-loading="loadingProfiles">
+          <template #header>
+            <div class="flex-between">
+              <span>多模型配置（OpenAI 兼容）</span>
+              <el-button type="primary" :icon="Plus" @click="handleAddProfile">新增配置</el-button>
+            </div>
+          </template>
+
+          <el-alert
+            type="info"
+            title="关于多模型配置"
+            description="您可以配置多个模型接入点。通过设为默认，规则执行引擎将自动选择对应的模型进行文本或视觉推理。"
+            :closable="false"
+            show-icon
+            class="mb-4"
+          />
+
+          <el-table :data="modelProfiles" style="width: 100%" border>
+            <el-table-column prop="name" label="配置名称" width="150" />
+            <el-table-column prop="model_name" label="模型" width="150" />
+            <el-table-column label="能力" width="100">
+              <template #default="{ row }">
+                <el-tag size="small" v-if="row.model_type === 'both'">全能</el-tag>
+                <el-tag size="small" type="success" v-else-if="row.model_type === 'text'">文本</el-tag>
+                <el-tag size="small" type="warning" v-else-if="row.model_type === 'vision'">视觉</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="默认状态" width="180">
+              <template #default="{ row }">
+                <div style="display: flex; gap: 4px;">
+                  <el-tag size="small" effect="dark" type="success" v-if="row.is_default_text">默认文本</el-tag>
+                  <el-tag size="small" effect="dark" type="warning" v-if="row.is_default_vision">默认视觉</el-tag>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
+                  {{ row.enabled ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" min-width="250">
+              <template #default="{ row }">
+                <el-button link type="primary" :icon="Edit" @click="handleEditProfile(row)">编辑</el-button>
+                <el-button link type="success" :icon="Connection" :loading="testingProfileId === row.id" @click="handleTestProfile(row.id)">测试</el-button>
+                <el-dropdown trigger="click" style="margin-left: 12px; margin-right: 12px;">
+                  <el-button link type="primary">
+                    设为默认<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'text')" :disabled="row.model_type === 'vision'">设为默认文本模型</el-dropdown-item>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'vision')" :disabled="row.model_type === 'text'">设为默认视觉模型</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+                <el-popconfirm title="确定要删除此配置吗？" @confirm="handleDeleteProfile(row)">
+                  <template #reference>
+                    <el-button link type="danger" :icon="Delete">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-alert
+            v-if="testResult"
+            :type="testResult.success ? 'success' : 'error'"
+            :title="testResult.success ? '连接测试成功' : '连接测试失败'"
+            :description="testResult.message"
+            :closable="true"
+            @close="testResult = null"
+            show-icon
+            class="mt-4"
+          />
+        </el-card>
+
+        <!-- AI Model Profile Dialog -->
+        <el-dialog
+          :title="editingProfile ? '编辑模型配置' : '新增模型配置'"
+          v-model="profileDialogVisible"
+          width="600px"
+          destroy-on-close
+        >
+          <el-form
+            ref="profileFormRef"
+            :model="profileForm"
+            :rules="profileRules"
+            label-width="120px"
+          >
+            <el-form-item label="配置名称" prop="name">
+              <el-input v-model="profileForm.name" placeholder="如：GPT-4o 默认接入点" clearable />
+            </el-form-item>
+            <el-form-item label="Base URL" prop="base_url">
+              <el-input v-model="profileForm.base_url" placeholder="https://api.openai.com/v1" clearable />
+            </el-form-item>
+            <el-form-item label="API Key" prop="api_key">
+              <el-input v-model="profileForm.api_key" type="password" show-password placeholder="不修改请留空" clearable />
+            </el-form-item>
+            <el-form-item label="模型名称" prop="model_name">
+              <el-input v-model="profileForm.model_name" placeholder="如：gpt-4o" clearable />
+            </el-form-item>
+            <el-form-item label="模型能力" prop="model_type">
+              <el-radio-group v-model="profileForm.model_type">
+                <el-radio label="both">全能 (文本+视觉)</el-radio>
+                <el-radio label="text">仅文本</el-radio>
+                <el-radio label="vision">仅视觉</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="Max Tokens" prop="max_tokens">
+              <el-input-number v-model="profileForm.max_tokens" :min="128" :max="32768" :step="512" />
+            </el-form-item>
+            <el-form-item label="Temperature" prop="temperature">
+              <el-slider v-model="profileForm.temperature" :min="0" :max="2" :step="0.05" show-input style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="启用状态" prop="enabled">
+              <el-switch v-model="profileForm.enabled" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <span class="dialog-footer">
+              <el-button @click="profileDialogVisible = false">取消</el-button>
+              <el-button type="primary" :icon="Check" :loading="savingProfile" @click="handleSaveProfile">
+                保存
+              </el-button>
+            </span>
+          </template>
+        </el-dialog>
+
         <!-- User Management Section -->
         <el-card v-if="activeMenu === 'users'" shadow="never" v-loading="loadingUsers">
           <template #header>
@@ -766,8 +901,8 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete } from '@element-plus/icons-vue'
-import type { EmailTemplate, FileRetentionSettings } from '@/api/settings'
+import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete, Cpu, Connection } from '@element-plus/icons-vue'
+import type { EmailTemplate, FileRetentionSettings, AiModelConfig, ModelProfile } from '@/api/settings'
 import type { LDAPConfig, UserInfo } from '@/api/ldap'
 
 const authStore = useAuthStore()
@@ -811,6 +946,7 @@ function canAccessSettings(setting: string): boolean {
     smtp: ['ADMIN'],
     email_templates: ['ADMIN'],
     ldap: ['ADMIN'],
+    ai_model: ['ADMIN'],
     users: ['ADMIN'],
   }
 
@@ -837,6 +973,34 @@ const cleanupTriggerSuccess = ref(false)
 const cleanupTriggerMessage = ref('')
 const fileRetentionFormRef = ref<FormInstance>()
 
+// AI Model Profiles
+const modelProfiles = ref<ModelProfile[]>([])
+const loadingProfiles = ref(false)
+const profileDialogVisible = ref(false)
+const savingProfile = ref(false)
+const profileFormRef = ref<FormInstance>()
+const editingProfile = ref<ModelProfile | null>(null)
+const testingProfileId = ref<string | null>(null)
+const testResult = ref<{ id: string; success: boolean; message: string } | null>(null)
+
+const profileForm = reactive<Omit<ModelProfile, 'id'> & { id?: string }>({
+  name: '',
+  base_url: 'https://api.openai.com/v1',
+  api_key: '',
+  model_name: '',
+  model_type: 'both',
+  max_tokens: 2048,
+  temperature: 0.1,
+  enabled: true,
+  is_default_text: false,
+  is_default_vision: false
+})
+
+const profileRules: FormRules = {
+  name: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
+  base_url: [{ required: true, message: '请输入 Base URL', trigger: 'blur' }],
+  model_name: [{ required: true, message: '请输入模型名称', trigger: 'blur' }]
+}
 const fileRetentionSettings = reactive<FileRetentionSettings>({
   retention_days: 30,
   auto_cleanup_enabled: true,
@@ -1203,6 +1367,8 @@ watch(activeMenu, (newIndex) => {
     loadLDAPConfig()
   } else if (newIndex === 'users') {
     loadUsers()
+  } else if (newIndex === 'ai-model') {
+    loadModelProfiles()
   }
 }, { immediate: true })
 
@@ -1343,6 +1509,124 @@ async function handleTriggerCleanup() {
   }
 }
 
+// AI Model Profile Functions
+async function loadModelProfiles() {
+  loadingProfiles.value = true
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    modelProfiles.value = await settingsApi.listModelProfiles()
+  } catch (error) {
+    console.error('Failed to load model profiles:', error)
+    ElMessage.error('加载模型配置失败')
+  } finally {
+    loadingProfiles.value = false
+  }
+}
+
+function handleAddProfile() {
+  editingProfile.value = null
+  Object.assign(profileForm, {
+    name: '',
+    base_url: 'https://api.openai.com/v1',
+    api_key: '',
+    model_name: '',
+    model_type: 'both',
+    max_tokens: 2048,
+    temperature: 0.1,
+    enabled: true,
+    is_default_text: false,
+    is_default_vision: false
+  })
+  delete profileForm.id
+  profileDialogVisible.value = true
+}
+
+function handleEditProfile(profile: ModelProfile) {
+  editingProfile.value = profile
+  Object.assign(profileForm, { ...profile })
+  if (profileForm.api_key === '***') {
+    profileForm.api_key = '' // Clear placeholder in edit mode so it isn't accidentally modified to literal '***'
+  }
+  profileDialogVisible.value = true
+}
+
+async function handleSaveProfile() {
+  if (!profileFormRef.value) return
+  await profileFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    savingProfile.value = true
+    try {
+      const { settingsApi } = await import('@/api/settings')
+      // If editing and key left blank, send '***' to preserve
+      const submitData = { ...profileForm }
+      if (editingProfile.value && !submitData.api_key) {
+        submitData.api_key = '***'
+      }
+
+      if (editingProfile.value?.id) {
+        await settingsApi.updateModelProfile(editingProfile.value.id, submitData as ModelProfile)
+        ElMessage.success('配置已更新')
+      } else {
+        await settingsApi.createModelProfile(submitData)
+        ElMessage.success('配置已创建')
+      }
+      profileDialogVisible.value = false
+      await loadModelProfiles()
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存失败')
+    } finally {
+      savingProfile.value = false
+    }
+  })
+}
+
+async function handleDeleteProfile(profile: ModelProfile) {
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    await settingsApi.deleteModelProfile(profile.id)
+    ElMessage.success('配置已删除')
+    await loadModelProfiles()
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除失败')
+  }
+}
+
+async function handleSetDefaultProfile(profileId: string, forType: 'text' | 'vision') {
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    await settingsApi.setDefaultModelProfile(profileId, forType)
+    ElMessage.success(`已设为默认${forType}模型`)
+    await loadModelProfiles()
+  } catch (error: any) {
+    ElMessage.error(error.message || '设置失败')
+  }
+}
+
+async function handleTestProfile(profileId: string) {
+  testingProfileId.value = profileId
+  testResult.value = null
+
+  try {
+    const { settingsApi } = await import('@/api/settings')
+    const result = await settingsApi.testModelProfile(profileId)
+    testResult.value = { id: profileId, ...result }
+    if (result.success) {
+      ElMessage.success('连接测试成功')
+    } else {
+      ElMessage.warning('连接测试失败')
+    }
+  } catch (error: any) {
+    const detail = error?.response?.data?.detail
+    const message = detail || error?.message || '连接测试失败，请检查网络或配置'
+    testResult.value = { id: profileId, success: false, message }
+    ElMessage.error(message)
+  } finally {
+    testingProfileId.value = null
+  }
+}
+
+
 onMounted(() => {
   // Data loading is handled by watch with immediate: true
 })
@@ -1407,6 +1691,10 @@ onMounted(() => {
 
 .file-retention-form {
   max-width: 700px;
+}
+
+.ai-model-form {
+  max-width: 680px;
 }
 
 .mb-4 {

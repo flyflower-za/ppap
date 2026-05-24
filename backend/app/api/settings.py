@@ -7,11 +7,14 @@ from pydantic import BaseModel, EmailStr, validator, field_validator
 from typing import Optional, Literal
 import os
 import json
+import logging
 
 from app.core.database import get_db
 from app.api.deps import get_current_user, get_current_admin
 from app.models.user import User
 from app.models.setting import Setting
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -451,7 +454,268 @@ async def delete_email_template(
     return {"message": "模板删除成功"}
 
 
-# ==================== File Retention Settings APIs ====================
+# ==================== AI Model Configuration APIs ====================
+
+import uuid as _uuid
+
+_SINGLE_KEY = "ai_model_config"
+_PROFILES_KEY = "ai_model_profiles"
+
+
+class AiModelConfig(BaseModel):
+    """Legacy single-model config kept for operator backward compat."""
+    enabled: bool = False
+    base_url: str = "https://api.openai.com/v1"
+    api_key: Optional[str] = None
+    text_model: str = "gpt-4o-mini"
+    vision_model: str = "gpt-4o"
+    max_tokens: int = 2048
+    temperature: float = 0.1
+
+
+class ModelProfile(BaseModel):
+    """A named OpenAI-compatible model profile."""
+    id: str = ""
+    name: str
+    base_url: str = "https://api.openai.com/v1"
+    api_key: Optional[str] = None
+    model_name: str
+    model_type: Literal["text", "vision", "both"] = "both"
+    max_tokens: int = 2048
+    temperature: float = 0.1
+    enabled: bool = True
+    is_default_text: bool = False
+    is_default_vision: bool = False
+
+
+class SetDefaultRequest(BaseModel):
+    for_type: Literal["text", "vision"]
+
+
+# ---- helper utilities ------------------------------------------------------
+
+async def _load_profiles_raw(db: AsyncSession) -> list:
+    result = await db.get(Setting, _PROFILES_KEY)
+    if result:
+        try:
+            return json.loads(result.value)
+        except Exception:
+            pass
+    return []
+
+
+async def _save_profiles_raw(db: AsyncSession, profiles: list):
+    result = await db.get(Setting, _PROFILES_KEY)
+    json_str = json.dumps(profiles)
+    if result:
+        result.value = json_str
+    else:
+        db.add(Setting(key=_PROFILES_KEY, value=json_str))
+    await db.commit()
+
+
+def _mask_profile(p: dict) -> dict:
+    out = dict(p)
+    if out.get("api_key"):
+        out["api_key"] = "***"
+    return out
+
+
+async def _do_openai_test(api_key: str, base_url: str, model_name: str) -> dict:
+    from openai import AsyncOpenAI
+    try:
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        response = await client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": "回复 'pong' 即可，不要多余内容。"}],
+            max_tokens=50,
+            temperature=0
+        )
+        reply = response.choices[0].message.content
+        reply = reply.strip() if reply else ""
+        display_reply = reply if reply else "(模型返回了空内容)"
+        return {"success": True, "message": f"连接成功！模型回复: {display_reply}"}
+    except Exception as e:
+        logger.error(f"OpenAI test failed: {e}")
+        return {"success": False, "message": f"连接测试失败: {str(e)}"}
+
+
+# ---- legacy single-config endpoints (kept for backward compat) -------------
+
+@router.get("/ai-model")
+async def get_ai_model_config(
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get legacy single AI model configuration."""
+    result = await db.get(Setting, _SINGLE_KEY)
+    if result:
+        try:
+            data = json.loads(result.value)
+            if data.get("api_key"):
+                data["api_key"] = "***"
+            return AiModelConfig(**data)
+        except Exception:
+            pass
+    return AiModelConfig()
+
+
+@router.post("/ai-model")
+async def update_ai_model_config(
+    config: AiModelConfig,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update legacy single AI model configuration."""
+    config_dict = config.dict()
+    existing = await db.get(Setting, _SINGLE_KEY)
+    if config_dict.get("api_key") == "***":
+        if existing:
+            try:
+                config_dict["api_key"] = json.loads(existing.value).get("api_key")
+            except Exception:
+                pass
+        else:
+            config_dict["api_key"] = None
+    json_str = json.dumps(config_dict)
+    if existing:
+        existing.value = json_str
+    else:
+        db.add(Setting(key=_SINGLE_KEY, value=json_str))
+    await db.commit()
+    return {"message": "AI 模型配置已更新", "config": {k: v for k, v in config_dict.items() if k != "api_key"}}
+
+
+@router.post("/ai-model/test")
+async def test_ai_model_config(
+    config: AiModelConfig,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Test legacy AI model config. Returns {success, message} HTTP 200."""
+    api_key = config.api_key
+    if not api_key or api_key == "***":
+        existing = await db.get(Setting, _SINGLE_KEY)
+        if existing:
+            try:
+                api_key = json.loads(existing.value).get("api_key")
+            except Exception:
+                pass
+    if not api_key:
+        return {"success": False, "message": "未配置 API Key。请先输入 API Key 并保存配置。"}
+    return await _do_openai_test(api_key, config.base_url, config.text_model)
+
+
+# ---- multi-profile endpoints -----------------------------------------------
+
+@router.get("/ai-models")
+async def list_model_profiles(
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all model profiles (api_key masked)."""
+    profiles = await _load_profiles_raw(db)
+    return [_mask_profile(p) for p in profiles]
+
+
+@router.post("/ai-models")
+async def create_model_profile(
+    profile: ModelProfile,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a new model profile."""
+    profiles = await _load_profiles_raw(db)
+    profile_dict = profile.dict()
+    profile_dict["id"] = str(_uuid.uuid4())
+    # Auto-set as default if first profile
+    if not profiles:
+        if profile_dict["model_type"] in ("text", "both"):
+            profile_dict["is_default_text"] = True
+        if profile_dict["model_type"] in ("vision", "both"):
+            profile_dict["is_default_vision"] = True
+    profiles.append(profile_dict)
+    await _save_profiles_raw(db, profiles)
+    return {"message": "模型配置已创建", "profile": _mask_profile(profile_dict)}
+
+
+@router.put("/ai-models/{profile_id}")
+async def update_model_profile(
+    profile_id: str,
+    profile: ModelProfile,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update an existing model profile."""
+    profiles = await _load_profiles_raw(db)
+    idx = next((i for i, p in enumerate(profiles) if p["id"] == profile_id), None)
+    if idx is None:
+        raise HTTPException(status_code=404, detail="模型配置不存在")
+    update_dict = profile.dict()
+    update_dict["id"] = profile_id
+    submitted_key = update_dict.get("api_key")
+    if not submitted_key or submitted_key == "***":
+        update_dict["api_key"] = profiles[idx].get("api_key")
+    profiles[idx] = update_dict
+    await _save_profiles_raw(db, profiles)
+    return {"message": "模型配置已更新", "profile": _mask_profile(update_dict)}
+
+
+@router.delete("/ai-models/{profile_id}")
+async def delete_model_profile(
+    profile_id: str,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a model profile."""
+    profiles = await _load_profiles_raw(db)
+    new_profiles = [p for p in profiles if p["id"] != profile_id]
+    if len(new_profiles) == len(profiles):
+        raise HTTPException(status_code=404, detail="模型配置不存在")
+    await _save_profiles_raw(db, new_profiles)
+    return {"message": "模型配置已删除"}
+
+
+@router.post("/ai-models/{profile_id}/test")
+async def test_model_profile(
+    profile_id: str,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Test a specific model profile. Returns {success, message} HTTP 200."""
+    profiles = await _load_profiles_raw(db)
+    profile = next((p for p in profiles if p["id"] == profile_id), None)
+    if not profile:
+        return {"success": False, "message": "模型配置不存在"}
+    api_key = profile.get("api_key")
+    if not api_key:
+        return {"success": False, "message": "该配置未设置 API Key"}
+    return await _do_openai_test(
+        api_key,
+        profile.get("base_url", "https://api.openai.com/v1"),
+        profile.get("model_name", "")
+    )
+
+
+@router.post("/ai-models/{profile_id}/set-default")
+async def set_default_model_profile(
+    profile_id: str,
+    body: SetDefaultRequest,
+    current_user: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Set a profile as the default for text or vision inference."""
+    profiles = await _load_profiles_raw(db)
+    target_idx = next((i for i, p in enumerate(profiles) if p["id"] == profile_id), None)
+    if target_idx is None:
+        raise HTTPException(status_code=404, detail="模型配置不存在")
+    flag = f"is_default_{body.for_type}"
+    for i, p in enumerate(profiles):
+        p[flag] = (i == target_idx)
+    await _save_profiles_raw(db, profiles)
+    return {"message": f"已将该配置设为默认{body.for_type}模型"}
+
+
 
 @router.get("/file-retention")
 async def get_file_retention_settings(

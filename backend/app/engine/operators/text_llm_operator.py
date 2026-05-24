@@ -7,26 +7,55 @@ from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 
 logger = logging.getLogger(__name__)
 
-# Mock AI response generator for prototype
-def mock_llm_call(prompt: str, schema: dict) -> dict:
+
+async def _get_ai_config(model_type: str = "text") -> dict:
     """
-    Mock LLM call that returns a valid JSON matching the schema.
-    In production, this would use OpenAI/Aliyun API with JSON schema forcing.
+    Load AI model config. Prefers the default ModelProfile for the given type.
+    Falls back to the legacy single ai_model_config if no profiles exist.
+    Returns an empty dict if nothing is configured.
     """
-    logger.info(f"Mocking LLM Call with prompt length: {len(prompt)}")
-    # We will return a fake result based on typical queries
-    return {
-        "passed": True,
-        "confidence": 0.95,
-        "reason": "通过大模型语义分析，提取到了符合要求的信息。",
-        "extracted_data": {"matched_keywords": ["合格", "批准"]}
-    }
+    try:
+        from app.core.database import async_session_maker
+        from app.models.setting import Setting
+        async with async_session_maker() as session:
+            # Try multi-profile first
+            profiles_row = await session.get(Setting, "ai_model_profiles")
+            if profiles_row:
+                profiles = json.loads(profiles_row.value)
+                # Find enabled profiles matching the requested type
+                matching = [
+                    p for p in profiles
+                    if p.get("enabled") and p.get("model_type") in (model_type, "both")
+                ]
+                # Prefer the one marked as default
+                flag = f"is_default_{model_type}"
+                default = next((p for p in matching if p.get(flag)), None)
+                chosen = default or (matching[0] if matching else None)
+                if chosen:
+                    return {
+                        "enabled": True,
+                        "api_key": chosen.get("api_key"),
+                        "base_url": chosen.get("base_url", "https://api.openai.com/v1"),
+                        "text_model": chosen.get("model_name", "gpt-4o-mini"),
+                        "vision_model": chosen.get("model_name", "gpt-4o"),
+                        "max_tokens": chosen.get("max_tokens", 2048),
+                        "temperature": chosen.get("temperature", 0.1),
+                    }
+            # Fallback: legacy single config
+            legacy_row = await session.get(Setting, "ai_model_config")
+            if legacy_row:
+                return json.loads(legacy_row.value)
+    except Exception as e:
+        logger.warning(f"Could not load AI config from DB: {e}")
+    return {}
+
 
 class LLMOutputSchema(BaseModel):
     passed: bool = Field(..., description="Whether the verification passed")
     confidence: float = Field(..., description="Confidence score from 0.0 to 1.0")
     reason: str = Field(..., description="Explanation of the reasoning")
     extracted_data: dict = Field(default_factory=dict, description="Any extracted data relevant to the rule")
+
 
 class TextLLMOperator(BaseOperator):
     """
@@ -53,36 +82,62 @@ class TextLLMOperator(BaseOperator):
                 pass_status=False,
                 message="No text available for LLM analysis."
             )
-        
-        # In a real dynamic engine, the prompt and rules would be passed via kwargs
-        # injected by the Engine based on the AST.
+
         target_prompt = kwargs.get("prompt", "请检查文档是否包含完整的盖章审批流程。")
-        
+
         # Truncate text if too long for the context window
         max_chars = 10000
         text_context = full_text[:max_chars]
-        
+
         system_prompt = f"""
         你是一个严谨的文档审核审核员。请根据以下提取的文档文本回答用户问题。
         你必须严格遵循以下 JSON 格式输出，不要输出任何其他多余内容：
         {LLMOutputSchema.schema_json()}
         """
-        
+
         user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
-        
+
         try:
-            # Here we would normally make an async HTTP call to the LLM
-            # response_data = await call_openai_api(...)
-            response_data = mock_llm_call(user_prompt, LLMOutputSchema.schema())
-            
+            ai_config = await _get_ai_config()
+
+            if not ai_config.get("enabled") or not ai_config.get("api_key"):
+                # Fallback to mock when AI is not configured
+                logger.warning("AI model not configured, using mock response.")
+                response_data = {
+                    "passed": True,
+                    "confidence": 0.95,
+                    "reason": "[Mock] 通过大模型语义分析，提取到了符合要求的信息。",
+                    "extracted_data": {"matched_keywords": ["合格", "批准"]}
+                }
+            else:
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    api_key=ai_config["api_key"],
+                    base_url=ai_config.get("base_url", "https://api.openai.com/v1")
+                )
+
+                response = await client.chat.completions.create(
+                    model=ai_config.get("text_model", "gpt-4o-mini"),
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=ai_config.get("max_tokens", 2048),
+                    temperature=ai_config.get("temperature", 0.1),
+                    response_format={"type": "json_object"}
+                )
+
+                raw_content = response.choices[0].message.content
+                response_data = json.loads(raw_content)
+
             # Validate with Pydantic
             validated = LLMOutputSchema(**response_data)
-            
+
             # Update shared state
             if "llm_semantic_analysis" not in context.shared_state:
                 context.shared_state["llm_semantic_analysis"] = []
             context.shared_state["llm_semantic_analysis"].append(validated.dict())
-            
+
             return OperatorResult(
                 operator_name=self.name,
                 pass_status=validated.passed,

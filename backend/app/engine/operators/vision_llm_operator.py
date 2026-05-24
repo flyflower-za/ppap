@@ -1,5 +1,6 @@
 import json
 import logging
+import base64
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -7,18 +8,42 @@ from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 
 logger = logging.getLogger(__name__)
 
-# Mock AI response generator for prototype
-def mock_vision_llm_call(prompt: str, schema: dict) -> dict:
+
+async def _get_ai_config(model_type: str = "vision") -> dict:
     """
-    Mock Vision LLM call that returns a valid JSON matching the schema.
+    Load AI model config. Prefers the default ModelProfile for the given type.
+    Falls back to the legacy single ai_model_config if no profiles exist.
     """
-    logger.info(f"Mocking Vision LLM Call with prompt length: {len(prompt)}")
-    return {
-        "passed": True,
-        "confidence": 0.88,
-        "reason": "视觉大模型分析完毕，在指定坐标区域内检测到了清晰的公司公章印记。",
-        "bounding_boxes": [{"x0": 100, "y0": 200, "x1": 250, "y1": 350, "label": "公章"}]
-    }
+    try:
+        from app.core.database import async_session_maker
+        from app.models.setting import Setting
+        async with async_session_maker() as session:
+            profiles_row = await session.get(Setting, "ai_model_profiles")
+            if profiles_row:
+                profiles = json.loads(profiles_row.value)
+                matching = [
+                    p for p in profiles
+                    if p.get("enabled") and p.get("model_type") in (model_type, "both")
+                ]
+                flag = f"is_default_{model_type}"
+                default = next((p for p in matching if p.get(flag)), None)
+                chosen = default or (matching[0] if matching else None)
+                if chosen:
+                    return {
+                        "enabled": True,
+                        "api_key": chosen.get("api_key"),
+                        "base_url": chosen.get("base_url", "https://api.openai.com/v1"),
+                        "vision_model": chosen.get("model_name", "gpt-4o"),
+                        "max_tokens": chosen.get("max_tokens", 1024),
+                        "temperature": chosen.get("temperature", 0.1),
+                    }
+            legacy_row = await session.get(Setting, "ai_model_config")
+            if legacy_row:
+                return json.loads(legacy_row.value)
+    except Exception as e:
+        logger.warning(f"Could not load AI config from DB: {e}")
+    return {}
+
 
 class VisionOutputSchema(BaseModel):
     passed: bool = Field(..., description="Whether the verification passed based on visual evidence")
@@ -26,10 +51,18 @@ class VisionOutputSchema(BaseModel):
     reason: str = Field(..., description="Explanation of the visual reasoning")
     bounding_boxes: List[dict] = Field(default_factory=list, description="Any detected bounding boxes {x0, y0, x1, y1, label}")
 
+
 class VisionLLMOperator(BaseOperator):
     """
     Operator that uses a Vision-Language Model (VLM) to analyze document layouts,
     seals, handwriting, or specific cropped regions based on bounding boxes.
+
+    Vision strategy:
+    - If `crop_bbox` kwarg is provided (x0, y0, x1, y1 in points), only that
+      region of the target page is sent to the VLM (e.g. for QR codes, stamps
+      in a known corner). This greatly reduces token cost.
+    - If no `crop_bbox` is given, the full page is rendered and sent (e.g. for
+      holistic layout or signature checks that span the whole page).
     """
     def __init__(self):
         super().__init__(name="VisionLLMOperator")
@@ -50,31 +83,112 @@ class VisionLLMOperator(BaseOperator):
                 pass_status=False,
                 message="No PDF bytes available for Vision analysis."
             )
-        
+
         target_prompt = kwargs.get("prompt", "请检查页面右下角是否包含红色实体公章。")
         target_page = kwargs.get("page_num", 1)
-        
-        # Here we would use PyMuPDF to render the target page into an image (PNG/JPEG)
-        # doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-        # page = doc[target_page - 1]
-        # pix = page.get_pixmap()
-        # image_bytes = pix.tobytes("jpeg")
-        # base64_image = base64.b64encode(image_bytes).decode("utf-8")
-        
-        user_prompt = f"审核要求:\n{target_prompt}\n(已附带第 {target_page} 页图像截图)"
-        
+        # Optional: crop_bbox = (x0, y0, x1, y1) in PDF user-space points
+        crop_bbox: Optional[tuple] = kwargs.get("crop_bbox", None)
+
         try:
-            # Here we would make the actual async call to OpenAI GPT-4o or Qwen-VL
-            response_data = mock_vision_llm_call(user_prompt, VisionOutputSchema.schema())
-            
+            ai_config = await _get_ai_config()
+
+            if not ai_config.get("enabled") or not ai_config.get("api_key"):
+                # Fallback to mock when AI is not configured
+                logger.warning("AI model not configured, using mock vision response.")
+                response_data = {
+                    "passed": True,
+                    "confidence": 0.88,
+                    "reason": "[Mock] 视觉大模型分析完毕，在指定坐标区域内检测到了清晰的公司公章印记。",
+                    "bounding_boxes": [{"x0": 100, "y0": 200, "x1": 250, "y1": 350, "label": "公章"}]
+                }
+            else:
+                # Render page (or crop) to JPEG using PyMuPDF
+                try:
+                    import fitz  # PyMuPDF
+                except ImportError:
+                    return OperatorResult(
+                        operator_name=self.name,
+                        pass_status=False,
+                        message="PyMuPDF (fitz) is not installed. Cannot render PDF page for Vision LLM."
+                    )
+
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                if target_page < 1 or target_page > len(doc):
+                    return OperatorResult(
+                        operator_name=self.name,
+                        pass_status=False,
+                        message=f"Page {target_page} does not exist in the document."
+                    )
+
+                page = doc[target_page - 1]
+                zoom = 2.0  # 2x = ~144 DPI, good balance of quality vs cost
+
+                if crop_bbox:
+                    # Only render the specified bounding box region
+                    x0, y0, x1, y1 = crop_bbox
+                    clip_rect = fitz.Rect(x0, y0, x1, y1)
+                    mat = fitz.Matrix(zoom, zoom)
+                    pix = page.get_pixmap(matrix=mat, clip=clip_rect, alpha=False)
+                else:
+                    # Render full page
+                    mat = fitz.Matrix(zoom, zoom)
+                    pix = page.get_pixmap(matrix=mat, alpha=False)
+
+                image_bytes = pix.tobytes("jpeg")
+                base64_image = base64.b64encode(image_bytes).decode("utf-8")
+                doc.close()
+
+                region_desc = f"裁剪区域 {crop_bbox}" if crop_bbox else f"第 {target_page} 页完整页面"
+
+                from openai import AsyncOpenAI
+                client = AsyncOpenAI(
+                    api_key=ai_config["api_key"],
+                    base_url=ai_config.get("base_url", "https://api.openai.com/v1")
+                )
+
+                system_prompt = f"""
+                你是一个严谨的文档视觉审核员。请根据提供的文档图像回答审核问题。
+                你必须严格遵循以下 JSON 格式输出，不要输出任何其他多余内容：
+                {VisionOutputSchema.schema_json()}
+                """
+
+                response = await client.chat.completions.create(
+                    model=ai_config.get("vision_model", "gpt-4o"),
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"审核要求: {target_prompt}\n(图像来自: {region_desc})"
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                        "detail": "high"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    max_tokens=ai_config.get("max_tokens", 1024),
+                    temperature=ai_config.get("temperature", 0.1),
+                    response_format={"type": "json_object"}
+                )
+
+                raw_content = response.choices[0].message.content
+                response_data = json.loads(raw_content)
+
             # Validate with Pydantic
             validated = VisionOutputSchema(**response_data)
-            
+
             # Update shared state
             if "vision_analysis" not in context.shared_state:
                 context.shared_state["vision_analysis"] = []
             context.shared_state["vision_analysis"].append(validated.dict())
-            
+
             return OperatorResult(
                 operator_name=self.name,
                 pass_status=validated.passed,
