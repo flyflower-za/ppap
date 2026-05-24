@@ -61,8 +61,8 @@
 
             <!-- Failed state (failed): show failure reason -->
             <div v-else-if="file.status === 'failed'" class="error-section">
-              <p class="error-msg">
-                <el-icon class="mr-1"><Close /></el-icon> 诊断完成：文档核心印章缺失或参数不合规
+              <p class="error-msg" :title="file.verification_result_json?.error || '诊断完成：文档核心印章缺失或参数不合规'">
+                <el-icon class="mr-1"><Close /></el-icon> {{ file.verification_result_json?.error || '诊断完成：文档核心印章缺失或参数不合规' }}
               </p>
             </div>
           </div>
@@ -240,8 +240,8 @@ defineExpose({
 
 .tasks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
   padding: 8px 0;
 }
 
@@ -250,7 +250,7 @@ defineExpose({
   background: rgba(255, 255, 255, 0.55);
   border: 1px solid rgba(0, 0, 0, 0.05);
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 10px 14px;
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
@@ -258,7 +258,7 @@ defineExpose({
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 145px;
+  min-height: 125px;
 }
 
 .glass-item-card:hover {
@@ -275,14 +275,14 @@ defineExpose({
 }
 
 .file-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #1e293b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  max-width: 170px; /* Constrain width slightly to prevent squishing badges */
+  max-width: 140px; /* Constrain width slightly to prevent squishing badges */
 }
 
 /* Beautiful Type Badges */
@@ -428,6 +428,9 @@ defineExpose({
   align-items: center;
   margin: 0;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mr-1 {

@@ -44,6 +44,7 @@ export interface File {
   uploaded_at: string
   completed_at?: string
   duration_seconds?: number
+  verification_result_json?: Record<string, any>
 }
 
 export interface FileDetail extends File {

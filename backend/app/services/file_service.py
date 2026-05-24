@@ -119,6 +119,8 @@ class FileService:
         if filters.status:
             if filters.status == "completed":
                 query = query.where(File.status.in_(["completed", "warning"]))
+            elif filters.status == "processing":
+                query = query.where(File.status.in_(["processing", "pending"]))
             else:
                 query = query.where(File.status == filters.status)
         if filters.file_type:

@@ -124,8 +124,9 @@
       <!-- Task Lists Tab Panel -->
       <el-col :xs="24" :md="14" class="col-panel">
         <div class="glass-card tasks-card flex-column">
-          <div class="section-header mb-2">
+          <div class="section-header mb-2 flex-between">
             <span class="section-title">校验任务看板</span>
+            <span class="section-hint">仅展示最近 15 条任务记录，更多请前往历史记录查看</span>
           </div>
 
           <el-tabs v-model="activeTab" class="custom-tabs">
@@ -363,6 +364,11 @@ function handleRefresh() {
   margin-bottom: 24px;
 }
 
+.col-panel > .glass-card {
+  flex: 1;
+  height: 100%;
+}
+
 /* Glass Buttons */
 .glass-btn {
   background: rgba(255, 255, 255, 0.8);
@@ -403,6 +409,14 @@ function handleRefresh() {
   width: 4px;
   border-radius: 2px;
   background-color: #4285f4;
+}
+
+.section-hint {
+  font-size: 12px;
+  color: #8792a2;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
 }
 
 /* Batch checkbox */
