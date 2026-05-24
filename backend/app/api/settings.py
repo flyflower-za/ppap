@@ -643,7 +643,7 @@ async def create_model_profile(
         action="CREATE_MODEL_PROFILE",
         user=current_user,
         resource_type="SETTING",
-        details={"profile_name": profile_dict["name"], "model_name": profile_dict["model_name"]}
+        details={"profile_name": profile_dict["name"], "model_name": profile_dict["model_name"], "data": _mask_profile(profile_dict)}
     )
     await db.commit()
     
@@ -675,7 +675,7 @@ async def update_model_profile(
         action="UPDATE_MODEL_PROFILE",
         user=current_user,
         resource_type="SETTING",
-        details={"profile_id": profile_id, "profile_name": update_dict["name"]}
+        details={"profile_id": profile_id, "profile_name": update_dict["name"], "data": _mask_profile(update_dict)}
     )
     await db.commit()
 
@@ -816,6 +816,14 @@ async def update_file_retention_settings(
         new_setting = Setting(key="file_retention_settings", value=json_str)
         db.add(new_setting)
 
+    await log_audit_event(
+        db=db,
+        action="UPDATE_RETENTION_SETTINGS",
+        user=current_user,
+        resource_type="SETTING",
+        details={"data": settings.dict()}
+    )
+    
     await db.commit()
 
     return {

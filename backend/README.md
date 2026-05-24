@@ -63,6 +63,21 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
+### 6. Start the Celery Worker (Background tasks)
+
+For file verification and periodic tasks to process, you must run the Celery worker in a separate terminal:
+
+```bash
+cd backend
+
+# On Linux/Production:
+celery -A app.tasks.celery_app worker --loglevel=info
+
+# On macOS (Local Development):
+# Use the wrapper script to avoid fork() crashes (signal 6) caused by Objective-C libs
+./start_celery.sh
+```
+
 ### 6. Access API
 
 - API: http://localhost:8000/api/v1

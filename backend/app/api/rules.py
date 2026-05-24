@@ -123,7 +123,7 @@ async def create_rule(
         user=current_user,
         resource_type="RULE",
         resource_id=rule.id,
-        details={"rule_name": rule.rule_name, "rule_type": rule.rule_type},
+        details={"rule_name": rule.rule_name, "rule_type": rule.rule_type, "data": data},
         request=request
     )
     
@@ -156,7 +156,7 @@ async def update_rule(
         user=current_user,
         resource_type="RULE",
         resource_id=rule.id,
-        details={"updated_fields": list(update_data.keys())},
+        details={"updated_fields": list(update_data.keys()), "data": update_data},
         request=request
     )
         

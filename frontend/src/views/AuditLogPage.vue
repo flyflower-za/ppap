@@ -240,7 +240,7 @@ const getActionTagType = (action: string) => {
   if (action.includes('CREATE') || action.includes('UPLOAD')) return 'success'
   if (action.includes('DELETE')) return 'danger'
   if (action.includes('UPDATE') || action.includes('RESOLVE')) return 'warning'
-  if (action.includes('LOGIN')) return ''
+  if (action.includes('LOGIN')) return 'primary'
   return 'info'
 }
 </script>
@@ -294,6 +294,7 @@ const getActionTagType = (action: string) => {
   --el-table-border-color: #f1f5f9;
   --el-table-header-bg-color: #f8fafc;
   --el-table-header-text-color: #475569;
+  font-size: 12px;
 }
 
 .user-cell {
