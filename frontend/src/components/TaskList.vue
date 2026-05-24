@@ -151,7 +151,7 @@ async function fetchTasks(silent = false) {
   try {
     const params: any = {
       page: 1,
-      page_size: 20
+      page_size: 15
     }
     if (props.status !== 'all') {
       params.status = props.status
