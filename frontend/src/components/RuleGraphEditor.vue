@@ -38,6 +38,7 @@
     <!-- CENTER: Vue Flow Canvas -->
     <main class="canvas-area">
       <VueFlow
+        v-if="isInitialized"
         v-model:nodes="nodes"
         v-model:edges="edges"
         :default-zoom="1"
@@ -47,14 +48,21 @@
         @connect="onConnect"
         @nodeClick="onNodeClick"
         @paneClick="onPaneClick"
+        fit-view-on-init
       >
         <Background pattern-color="#d1d5db" gap="20" />
         <Controls position="bottom-left" />
         <MiniMap v-if="nodes.length > 4" />
       </VueFlow>
 
+      <!-- Loading State -->
+      <div v-if="!isInitialized" class="canvas-loading-state">
+        <div class="loading-spinner"></div>
+        <p>加载可视化编辑器...</p>
+      </div>
+
       <!-- Empty State Overlay -->
-      <div v-if="nodes.length <= 2" class="canvas-empty-hint">
+      <div v-else-if="nodes.length <= 2" class="canvas-empty-hint">
         <div class="hint-content">
           <span class="hint-icon">👈</span>
           <p>从左侧面板点击算子添加到画布</p>
@@ -239,12 +247,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
-import { Panel } from '@vue-flow/core'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -304,12 +311,18 @@ function toggleGroup(key: string) { openGroups[key] = !openGroups[key] }
 function getNodeMeta(nodeType?: string): NodeMeta | undefined { return nodeType ? NODE_REGISTRY[nodeType] : undefined }
 
 // ─── Props & Emit ───
-const props = defineProps({ modelValue: { type: Object, default: () => null } })
+const props = defineProps({
+  modelValue: {
+    type: Object,
+    default: () => ({ nodes: [], edges: [] })
+  }
+})
 const emit = defineEmits(['update:modelValue'])
 
 const nodes = ref<any[]>([])
 const edges = ref<any[]>([])
 const selectedNode = ref<any | null>(null)
+const isInitialized = ref(false)
 
 const defaultNodes = [
   {
@@ -327,21 +340,45 @@ const defaultNodes = [
 ]
 
 onMounted(() => {
-  if (props.modelValue?.nodes?.length > 0) {
-    nodes.value = JSON.parse(JSON.stringify(props.modelValue.nodes))
-    edges.value = JSON.parse(JSON.stringify(props.modelValue.edges || []))
-  } else {
-    nodes.value = JSON.parse(JSON.stringify(defaultNodes))
+  try {
+    if (props.modelValue?.nodes?.length > 0) {
+      // Load existing graph data
+      const loadedNodes = props.modelValue.nodes || []
+      const loadedEdges = props.modelValue.edges || []
+
+      nodes.value = loadedNodes
+      edges.value = loadedEdges
+
+      // Ensure default nodes exist
+      const hasInput = nodes.value.some(n => n.id === 'node-input')
+      const hasOutput = nodes.value.some(n => n.id === 'node-output')
+
+      if (!hasInput) {
+        nodes.value.unshift(...defaultNodes.filter(n => n.id === 'node-input'))
+      }
+      if (!hasOutput) {
+        nodes.value.push(...defaultNodes.filter(n => n.id === 'node-output'))
+      }
+    } else {
+      // Initialize with default nodes
+      nodes.value = [...defaultNodes]
+      edges.value = []
+    }
+
+    isInitialized.value = true
+  } catch (error) {
+    console.error('[RuleGraphEditor] Failed to initialize graph:', error)
+    // Fallback to default
+    nodes.value = [...defaultNodes]
     edges.value = []
+    isInitialized.value = true
   }
 })
 
 watch([nodes, edges], () => {
-  nextTick(() => {
-    emit('update:modelValue', {
-      nodes: JSON.parse(JSON.stringify(nodes.value)),
-      edges: JSON.parse(JSON.stringify(edges.value))
-    })
+  emit('update:modelValue', {
+    nodes: nodes.value,
+    edges: edges.value
   })
 }, { deep: true })
 
@@ -649,6 +686,37 @@ function startResize(e: MouseEvent) {
   font-size: 12px !important;
   color: #cbd5e1;
   margin-top: 4px !important;
+}
+
+/* ─── Loading State ─── */
+.canvas-loading-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  z-index: 10;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.canvas-loading-state p {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #64748b;
 }
 
 /* ─── Inspector Sidebar ─── */
