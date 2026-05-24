@@ -19,8 +19,14 @@ export const filesApi = {
   getDetail: (id: string) =>
     client.get<any, FileDetail>(`/files/${id}`),
 
-  getDownloadUrl: (id: string) =>
-    client.get<any, { download_url: string }>(`/files/${id}/download`),
+  getDownloadUrl: async (id: string) => {
+    const res = await client.get<any, { download_url: string }>(`/files/${id}/download`)
+    // Rewrite internal Docker MinIO URL to relative path for Nginx proxying
+    if (res && res.download_url && res.download_url.startsWith('http://minio:9000')) {
+      res.download_url = res.download_url.replace('http://minio:9000', '')
+    }
+    return res
+  },
 
   delete: (id: string) =>
     client.delete(`/files/${id}`),
