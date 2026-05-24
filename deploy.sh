@@ -60,11 +60,7 @@ fi
 
 # 5. Initialize Database
 echo -e "${YELLOW}Initializing database...${NC}"
-$DOCKER_COMPOSE_CMD exec -T postgres psql -U ppap -d ppap -f /var/lib/postgresql/data/init-db.sql || true
-# Note: we use || true because the tables use 'CREATE TABLE IF NOT EXISTS' anyway, 
-# but we need to map the init-db.sql. Wait, in docker-compose.yml it doesn't map init-db.sql to the container.
-# Let's dynamically pipe it into the container instead:
-cat init-db.sql | $DOCKER_COMPOSE_CMD exec -T postgres psql -U ppap -d ppap
+cat init-db.sql | $DOCKER_COMPOSE_CMD exec -T postgres psql -U ppap -d ppap > /dev/null 2>&1 || true
 
 # 6. Initialize MinIO bucket
 echo -e "${YELLOW}Initializing MinIO bucket...${NC}"
@@ -78,9 +74,10 @@ done
 if [ $RETRIES -gt 0 ]; then
     echo -e "Setting up 'ppap-files' bucket..."
     # Using Docker to run MinIO Client (mc)
-    docker run --rm --network host minio/mc -q alias set ppapminio http://localhost:9000 minioadmin minioadmin
-    docker run --rm --network host minio/mc -q mb ppapminio/ppap-files --ignore-existing || true
-    docker run --rm --network host minio/mc -q anonymous set public ppapminio/ppap-files || true
+    docker run --rm --network host --entrypoint /bin/sh minio/mc -c "\
+        mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && \
+        mc mb ppapminio/ppap-files --ignore-existing && \
+        mc anonymous set public ppapminio/ppap-files" || true
 else
     echo -e "${RED}MinIO didn't start in time. You may need to create the bucket manually.${NC}"
 fi
