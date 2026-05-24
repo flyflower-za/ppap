@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { Plus, MoreFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
@@ -205,13 +205,25 @@ const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
-const ruleForm = ref<Partial<Rule & { condition_institution?: string }>>({ 
-  rule_name: '', 
-  rule_type: 'llm_prompt', 
-  severity: 'fail', 
+const ruleForm = ref<Partial<Rule & { condition_institution?: string }>>({
+  rule_name: '',
+  rule_type: 'llm_prompt',
+  severity: 'fail',
   rule_content: '',
   logic_config: null,
   condition_institution: ''
+})
+
+// Watch rule_type changes to initialize logic_config
+watch(() => ruleForm.value.rule_type, (newType, oldType) => {
+  if (newType === 'logic_graph' && oldType !== 'logic_graph') {
+    // Initialize logic_config when switching to logic_graph
+    if (!ruleForm.value.logic_config ||
+        !ruleForm.value.logic_config.nodes ||
+        ruleForm.value.logic_config.nodes.length === 0) {
+      ruleForm.value.logic_config = { nodes: [], edges: [] }
+    }
+  }
 })
 
 const activeCategoryName = computed(() => {
@@ -316,17 +328,22 @@ const openRuleDialog = (rule?: Rule) => {
     ruleForm.value = { ...rule }
     // Map condition
     ruleForm.value.condition_institution = rule.logic_config?.conditions?.institution || ''
-    
-    // Ensure logic_config is at least an object if it's supposed to be a logic_graph
-    if (rule.rule_type === 'logic_graph' && !rule.logic_config) {
-      ruleForm.value.logic_config = { nodes: [], edges: [] }
+
+    // Ensure logic_config is properly initialized for logic_graph rules
+    if (rule.rule_type === 'logic_graph') {
+      if (!rule.logic_config || !rule.logic_config.nodes || rule.logic_config.nodes.length === 0) {
+        ruleForm.value.logic_config = { nodes: [], edges: [] }
+      } else {
+        // Deep clone to avoid reactivity issues
+        ruleForm.value.logic_config = JSON.parse(JSON.stringify(rule.logic_config))
+      }
     }
   } else {
-    ruleForm.value = { 
+    ruleForm.value = {
       category_id: activeCategoryId.value,
-      rule_name: '', 
-      rule_type: 'keyword', 
-      severity: 'fail', 
+      rule_name: '',
+      rule_type: 'keyword',
+      severity: 'fail',
       rule_content: '',
       logic_config: null,
       is_active: true,
@@ -341,14 +358,23 @@ const saveRule = async () => {
     ElMessage.warning('请填写规则名称')
     return
   }
-  if (ruleForm.value.rule_type !== 'logic_graph' && !ruleForm.value.rule_content) {
+
+  // Validation based on rule type
+  if (ruleForm.value.rule_type === 'logic_graph') {
+    if (!ruleForm.value.logic_config ||
+        !ruleForm.value.logic_config.nodes ||
+        ruleForm.value.logic_config.nodes.length === 0) {
+      ElMessage.warning('请配置逻辑图节点')
+      return
+    }
+  } else if (!ruleForm.value.rule_content) {
     ElMessage.warning('请填写规则内容')
     return
   }
-  
+
   saving.value = true
   const payload = { ...ruleForm.value }
-  
+
   // Inject condition into logic_config
   if (payload.condition_institution) {
     if (!payload.logic_config) payload.logic_config = {}
@@ -360,7 +386,7 @@ const saveRule = async () => {
       delete payload.logic_config.conditions.institution
     }
   }
-  
+
   // Clean payload
   delete payload.condition_institution
 
