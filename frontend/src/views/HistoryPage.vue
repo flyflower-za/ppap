@@ -348,7 +348,7 @@ function getFileTypeTag(type: string): string {
     supplier_qualification: 'info',
     product_specification: 'danger',
   }
-  return map[type] || ''
+  return map[type] || 'info'
 }
 
 function getProgressStatus(status: string): string {

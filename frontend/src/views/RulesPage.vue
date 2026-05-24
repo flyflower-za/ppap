@@ -122,7 +122,13 @@
     </el-dialog>
 
     <!-- 规则弹窗 -->
-    <el-dialog :title="ruleForm.id ? '编辑规则' : '添加规则'" v-model="ruleDialogVisible" width="80%">
+    <el-dialog 
+      :title="ruleForm.id ? '编辑规则' : '添加规则'" 
+      v-model="ruleDialogVisible" 
+      :width="ruleForm.rule_type === 'logic_graph' ? '95%' : '80%'"
+      :fullscreen="ruleForm.rule_type === 'logic_graph'"
+      destroy-on-close
+    >
       <el-form :model="ruleForm" label-width="100px">
         <el-form-item label="规则名称" required>
           <el-input v-model="ruleForm.rule_name" placeholder="例如：文档必须包含授权签字" />
@@ -137,9 +143,17 @@
         </el-form-item>
         <el-form-item label="严重级别" required>
           <el-radio-group v-model="ruleForm.severity">
-            <el-radio label="fail">失败 (直接拦截)</el-radio>
-            <el-radio label="warning">警告 (提示风险)</el-radio>
+            <el-radio value="fail">失败 (直接拦截)</el-radio>
+            <el-radio value="warning">警告 (提示风险)</el-radio>
           </el-radio-group>
+        </el-form-item>
+        
+        <!-- Condition Configuration -->
+        <el-form-item label="生效条件">
+          <el-input 
+            v-model="ruleForm.condition_institution" 
+            placeholder="选填。输入触发校验的机构名（如：CTI），不填则全局生效" 
+          />
         </el-form-item>
         
         <!-- Logic Graph Editor -->
@@ -191,12 +205,13 @@ const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
-const ruleForm = ref<Partial<Rule>>({ 
+const ruleForm = ref<Partial<Rule & { condition_institution?: string }>>({ 
   rule_name: '', 
   rule_type: 'llm_prompt', 
   severity: 'fail', 
   rule_content: '',
-  logic_config: null
+  logic_config: null,
+  condition_institution: ''
 })
 
 const activeCategoryName = computed(() => {
@@ -299,6 +314,9 @@ const saveCategory = async () => {
 const openRuleDialog = (rule?: Rule) => {
   if (rule) {
     ruleForm.value = { ...rule }
+    // Map condition
+    ruleForm.value.condition_institution = rule.logic_config?.conditions?.institution || ''
+    
     // Ensure logic_config is at least an object if it's supposed to be a logic_graph
     if (rule.rule_type === 'logic_graph' && !rule.logic_config) {
       ruleForm.value.logic_config = { nodes: [], edges: [] }
@@ -311,7 +329,8 @@ const openRuleDialog = (rule?: Rule) => {
       severity: 'fail', 
       rule_content: 'AST GRAPH CONFIG',
       logic_config: { nodes: [], edges: [] },
-      is_active: true
+      is_active: true,
+      condition_institution: ''
     }
   }
   ruleDialogVisible.value = true
@@ -326,13 +345,31 @@ const saveRule = async () => {
     ElMessage.warning('请填写规则内容')
     return
   }
+  
   saving.value = true
+  const payload = { ...ruleForm.value }
+  
+  // Inject condition into logic_config
+  if (payload.condition_institution) {
+    if (!payload.logic_config) payload.logic_config = {}
+    if (!payload.logic_config.conditions) payload.logic_config.conditions = {}
+    payload.logic_config.conditions.institution = payload.condition_institution
+  } else {
+    // Clean up if empty
+    if (payload.logic_config?.conditions?.institution) {
+      delete payload.logic_config.conditions.institution
+    }
+  }
+  
+  // Clean payload
+  delete payload.condition_institution
+
   try {
-    if (ruleForm.value.id) {
-      await updateRule(ruleForm.value.id, ruleForm.value)
+    if (payload.id) {
+      await updateRule(payload.id, payload)
       ElMessage.success('更新成功')
     } else {
-      await createRule(ruleForm.value)
+      await createRule(payload as any)
       ElMessage.success('添加成功')
     }
     ruleDialogVisible.value = false
@@ -374,7 +411,8 @@ const getRuleTypeName = (type: string) => {
     'keyword': '关键字',
     'regex': '正则',
     'llm_prompt': '大模型',
-    'plugin': '插件'
+    'plugin': '插件',
+    'logic_graph': '可视化流程',
   }
   return map[type] || type
 }
@@ -384,7 +422,8 @@ const getRuleTypeTag = (type: string) => {
     'keyword': 'info',
     'regex': 'success',
     'llm_prompt': 'primary',
-    'plugin': 'warning'
+    'plugin': 'warning',
+    'logic_graph': 'danger',
   }
   return map[type] || 'info'
 }

@@ -3,7 +3,7 @@ Daily summary report scheduled task
 """
 from datetime import datetime, timedelta
 from celery.utils.log import get_task_logger
-from sqlalchemy import func
+from sqlalchemy import func, select, case
 
 from app.tasks.celery_app import celery_app
 from app.core.database import async_session_maker
@@ -60,11 +60,11 @@ def send_daily_summary_report():
 
                 # Get statistics for yesterday
                 stats_result = await db.execute(
-                    func.select(
+                    select(
                         func.count(File.id).label('total'),
-                        func.sum(func.case((File.status == 'completed', 1), else_(0)).label('completed'),
-                        func.sum(func.case((File.status == 'warning', 1), else_(0)).label('warnings'),
-                        func.sum(func.case((File.status == 'failed', 1), else_(0)).label('failed')
+                        func.sum(case({File.status == 'completed': 1}, else_=0)).label('completed'),
+                        func.sum(case({File.status == 'warning': 1}, else_=0)).label('warnings'),
+                        func.sum(case({File.status == 'failed': 1}, else_=0)).label('failed')
                     ).where(
                         File.uploaded_at >= start_of_yesterday,
                         File.uploaded_at <= end_of_yesterday,

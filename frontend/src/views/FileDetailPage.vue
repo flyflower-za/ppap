@@ -54,6 +54,12 @@
         <el-row :gutter="24" class="file-meta-grid">
           <el-col :xs="12" :sm="6" class="meta-col">
             <div class="meta-cell">
+              <span class="meta-label">签发机构 (AI 嗅探)</span>
+              <span class="meta-value text-primary font-bold">{{ sniffedInstitution || '未知 / 分析中' }}</span>
+            </div>
+          </el-col>
+          <el-col :xs="12" :sm="6" class="meta-col">
+            <div class="meta-cell">
               <span class="meta-label">上传时间</span>
               <span class="meta-value">{{ formatDate(file.uploaded_at) }}</span>
             </div>
@@ -468,7 +474,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position } from '@element-plus/icons-vue'
@@ -487,18 +493,21 @@ const authStore = useAuthStore()
 
 const file = ref<FileDetail | null>(null)
 const notes = ref<Note[]>([])
-const newNote = ref('')
-const expandedSigs = ref<Record<number, boolean>>({})
-
-function toggleSigExpand(index: number) {
-  expandedSigs.value[index] = !expandedSigs.value[index]
-}
-
 const loading = ref(true)
+const newNote = ref('')
 const notesLoading = ref(false)
 const submittingNote = ref(false)
 const pdfContainerRef = ref<HTMLElement | null>(null)
 const pdfLoading = ref(false)
+const expandedSigs = ref<Record<number, boolean>>({})
+
+const sniffedInstitution = computed(() => {
+  return file.value?.verification_result_json?.operator_logs?.InstitutionSniffer?.extracted_data?.institution || ''
+})
+
+function toggleSigExpand(index: number) {
+  expandedSigs.value[index] = !expandedSigs.value[index]
+}
 
 let pollTimer: any = null
 

@@ -10,6 +10,7 @@ class RuleType(str, enum.Enum):
     regex = "regex"
     llm_prompt = "llm_prompt"
     plugin = "plugin"
+    logic_graph = "logic_graph"
 
 class Severity(str, enum.Enum):
     warning = "warning"

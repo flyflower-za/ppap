@@ -276,9 +276,9 @@
 
             <el-form-item label="加密方式">
               <el-radio-group v-model="smtpConfig.encryption" :disabled="!smtpConfig.enabled">
-                <el-radio label="none">不加密</el-radio>
-                <el-radio label="tls">TLS</el-radio>
-                <el-radio label="ssl">SSL</el-radio>
+                <el-radio value="none">不加密</el-radio>
+                <el-radio value="tls">TLS</el-radio>
+                <el-radio value="ssl">SSL</el-radio>
               </el-radio-group>
             </el-form-item>
 
@@ -538,9 +538,9 @@
 
             <el-form-item label="默认用户角色">
               <el-radio-group v-model="ldapConfig.default_role">
-                <el-radio label="USER">普通用户</el-radio>
-                <el-radio label="MANAGER">经理</el-radio>
-                <el-radio label="ADMIN">管理员</el-radio>
+                <el-radio value="USER">普通用户</el-radio>
+                <el-radio value="MANAGER">经理</el-radio>
+                <el-radio value="ADMIN">管理员</el-radio>
               </el-radio-group>
             </el-form-item>
 
