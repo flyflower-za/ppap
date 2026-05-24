@@ -94,9 +94,31 @@
 
       <!-- Main Layout: 2 Columns -->
       <el-row :gutter="24" class="content-row">
-        <!-- Left Column: Verification Results (Checks List) -->
-        <el-col :xs="24" :span="16" class="grid-column">
-          <div class="glass-card section-panel">
+        <!-- Left Column: PDF Preview -->
+        <el-col :xs="24" :lg="14" class="grid-column" style="display: flex; flex-direction: column;">
+          <div class="glass-card section-panel pdf-preview-panel" style="flex: 1; display: flex; flex-direction: column; padding: 0;">
+            <div class="section-title" style="padding: 24px 24px 0 24px;">
+              <h3>文档在线预览</h3>
+            </div>
+            <div 
+              ref="pdfContainerRef" 
+              class="pdf-viewer-container" 
+              v-loading="pdfLoading"
+              style="flex: 1; overflow-y: auto; background-color: #e5e7eb; position: relative; padding: 20px; display: flex; flex-direction: column; align-items: center;"
+            >
+              <el-empty 
+                v-if="!file || ['pending', 'processing'].includes(file.status)" 
+                description="等待处理或暂无预览..." 
+                :image-size="80"
+              />
+            </div>
+          </div>
+        </el-col>
+
+        <!-- Right Column: Verification Results & Details -->
+        <el-col :xs="24" :lg="10" class="grid-column right-scroll-col" style="max-height: 85vh; overflow-y: auto; padding-right: 8px;">
+          <!-- Verification Results -->
+          <div class="glass-card section-panel mb-4">
             <div class="section-title flex-between">
               <h3>校验规则诊断报告</h3>
               <div class="checks-counters" v-if="file.verification_result?.summary">
@@ -136,10 +158,7 @@
               </div>
             </div>
           </div>
-        </el-col>
 
-        <!-- Right Column: Detail Information & Review Notes -->
-        <el-col :xs="24" :span="8" class="grid-column">
           <!-- General Details Card -->
           <div class="glass-card section-panel mb-4 small-card">
             <div class="section-title">
@@ -419,7 +438,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Document, Download, Check, Warning, Close, Delete, Key, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
@@ -427,6 +446,10 @@ import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
 import type { FileDetail, Note } from '@/types'
+import * as pdfjsLib from 'pdfjs-dist'
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
 
 const route = useRoute()
 const router = useRouter()
@@ -444,8 +467,96 @@ function toggleSigExpand(index: number) {
 const loading = ref(true)
 const notesLoading = ref(false)
 const submittingNote = ref(false)
+const pdfContainerRef = ref<HTMLElement | null>(null)
+const pdfLoading = ref(false)
 
 let pollTimer: any = null
+
+async function renderPdf(downloadUrl: string, verificationResult: any) {
+  if (!pdfContainerRef.value) return
+  pdfLoading.value = true
+  try {
+    const loadingTask = pdfjsLib.getDocument(downloadUrl)
+    const pdf = await loadingTask.promise
+    
+    pdfContainerRef.value.innerHTML = '' // clear
+    
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum)
+      const scale = 1.2
+      const viewport = page.getViewport({ scale })
+      
+      const pageWrapper = document.createElement('div')
+      pageWrapper.style.position = 'relative'
+      pageWrapper.style.marginBottom = '20px'
+      pageWrapper.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+      pageWrapper.style.width = `${viewport.width}px`
+      pageWrapper.style.height = `${viewport.height}px`
+      
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')
+      if (context) {
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        canvas.style.display = 'block'
+        
+        pageWrapper.appendChild(canvas)
+        pdfContainerRef.value.appendChild(pageWrapper)
+        
+        await page.render({ canvasContext: context, viewport }).promise
+        
+        // QR codes
+        if (verificationResult?.qr_codes?.qr_data) {
+          verificationResult.qr_codes.qr_data.forEach((qr: any) => {
+            if (qr.page === pageNum && qr.rect) {
+              drawHighlightBox(pageWrapper, qr.rect, viewport, 'rgba(64, 158, 255, 0.25)', '2px solid #409EFF')
+            }
+          })
+        }
+        
+        // Signatures
+        if (verificationResult?.digital_signatures?.signatures) {
+          verificationResult.digital_signatures.signatures.forEach((sig: any) => {
+            if (sig.page === pageNum && sig.rect) {
+              const color = (sig.integrity && !sig.expired) ? '#67C23A' : '#F56C6C'
+              const bg = (sig.integrity && !sig.expired) ? 'rgba(103, 194, 58, 0.25)' : 'rgba(245, 108, 108, 0.25)'
+              drawHighlightBox(pageWrapper, sig.rect, viewport, bg, `2px solid ${color}`)
+            }
+          })
+        }
+      }
+    }
+  } catch (err) {
+    console.error('PDF rendering failed:', err)
+  } finally {
+    pdfLoading.value = false
+  }
+}
+
+function drawHighlightBox(wrapper: HTMLElement, rect: number[], viewport: any, bg: string, border: string) {
+  const [x0, y0, x1, y1] = rect
+  const pt1 = viewport.convertToViewportPoint(x0, y0)
+  const pt2 = viewport.convertToViewportPoint(x1, y1)
+  
+  const left = Math.min(pt1[0], pt2[0])
+  const top = Math.min(pt1[1], pt2[1])
+  const width = Math.abs(pt1[0] - pt2[0])
+  const height = Math.abs(pt1[1] - pt2[1])
+  
+  const box = document.createElement('div')
+  box.style.position = 'absolute'
+  box.style.left = `${left}px`
+  box.style.top = `${top}px`
+  box.style.width = `${width}px`
+  box.style.height = `${height}px`
+  box.style.backgroundColor = bg
+  box.style.border = border
+  box.style.pointerEvents = 'none'
+  box.style.zIndex = '10'
+  box.style.borderRadius = '4px'
+  
+  wrapper.appendChild(box)
+}
 
 function statusText(status: string): string {
   const map: Record<string, string> = {
@@ -542,6 +653,18 @@ async function fetchFileDetail(silent = false) {
     } else {
       closeWebSocket()
       stopPolling()
+      
+      if (res.status === 'completed' || res.status === 'warning' || res.status === 'failed') {
+        filesApi.getDownloadUrl(fileId).then(urlRes => {
+          if (urlRes && urlRes.download_url) {
+            nextTick(() => {
+              renderPdf(urlRes.download_url, res.verification_result)
+            })
+          }
+        }).catch(err => {
+          console.error("Could not fetch download URL for PDF rendering:", err)
+        })
+      }
     }
   } catch (error) {
     closeWebSocket()
