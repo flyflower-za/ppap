@@ -126,7 +126,6 @@
       :title="ruleForm.id ? '编辑规则' : '添加规则'" 
       v-model="ruleDialogVisible" 
       :width="ruleForm.rule_type === 'logic_graph' ? '95%' : '80%'"
-      :fullscreen="ruleForm.rule_type === 'logic_graph'"
       destroy-on-close
     >
       <el-form :model="ruleForm" label-width="100px">
