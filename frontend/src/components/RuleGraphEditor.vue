@@ -339,46 +339,89 @@ const defaultNodes = [
   },
 ]
 
+function safeCloneNodes(nodesArray: any[]) {
+  if (!Array.isArray(nodesArray)) return []
+  return nodesArray.map(node => {
+    // Extract only standard serializable properties to avoid VueFlow internal circular references
+    const serialized: any = {
+      id: node.id,
+      type: node.type,
+      label: node.label,
+      position: node.position ? { x: Number(node.position.x), y: Number(node.position.y) } : { x: 0, y: 0 },
+      data: node.data ? JSON.parse(JSON.stringify(node.data)) : {},
+    }
+    if (node.style) serialized.style = JSON.parse(JSON.stringify(node.style))
+    if (node.class) serialized.class = node.class
+    if (node.parentId) serialized.parentId = node.parentId
+    if (node.draggable !== undefined) serialized.draggable = node.draggable
+    if (node.selectable !== undefined) serialized.selectable = node.selectable
+    if (node.connectable !== undefined) serialized.connectable = node.connectable
+    if (node.deletable !== undefined) serialized.deletable = node.deletable
+    return serialized
+  })
+}
+
+function safeCloneEdges(edgesArray: any[]) {
+  if (!Array.isArray(edgesArray)) return []
+  return edgesArray.map(edge => {
+    const serialized: any = {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+    }
+    if (edge.type) serialized.type = edge.type
+    if (edge.label) serialized.label = edge.label
+    if (edge.animated !== undefined) serialized.animated = edge.animated
+    if (edge.style) serialized.style = JSON.parse(JSON.stringify(edge.style))
+    if (edge.class) serialized.class = edge.class
+    if (edge.data) serialized.data = JSON.parse(JSON.stringify(edge.data))
+    return serialized
+  })
+}
+
 onMounted(() => {
   try {
     if (props.modelValue?.nodes?.length > 0) {
-      // Load existing graph data
-      const loadedNodes = props.modelValue.nodes || []
-      const loadedEdges = props.modelValue.edges || []
-
-      nodes.value = loadedNodes
-      edges.value = loadedEdges
+      // Load existing graph data with safe cloning
+      nodes.value = safeCloneNodes(props.modelValue.nodes)
+      edges.value = safeCloneEdges(props.modelValue.edges || [])
 
       // Ensure default nodes exist
       const hasInput = nodes.value.some(n => n.id === 'node-input')
       const hasOutput = nodes.value.some(n => n.id === 'node-output')
 
       if (!hasInput) {
-        nodes.value.unshift(...defaultNodes.filter(n => n.id === 'node-input'))
+        nodes.value.unshift(...safeCloneNodes(defaultNodes.filter(n => n.id === 'node-input')))
       }
       if (!hasOutput) {
-        nodes.value.push(...defaultNodes.filter(n => n.id === 'node-output'))
+        nodes.value.push(...safeCloneNodes(defaultNodes.filter(n => n.id === 'node-output')))
       }
     } else {
       // Initialize with default nodes
-      nodes.value = [...defaultNodes]
+      nodes.value = safeCloneNodes(defaultNodes)
       edges.value = []
     }
 
-    isInitialized.value = true
+    // Delay initialization to allow CSS transitions (like el-dialog fullscreen) to finish
+    // so VueFlow can accurately measure container dimensions.
+    setTimeout(() => {
+      isInitialized.value = true
+    }, 350)
   } catch (error) {
     console.error('[RuleGraphEditor] Failed to initialize graph:', error)
     // Fallback to default
-    nodes.value = [...defaultNodes]
+    nodes.value = safeCloneNodes(defaultNodes)
     edges.value = []
     isInitialized.value = true
   }
 })
 
 watch([nodes, edges], () => {
-  emit('update:modelValue', {
-    nodes: nodes.value,
-    edges: edges.value
+  nextTick(() => {
+    emit('update:modelValue', {
+      nodes: safeCloneNodes(nodes.value),
+      edges: safeCloneEdges(edges.value)
+    })
   })
 }, { deep: true })
 
@@ -425,7 +468,7 @@ const deleteSelectedNode = () => {
 }
 
 const resetGraph = () => {
-  nodes.value = [...defaultNodes]
+  nodes.value = safeCloneNodes(defaultNodes)
   edges.value = []
   selectedNode.value = null
 }

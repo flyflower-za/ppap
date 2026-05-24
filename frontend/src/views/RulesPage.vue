@@ -158,7 +158,7 @@
         
         <!-- Logic Graph Editor -->
         <el-form-item label="逻辑图配置" v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required>
-          <RuleGraphEditor v-model="ruleForm.logic_config" />
+          <RuleGraphEditor :key="ruleForm.id || 'new'" v-model="ruleForm.logic_config" />
         </el-form-item>
         
         <!-- Standard Content Input -->
@@ -345,7 +345,7 @@ const openRuleDialog = (rule?: Rule) => {
       rule_type: 'keyword',
       severity: 'fail',
       rule_content: '',
-      logic_config: null,
+      logic_config: {}, // Fixed: empty object instead of null to pass backend Pydantic validation
       is_active: true,
       condition_institution: ''
     }
