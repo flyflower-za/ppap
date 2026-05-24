@@ -97,10 +97,10 @@
     <!-- 分类弹窗 -->
     <el-dialog :title="categoryForm.id ? '编辑文档分类' : '新建文档分类'" v-model="categoryDialogVisible" width="400px">
       <el-form :model="categoryForm" label-width="100px">
-        <el-form-item label="分类名称" required>
+        <el-form-item label="分类名称" prop="name" required>
           <el-input v-model="categoryForm.name" placeholder="例如：生产计划单" />
         </el-form-item>
-        <el-form-item label="识别关键词">
+        <el-form-item label="识别关键词" prop="keywords">
           <el-select
             v-model="categoryForm.keywords"
             multiple
@@ -130,10 +130,10 @@
       destroy-on-close
     >
       <el-form :model="ruleForm" label-width="100px">
-        <el-form-item label="规则名称" required>
+        <el-form-item label="规则名称" prop="rule_name" required>
           <el-input v-model="ruleForm.rule_name" placeholder="例如：文档必须包含授权签字" />
         </el-form-item>
-        <el-form-item label="规则类型" required>
+        <el-form-item label="规则类型" prop="rule_type" required>
           <el-select v-model="ruleForm.rule_type" style="width: 100%">
             <el-option label="关键字 (Keyword)" value="keyword" />
             <el-option label="正则表达式 (Regex)" value="regex" />
@@ -141,7 +141,7 @@
             <el-option label="可视化节点图 (Logic Graph)" value="logic_graph" />
           </el-select>
         </el-form-item>
-        <el-form-item label="严重级别" required>
+        <el-form-item label="严重级别" prop="severity" required>
           <el-radio-group v-model="ruleForm.severity">
             <el-radio value="fail">失败 (直接拦截)</el-radio>
             <el-radio value="warning">警告 (提示风险)</el-radio>
@@ -149,7 +149,7 @@
         </el-form-item>
         
         <!-- Condition Configuration -->
-        <el-form-item label="生效条件">
+        <el-form-item label="生效条件" prop="condition_institution">
           <el-input 
             v-model="ruleForm.condition_institution" 
             placeholder="选填。输入触发校验的机构名（如：CTI），不填则全局生效" 
@@ -157,12 +157,12 @@
         </el-form-item>
         
         <!-- Logic Graph Editor -->
-        <el-form-item label="逻辑图配置" v-if="ruleForm.rule_type === 'logic_graph'" required>
+        <el-form-item label="逻辑图配置" v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required>
           <RuleGraphEditor v-model="ruleForm.logic_config" />
         </el-form-item>
         
         <!-- Standard Content Input -->
-        <el-form-item label="规则内容" v-else required>
+        <el-form-item label="规则内容" v-else prop="rule_content" required>
           <el-input 
             v-model="ruleForm.rule_content" 
             type="textarea" 

@@ -149,7 +149,7 @@
             label-width="180px"
             class="file-retention-form"
           >
-            <el-form-item label="启用自动清理">
+            <el-form-item label="启用自动清理" prop="auto_cleanup_enabled">
               <el-switch v-model="fileRetentionSettings.auto_cleanup_enabled" />
               <span class="form-tip">启用后系统将自动清理过期的PDF文件</span>
             </el-form-item>
@@ -245,7 +245,7 @@
             label-width="140px"
             class="smtp-form"
           >
-            <el-form-item label="启用 SMTP">
+            <el-form-item label="启用 SMTP" prop="enabled">
               <el-switch
                 v-model="smtpConfig.enabled"
               />
@@ -274,7 +274,7 @@
               <span class="form-tip">常用端口: 25, 465 (SSL), 587 (TLS)</span>
             </el-form-item>
 
-            <el-form-item label="加密方式">
+            <el-form-item label="加密方式" prop="encryption">
               <el-radio-group v-model="smtpConfig.encryption" :disabled="!smtpConfig.enabled">
                 <el-radio value="none">不加密</el-radio>
                 <el-radio value="tls">TLS</el-radio>
@@ -448,7 +448,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="描述">
+            <el-form-item label="描述" prop="description">
               <el-input
                 v-model="templateForm.description"
                 type="textarea"
@@ -476,7 +476,7 @@
               <span class="form-tip">可使用变量占位符，如 {filename}, {status} 等</span>
             </el-form-item>
 
-            <el-form-item label="启用状态">
+            <el-form-item label="启用状态" prop="is_active">
               <el-switch v-model="templateForm.is_active" />
               <span class="form-tip">启用后，系统将使用此模板发送邮件</span>
             </el-form-item>
@@ -526,17 +526,17 @@
           >
             <el-divider content-position="left">基本设置</el-divider>
 
-            <el-form-item label="保留本地管理员账号">
+            <el-form-item label="保留本地管理员账号" prop="local_admin_enabled">
               <el-switch v-model="ldapConfig.local_admin_enabled" />
               <span class="form-tip">保留本地管理员账号，用于紧急访问</span>
             </el-form-item>
 
-            <el-form-item label="自动创建用户">
+            <el-form-item label="自动创建用户" prop="auto_create_users">
               <el-switch v-model="ldapConfig.auto_create_users" />
               <span class="form-tip">用户首次登录时自动创建账号</span>
             </el-form-item>
 
-            <el-form-item label="默认用户角色">
+            <el-form-item label="默认用户角色" prop="default_role">
               <el-radio-group v-model="ldapConfig.default_role">
                 <el-radio value="USER">普通用户</el-radio>
                 <el-radio value="MANAGER">经理</el-radio>
@@ -546,11 +546,11 @@
 
             <el-divider content-position="left">LDAP 配置</el-divider>
 
-            <el-form-item label="启用 LDAP">
+            <el-form-item label="启用 LDAP" prop="ldap_enabled">
               <el-switch v-model="ldapConfig.ldap_enabled" />
             </el-form-item>
 
-            <el-form-item label="LDAP 服务器" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="LDAP 服务器" v-if="ldapConfig.ldap_enabled" prop="ldap_server">
               <el-input
                 v-model="ldapConfig.ldap_server"
                 placeholder="例如: ldap.example.com"
@@ -558,7 +558,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="端口" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="端口" v-if="ldapConfig.ldap_enabled" prop="ldap_port">
               <el-input
                 v-model.number="ldapConfig.ldap_port"
                 type="number"
@@ -568,11 +568,11 @@
               <span class="form-tip">常用端口: 389 (标准), 636 (SSL)</span>
             </el-form-item>
 
-            <el-form-item label="使用 SSL/TLS" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="使用 SSL/TLS" v-if="ldapConfig.ldap_enabled" prop="ldap_use_ssl">
               <el-switch v-model="ldapConfig.ldap_use_ssl" />
             </el-form-item>
 
-            <el-form-item label="绑定 DN" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="绑定 DN" v-if="ldapConfig.ldap_enabled" prop="ldap_bind_dn">
               <el-input
                 v-model="ldapConfig.ldap_bind_dn"
                 placeholder="例如: cn=admin,dc=example,dc=com"
@@ -580,7 +580,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="绑定密码" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="绑定密码" v-if="ldapConfig.ldap_enabled" prop="ldap_bind_password">
               <el-input
                 v-model="ldapConfig.ldap_bind_password"
                 type="password"
@@ -590,7 +590,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="搜索基础 DN" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="搜索基础 DN" v-if="ldapConfig.ldap_enabled" prop="ldap_search_base">
               <el-input
                 v-model="ldapConfig.ldap_search_base"
                 placeholder="例如: dc=example,dc=com"
@@ -598,7 +598,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="邮箱属性" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="邮箱属性" v-if="ldapConfig.ldap_enabled" prop="ldap_email_attribute">
               <el-input
                 v-model="ldapConfig.ldap_email_attribute"
                 placeholder="mail"
@@ -606,7 +606,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="姓名属性" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="姓名属性" v-if="ldapConfig.ldap_enabled" prop="ldap_name_attribute">
               <el-input
                 v-model="ldapConfig.ldap_name_attribute"
                 placeholder="cn"
@@ -614,7 +614,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="部门属性" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="部门属性" v-if="ldapConfig.ldap_enabled" prop="ldap_department_attribute">
               <el-input
                 v-model="ldapConfig.ldap_department_attribute"
                 placeholder="department"
@@ -624,7 +624,7 @@
 
             <el-divider content-position="left">AD 组映射（权限分配）</el-divider>
 
-            <el-form-item label="管理员组 DN" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="管理员组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_admin_group">
               <el-input
                 v-model="ldapConfig.ad_admin_group"
                 placeholder="例如: cn=PPAP-Admins,ou=groups,dc=example,dc=com"
@@ -633,7 +633,7 @@
               <span class="form-tip">该组成员将被分配管理员权限</span>
             </el-form-item>
 
-            <el-form-item label="经理组 DN" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="经理组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_manager_group">
               <el-input
                 v-model="ldapConfig.ad_manager_group"
                 placeholder="例如: cn=PPAP-Managers,ou=groups,dc=example,dc=com"
@@ -642,7 +642,7 @@
               <span class="form-tip">该组成员将被分配经理权限</span>
             </el-form-item>
 
-            <el-form-item label="用户组 DN" v-if="ldapConfig.ldap_enabled">
+            <el-form-item label="用户组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_user_group">
               <el-input
                 v-model="ldapConfig.ad_user_group"
                 placeholder="例如: cn=PPAP-Users,ou=groups,dc=example,dc=com"
@@ -653,11 +653,11 @@
 
             <el-divider content-position="left">SSO 配置（SAML）</el-divider>
 
-            <el-form-item label="启用 SSO">
+            <el-form-item label="启用 SSO" prop="sso_enabled">
               <el-switch v-model="ldapConfig.sso_enabled" />
             </el-form-item>
 
-            <el-form-item label="SSO 提供商" v-if="ldapConfig.sso_enabled">
+            <el-form-item label="SSO 提供商" v-if="ldapConfig.sso_enabled" prop="sso_provider">
               <el-input
                 v-model="ldapConfig.sso_provider"
                 placeholder="例如: AzureAD, Okta"
@@ -665,7 +665,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="实体 ID" v-if="ldapConfig.sso_enabled">
+            <el-form-item label="实体 ID" v-if="ldapConfig.sso_enabled" prop="sso_entity_id">
               <el-input
                 v-model="ldapConfig.sso_entity_id"
                 placeholder="例如: https://ppap.example.com"
@@ -673,7 +673,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="ACS URL" v-if="ldapConfig.sso_enabled">
+            <el-form-item label="ACS URL" v-if="ldapConfig.sso_enabled" prop="sso_acs_url">
               <el-input
                 v-model="ldapConfig.sso_acs_url"
                 placeholder="断言消费服务 URL"
@@ -681,7 +681,7 @@
               />
             </el-form-item>
 
-            <el-form-item label="IdP SSO URL" v-if="ldapConfig.sso_enabled">
+            <el-form-item label="IdP SSO URL" v-if="ldapConfig.sso_enabled" prop="sso_idp_sso_url">
               <el-input
                 v-model="ldapConfig.sso_idp_sso_url"
                 placeholder="身份提供者登录 URL"
