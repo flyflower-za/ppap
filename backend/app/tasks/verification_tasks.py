@@ -241,13 +241,14 @@ def queue_verification_task(self, file_id: str):
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
 
     # Run the async operations inside the sync Celery context and cleanly dispose connections
-    try:
-        asyncio.run(_async_verification())
-    finally:
-        async def _dispose():
-            from app.core.database import engine
-            await engine.dispose()
+    async def _run_all():
         try:
-            asyncio.run(_dispose())
-        except Exception:
-            pass
+            await _async_verification()
+        finally:
+            from app.core.database import engine
+            try:
+                await engine.dispose()
+            except Exception:
+                pass
+                
+    asyncio.run(_run_all())

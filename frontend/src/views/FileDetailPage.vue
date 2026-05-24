@@ -586,13 +586,17 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
 
 function drawHighlightBox(wrapper: HTMLElement, rect: number[], viewport: any, bg: string, border: string) {
   const [x0, y0, x1, y1] = rect
-  const pt1 = viewport.convertToViewportPoint(x0, y0)
-  const pt2 = viewport.convertToViewportPoint(x1, y1)
   
-  const left = Math.min(pt1[0], pt2[0])
-  const top = Math.min(pt1[1], pt2[1])
-  const width = Math.abs(pt1[0] - pt2[0])
-  const height = Math.abs(pt1[1] - pt2[1])
+  // PyMuPDF returns coordinates in points (72 DPI) with a Top-Left origin.
+  // PDF.js viewport.convertToViewportPoint expects standard PDF coordinates (Bottom-Left origin).
+  // To avoid flipping or complex viewBox offset math, we can simply scale the Top-Left points
+  // directly by the viewport's scale.
+  const scale = viewport.scale || 1.5
+  
+  const left = x0 * scale
+  const top = y0 * scale
+  const width = (x1 - x0) * scale
+  const height = (y1 - y0) * scale
   
   const box = document.createElement('div')
   box.style.position = 'absolute'
