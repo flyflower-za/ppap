@@ -21,5 +21,5 @@ export interface GetAuditLogsParams {
 }
 
 export const getAuditLogs = (params: GetAuditLogsParams) => {
-  return apiClient.get<AuditLog[]>('/audit-logs/', { params }).then(res => res.data)
+  return apiClient.get<any, AuditLog[]>('/audit-logs/', { params })
 }

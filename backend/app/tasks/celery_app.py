@@ -1,3 +1,7 @@
+import os
+# Fix for macOS Celery worker crash (signal 6 SIGABRT)
+os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+
 from celery import Celery
 from app.core.config import settings
 

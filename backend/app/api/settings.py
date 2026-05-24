@@ -13,6 +13,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user, get_current_admin
 from app.models.user import User
 from app.models.setting import Setting
+from app.core.audit_logger import log_audit_event
 
 logger = logging.getLogger(__name__)
 
@@ -636,6 +637,16 @@ async def create_model_profile(
             profile_dict["is_default_vision"] = True
     profiles.append(profile_dict)
     await _save_profiles_raw(db, profiles)
+    
+    await log_audit_event(
+        db=db,
+        action="CREATE_MODEL_PROFILE",
+        user=current_user,
+        resource_type="SETTING",
+        details={"profile_name": profile_dict["name"], "model_name": profile_dict["model_name"]}
+    )
+    await db.commit()
+    
     return {"message": "模型配置已创建", "profile": _mask_profile(profile_dict)}
 
 
@@ -658,6 +669,16 @@ async def update_model_profile(
         update_dict["api_key"] = profiles[idx].get("api_key")
     profiles[idx] = update_dict
     await _save_profiles_raw(db, profiles)
+
+    await log_audit_event(
+        db=db,
+        action="UPDATE_MODEL_PROFILE",
+        user=current_user,
+        resource_type="SETTING",
+        details={"profile_id": profile_id, "profile_name": update_dict["name"]}
+    )
+    await db.commit()
+
     return {"message": "模型配置已更新", "profile": _mask_profile(update_dict)}
 
 
@@ -673,6 +694,16 @@ async def delete_model_profile(
     if len(new_profiles) == len(profiles):
         raise HTTPException(status_code=404, detail="模型配置不存在")
     await _save_profiles_raw(db, new_profiles)
+    
+    await log_audit_event(
+        db=db,
+        action="DELETE_MODEL_PROFILE",
+        user=current_user,
+        resource_type="SETTING",
+        details={"profile_id": profile_id}
+    )
+    await db.commit()
+    
     return {"message": "模型配置已删除"}
 
 
@@ -713,6 +744,16 @@ async def set_default_model_profile(
     for i, p in enumerate(profiles):
         p[flag] = (i == target_idx)
     await _save_profiles_raw(db, profiles)
+    
+    await log_audit_event(
+        db=db,
+        action="SET_DEFAULT_MODEL",
+        user=current_user,
+        resource_type="SETTING",
+        details={"profile_id": profile_id, "type": body.for_type}
+    )
+    await db.commit()
+    
     return {"message": f"已将该配置设为默认{body.for_type}模型"}
 
 

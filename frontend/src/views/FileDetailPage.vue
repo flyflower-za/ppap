@@ -702,6 +702,7 @@ function canDeleteNote(note: Note): boolean {
 // Fetch file detail
 async function fetchFileDetail(silent = false) {
   const fileId = route.params.id as string
+  if (!fileId || fileId === 'undefined') return
   if (!silent) loading.value = true
   try {
     const res = await filesApi.getDetail(fileId)
@@ -738,6 +739,7 @@ async function fetchFileDetail(silent = false) {
 // Fetch Notes
 async function fetchNotes(silent = false) {
   const fileId = route.params.id as string
+  if (!fileId || fileId === 'undefined') return
   if (!silent) notesLoading.value = true
   try {
     const res = await notesApi.getByFileId(fileId)
@@ -860,6 +862,7 @@ function connectWebSocket() {
   
   const token = localStorage.getItem('token') || ''
   const fileId = route.params.id as string
+  if (!fileId || fileId === 'undefined') return
   
   let wsUrl = ''
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
