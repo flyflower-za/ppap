@@ -325,10 +325,10 @@ const openRuleDialog = (rule?: Rule) => {
     ruleForm.value = { 
       category_id: activeCategoryId.value,
       rule_name: '', 
-      rule_type: 'logic_graph', 
+      rule_type: 'keyword', 
       severity: 'fail', 
-      rule_content: 'AST GRAPH CONFIG',
-      logic_config: { nodes: [], edges: [] },
+      rule_content: '',
+      logic_config: null,
       is_active: true,
       condition_institution: ''
     }
