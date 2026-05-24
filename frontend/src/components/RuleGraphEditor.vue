@@ -239,7 +239,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, nextTick } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -328,16 +328,21 @@ const defaultNodes = [
 
 onMounted(() => {
   if (props.modelValue?.nodes?.length > 0) {
-    nodes.value = props.modelValue.nodes
-    edges.value = props.modelValue.edges || []
+    nodes.value = JSON.parse(JSON.stringify(props.modelValue.nodes))
+    edges.value = JSON.parse(JSON.stringify(props.modelValue.edges || []))
   } else {
-    nodes.value = [...defaultNodes]
+    nodes.value = JSON.parse(JSON.stringify(defaultNodes))
     edges.value = []
   }
 })
 
 watch([nodes, edges], () => {
-  emit('update:modelValue', { nodes: nodes.value, edges: edges.value })
+  nextTick(() => {
+    emit('update:modelValue', {
+      nodes: JSON.parse(JSON.stringify(nodes.value)),
+      edges: JSON.parse(JSON.stringify(edges.value))
+    })
+  })
 }, { deep: true })
 
 const onConnect = (connection: any) => {
