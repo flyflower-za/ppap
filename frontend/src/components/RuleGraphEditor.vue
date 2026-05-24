@@ -48,9 +48,9 @@
         @connect="onConnect"
         @nodeClick="onNodeClick"
         @paneClick="onPaneClick"
-        fit-view-on-init
+        @paneReady="onPaneReady"
       >
-        <Background pattern-color="#d1d5db" gap="20" />
+        <Background pattern-color="#d1d5db" :gap="20" />
         <Controls position="bottom-left" />
         <MiniMap v-if="nodes.length > 4" />
       </VueFlow>
@@ -247,7 +247,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, nextTick } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -457,6 +457,12 @@ const addNode = (type: string) => {
 
 const onNodeClick = (event: any) => { selectedNode.value = event.node }
 const onPaneClick = () => { selectedNode.value = null }
+const onPaneReady = (vueFlowInstance: any) => {
+  // Ensure the view is fitted properly once the canvas is fully ready
+  setTimeout(() => {
+    vueFlowInstance.fitView()
+  }, 50)
+}
 
 const deleteSelectedNode = () => {
   if (selectedNode.value && selectedNode.value.deletable !== false) {
