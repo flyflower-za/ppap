@@ -68,10 +68,13 @@ async def get_current_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
     """Get current admin user (requires admin role)."""
-    if not current_user.is_admin:
+    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
+    is_admin = user_role == "ADMIN" or current_user.is_admin
+    
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required",
+            detail="需要管理员权限",
         )
     return current_user
 

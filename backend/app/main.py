@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.config import settings
@@ -88,6 +91,40 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(api_router, prefix=settings.API_PREFIX)
+
+
+# ==========================================
+# Global Exception Handlers
+# ==========================================
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle standard HTTP exceptions cleanly."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": True, "message": str(exc.detail), "code": exc.status_code},
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
+    """Mask database errors to avoid leaking schema or data details."""
+    logger.error(f"Database error on {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": True, "message": "数据库操作失败", "code": 5001},
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Catch-all for unhandled exceptions to prevent stack trace leaks."""
+    logger.error(f"Unhandled system error on {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"error": True, "message": "系统内部服务器错误", "code": 5000},
+    )
+
 
 
 # Health check endpoint

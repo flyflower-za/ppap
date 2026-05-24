@@ -9,7 +9,7 @@ import os
 import json
 
 from app.core.database import get_db
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, get_current_admin
 from app.models.user import User
 from app.models.setting import Setting
 
@@ -103,7 +103,7 @@ async def get_notification_settings(
 @router.post("/notifications")
 async def update_notification_settings(
     settings: NotificationSettings,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -135,7 +135,7 @@ async def update_notification_settings(
 
 @router.get("/smtp")
 async def get_smtp_config(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -172,7 +172,7 @@ async def get_smtp_config(
 @router.post("/smtp")
 async def update_smtp_config(
     config: SmtpConfig,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -226,7 +226,7 @@ async def update_smtp_config(
 @router.post("/smtp/test")
 async def test_smtp_config(
     request: SmtpTestRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_admin)
 ):
     """
     Test SMTP configuration by sending a test email
@@ -348,7 +348,7 @@ async def get_email_template(
 @router.post("/email-templates")
 async def create_email_template(
     template: EmailTemplateModel,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new email template"""
@@ -383,7 +383,7 @@ async def create_email_template(
 async def update_email_template(
     template_id: str,
     template: EmailTemplateModel,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Update an existing email template"""
@@ -435,7 +435,7 @@ async def preview_email_template(
 @router.delete("/email-templates/{template_id}")
 async def delete_email_template(
     template_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Delete an email template"""
