@@ -96,7 +96,7 @@
       <el-row :gutter="24" class="content-row">
         <!-- Left Column: PDF Preview -->
         <el-col :xs="24" :lg="14" class="grid-column" style="display: flex; flex-direction: column;">
-          <div class="glass-card section-panel pdf-preview-panel" style="flex: 1; display: flex; flex-direction: column; padding: 0;">
+          <div class="glass-card section-panel pdf-preview-panel" style="flex: 1; display: flex; flex-direction: column; padding: 0; max-height: 85vh; height: 85vh;">
             <div class="section-title" style="padding: 24px 24px 0 24px;">
               <h3>文档在线预览</h3>
             </div>
@@ -417,7 +417,7 @@
                 class="premium-textarea"
                 :disabled="submittingNote"
               />
-              <div class="flex-between mt-3">
+              <div class="flex-between" style="margin-top: 8px;">
                 <span class="input-tips">请确保记录完整的信息，以便追溯核对</span>
                 <el-button 
                   type="primary" 
