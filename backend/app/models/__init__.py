@@ -6,6 +6,7 @@ from app.models.note import Note
 from app.models.setting import Setting
 from app.models.email_template import EmailTemplate
 from app.models.ldap_config import LDAPConfig
+from app.models.rule import DocumentCategory, VerificationRule
 
 __all__ = [
     "User",
@@ -21,4 +22,6 @@ __all__ = [
     "Setting",
     "EmailTemplate",
     "LDAPConfig",
+    "DocumentCategory",
+    "VerificationRule",
 ]
