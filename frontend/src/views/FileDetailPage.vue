@@ -27,24 +27,42 @@
                 <span class="file-meta-txt">{{ formatFileSize(file.file_size) }}</span>
                 <span class="dot-separator">•</span>
                 <span class="file-meta-txt">{{ file.page_count || '-' }} 页</span>
+                <span class="dot-separator">•</span>
+                <span class="file-meta-txt">追踪ID: {{ file.id ? file.id.substring(0, 8) : '-' }}</span>
+              </div>
+              <div class="file-feature-tags mt-2" v-if="file.status !== 'pending' && file.status !== 'processing'">
+                <el-tag size="small" :type="digitalSignatures?.signed ? 'success' : 'danger'" effect="plain" class="feature-tag">
+                  {{ digitalSignatures?.signed ? '✓ 已数字签名' : '⚠ 无有效签名' }}
+                </el-tag>
+                <el-tag size="small" :type="isTextPdf ? 'primary' : 'warning'" effect="plain" class="feature-tag ml-2">
+                  {{ isTextPdf ? '✓ 矢量文本型' : '⚠ 扫描/图片型' }}
+                </el-tag>
+                <el-tag size="small" type="info" effect="plain" class="feature-tag ml-2">
+                  二维码: {{ qrCodeCount }} 个
+                </el-tag>
               </div>
             </div>
           </div>
           
-          <div class="header-actions">
-            <span class="premium-status-badge" :class="file.status">
-              <span class="pulse-indicator" v-if="file.status === 'processing'"></span>
-              {{ statusText(file.status) }}
-            </span>
-            <el-button 
-              type="primary" 
-              :icon="Download" 
-              @click="handleDownload"
-              :disabled="file.status === 'pending' || file.status === 'processing'"
-              class="download-report-btn"
-            >
-              下载原文件
-            </el-button>
+          <div class="header-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div v-if="file.status !== 'pending' && file.status !== 'processing'" class="risk-level-badge" :class="riskLevelClass" style="font-weight: 600; font-size: 14px; padding: 4px 12px; border-radius: 6px; border: 1px solid currentColor;">
+              {{ riskLevelText }}
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="premium-status-badge" :class="file.status">
+                <span class="pulse-indicator" v-if="file.status === 'processing'"></span>
+                {{ statusText(file.status) }}
+              </span>
+              <el-button 
+                type="primary" 
+                :icon="Download" 
+                @click="handleDownload"
+                :disabled="file.status === 'pending' || file.status === 'processing'"
+                class="download-report-btn"
+              >
+                下载原文件
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -56,6 +74,12 @@
             <div class="meta-cell">
               <span class="meta-label">签发机构 (AI 嗅探)</span>
               <span class="meta-value text-primary font-bold">{{ sniffedInstitution || '未知 / 分析中' }}</span>
+            </div>
+          </el-col>
+          <el-col :xs="12" :sm="6" class="meta-col">
+            <div class="meta-cell">
+              <span class="meta-label">上传账号</span>
+              <span class="meta-value">{{ file.uploaded_by || '-' }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="6" class="meta-col">
@@ -513,6 +537,33 @@ const digitalSignatures = computed(() => {
 const qrCodes = computed(() => {
   const v = file.value?.verification_result_json
   return v?.operator_logs?.QRScanner?.extracted_data?.qr_codes || v?.qr_codes || null
+})
+
+const qrCodeCount = computed(() => {
+  return qrCodes.value ? qrCodes.value.length : 0
+})
+
+const isTextPdf = computed(() => {
+  const v = file.value?.verification_result_json
+  return v?.operator_logs?.PDFInfoExtractor?.extracted_data?.pdf_info?.is_text_pdf || false
+})
+
+const riskLevelText = computed(() => {
+  if (!file.value) return '分析中...'
+  if (file.value.status === 'needs_review') return '【高风险】人工介入'
+  if (file.value.status === 'failed') return '【危险】合规不通过'
+  if (file.value.status === 'warning') return '【警告】存在合规瑕疵'
+  if (file.value.status === 'completed') return '【安全】合规通过'
+  return '未评级'
+})
+
+const riskLevelClass = computed(() => {
+  if (!file.value) return 'color-info'
+  if (file.value.status === 'needs_review') return 'color-warning'
+  if (file.value.status === 'failed') return 'color-fail'
+  if (file.value.status === 'warning') return 'color-warning'
+  if (file.value.status === 'completed') return 'color-pass'
+  return 'color-info'
 })
 
 function toggleSigExpand(index: number) {

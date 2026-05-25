@@ -182,6 +182,12 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="签发机构" min-width="130" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="text-secondary font-bold">{{ getInstitution(row) }}</span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="page_count" label="页数" width="70" align="center">
           <template #default="{ row }">
             <span class="font-mono">{{ row.page_count || 1 }} 页</span>
@@ -373,6 +379,14 @@ function getPassRateClass(rate: number | null): string {
   if (rate >= 90) return 'text-success'
   if (rate >= 60) return 'text-warning'
   return 'text-danger'
+}
+
+function getInstitution(row: any): string {
+  const vr = row.verification_result_json
+  if (!vr || !vr.operator_logs || !vr.operator_logs.InstitutionSniffer) {
+    return '--'
+  }
+  return vr.operator_logs.InstitutionSniffer.extracted_data?.institution || '--'
 }
 
 function handleDateRangeChange(val: [string, string] | null) {
@@ -570,11 +584,13 @@ async function handleExport() {
     }
 
     let csvContent = '\uFEFF' // UTF-8 BOM for Excel compatibility
-    csvContent += '文件ID,原文件名,上传时间,文件分类,页数,诊断状态,指标通过率,核对通过项,风险警告项,不合格项,核对耗时(秒),规则1-文本层检测状态,规则1-文本层检测详情,规则2-数字签名校验状态,规则2-数字签名校验详情,规则3-二维码识别状态,规则3-二维码识别详情,规则4-装订完整性校验状态,规则4-装订完整性校验详情,业务属性规则校验项,业务属性规则校验状态,业务属性规则校验详情,人工审核备注\n'
+    csvContent += '文件ID,原文件名,上传时间,签发机构,文件分类,页数,诊断状态,指标通过率,核对通过项,风险警告项,不合格项,核对耗时(秒),规则1-文本层检测状态,规则1-文本层检测详情,规则2-数字签名校验状态,规则2-数字签名校验详情,规则3-二维码识别状态,规则3-二维码识别详情,规则4-装订完整性校验状态,规则4-装订完整性校验详情,业务属性规则校验项,业务属性规则校验状态,业务属性规则校验详情,人工审核备注\n'
     
     records.forEach((row: any) => {
       const escapedName = `"${(row.original_filename || '').replace(/"/g, '""')}"`
       const typeText = getFileTypeText(row.file_type)
+      const institutionName = getInstitution(row)
+      const escapedInstitution = `"${institutionName.replace(/"/g, '""')}"`
       const statusLabel = statusText(row.status)
       const passRate = row.pass_rate !== null ? `${row.pass_rate}%` : '--'
       const duration = row.duration_seconds !== null ? `${row.duration_seconds}` : '--'
@@ -644,7 +660,7 @@ async function handleExport() {
       const escapedBusinessCheckStatus = `"${businessCheckStatus.replace(/"/g, '""')}"`
       const escapedBusinessCheckMsg = `"${businessCheckMsg.replace(/"/g, '""')}"`
       
-      csvContent += `${row.id},${escapedName},${formatDateTime(row.uploaded_at)},${typeText},${row.page_count || 1},${statusLabel},${passRate},${row.pass_count},${row.warning_count},${row.fail_count},${duration},${escapedTextPdfStatus},${escapedTextPdfMsg},${escapedSignatureStatus},${escapedSignatureMsg},${escapedQrCodeStatus},${escapedQrCodeMsg},${escapedBindingStatus},${escapedBindingMsg},${escapedBusinessCheckName},${escapedBusinessCheckStatus},${escapedBusinessCheckMsg},${escapedNotes}\n`
+      csvContent += `${row.id},${escapedName},${formatDateTime(row.uploaded_at)},${escapedInstitution},${typeText},${row.page_count || 1},${statusLabel},${passRate},${row.pass_count},${row.warning_count},${row.fail_count},${duration},${escapedTextPdfStatus},${escapedTextPdfMsg},${escapedSignatureStatus},${escapedSignatureMsg},${escapedQrCodeStatus},${escapedQrCodeMsg},${escapedBindingStatus},${escapedBindingMsg},${escapedBusinessCheckName},${escapedBusinessCheckStatus},${escapedBusinessCheckMsg},${escapedNotes}\n`
     })
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
