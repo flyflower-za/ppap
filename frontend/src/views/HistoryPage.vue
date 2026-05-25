@@ -156,16 +156,17 @@
         row-key="id"
         class="premium-table"
         stripe
+        border
       >
-        <el-table-column type="selection" width="55" reserve-selection />
+        <el-table-column type="selection" width="45" reserve-selection />
         
-        <el-table-column prop="uploaded_at" label="上传时间" width="170">
+        <el-table-column prop="uploaded_at" label="上传时间" width="150">
           <template #default="{ row }">
             <span class="font-mono text-secondary">{{ formatDateTime(row.uploaded_at) }}</span>
           </template>
         </el-table-column>
         
-        <el-table-column prop="original_filename" label="文件名" min-width="200" show-overflow-tooltip>
+        <el-table-column prop="original_filename" label="文件名" min-width="250" show-overflow-tooltip>
           <template #default="{ row }">
             <div class="file-name-cell">
               <span class="pdf-icon">📄</span>
@@ -174,7 +175,7 @@
           </template>
         </el-table-column>
         
-        <el-table-column prop="file_type" label="文件类型" width="130">
+        <el-table-column prop="file_type" label="文件类型" width="110" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag :type="getFileTypeTag(row.file_type)" effect="plain" class="type-tag-premium">
               {{ getFileTypeText(row.file_type) }}
@@ -182,19 +183,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="签发机构" min-width="130" show-overflow-tooltip>
+        <el-table-column label="签发机构" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="text-secondary font-bold">{{ getInstitution(row) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="page_count" label="页数" width="70" align="center">
+        <el-table-column prop="page_count" label="页数" width="60" align="center">
           <template #default="{ row }">
-            <span class="font-mono">{{ row.page_count || 1 }} 页</span>
+            <span class="font-mono">{{ row.page_count || 1 }}</span>
           </template>
         </el-table-column>
         
-        <el-table-column prop="status" label="校验状态" width="120">
+        <el-table-column prop="status" label="校验状态" width="110">
           <template #default="{ row }">
             <div class="status-wrapper">
               <span class="status-indicator-dot" :class="row.status"></span>
@@ -203,12 +204,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="pass_rate" label="指标通过率" width="180">
+        <el-table-column prop="pass_rate" label="指标通过率" width="150">
           <template #default="{ row }">
             <div v-if="row.status !== 'pending' && row.status !== 'processing'" class="progress-premium-container">
               <div class="progress-header font-mono">
                 <span class="rate-value" :class="getPassRateClass(row.pass_rate)">{{ row.pass_rate }}%</span>
-                <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }} 项</span>
+                <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }}</span>
               </div>
               <el-progress 
                 :percentage="row.pass_rate || 0" 
@@ -219,14 +220,14 @@
               />
             </div>
             <div v-else class="status-placeholder text-secondary">
-              {{ row.status === 'processing' ? '正在诊断中...' : '等待诊断队列...' }}
+              {{ row.status === 'processing' ? '诊断中...' : '等待中...' }}
             </div>
           </template>
         </el-table-column>
 
-        <el-table-column prop="duration_seconds" label="核对耗时" width="90" align="center">
+        <el-table-column prop="duration_seconds" label="耗时" width="70" align="center">
           <template #default="{ row }">
-            <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds} 秒` : '--' }}</span>
+            <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds}s` : '--' }}</span>
           </template>
         </el-table-column>
         
@@ -235,15 +236,6 @@
             <div class="table-actions-row">
               <el-button link type="primary" size="small" class="action-btn-view" @click="handleView(row)">
                 查看详情
-              </el-button>
-              <el-button 
-                link 
-                type="primary" 
-                size="small" 
-                class="action-btn-view" 
-                @click="handleViewTrajectory(row)"
-              >
-                执行轨迹
               </el-button>
               <el-button 
                 link 

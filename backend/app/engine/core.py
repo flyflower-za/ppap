@@ -160,6 +160,8 @@ class VerificationEngine:
         needs_review = False
 
         for rule in rules:
+            await emit_log(f"-> 开始执行验证规则：[{rule.rule_name}]")
+            
             # Check conditions (skip if mismatch)
             logic = rule.logic_config or {}
             conditions = logic.get("conditions", {})
@@ -168,6 +170,7 @@ class VerificationEngine:
                 required_inst = conditions.get("institution")
                 if required_inst and required_inst.lower() != sniffed_inst.lower():
                     logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst}, but sniffed {sniffed_inst})")
+                    await emit_log(f"规则 [{rule.rule_name}] 已跳过（适用机构不匹配）")
                     continue
 
             rule_pass = False
@@ -186,7 +189,6 @@ class VerificationEngine:
 
                 elif rule.rule_content == "REQUIRE_SIGNATURE":
                     sig_data = context.shared_state.get("digital_signatures", {})
-                    is_signed = sig_data.get("signed", False)
                     sigs = sig_data.get("signatures", [])
                     valid_sigs = [s for s in sigs if s.get("integrity", False)]
                     
@@ -196,17 +198,60 @@ class VerificationEngine:
                         rule_msg = f"通过：检测到合法的数字签名。签署人：{', '.join(signers)}"
                     else:
                         rule_msg = "未通过：该文档缺失强制要求的合法数字签名"
+                await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
+                
             elif rule.rule_type == RuleType.llm_prompt:
-                # Text LLM evaluation fallback
-                llm_results = context.shared_state.get("llm_semantic_analysis", [])
-                if llm_results:
-                    # For simplicity in Phase 2, take the latest execution that matches this rule's intent
-                    res = llm_results[-1]
-                    rule_pass = res.get("passed", False)
-                    rule_msg = res.get("reason", "大模型分析未返回原因。")
-                    confidence = res.get("confidence", 1.0)
+                model_type = logic.get("llm_model_type", "text")
+                if model_type == "vision":
+                    await emit_log(f"大模型算子开始理解规则语义并执行视觉分析 (Vision LLM)...")
+                    from app.engine.operators.vision_llm_operator import VisionLLMOperator
+                    op = VisionLLMOperator()
                 else:
-                    rule_msg = "未通过：未获得大模型分析结果"
+                    await emit_log(f"大模型算子开始理解规则语义并执行文本匹配 (Text LLM)...")
+                    from app.engine.operators.text_llm_operator import TextLLMOperator
+                    op = TextLLMOperator()
+                
+                try:
+                    res = await op.execute(context, prompt=rule.rule_content)
+                    if res.pass_status:
+                        llm_data = res.extracted_data
+                        rule_pass = llm_data.get("passed", False)
+                        rule_msg = llm_data.get("reason", "大模型分析未返回原因。")
+                        confidence = llm_data.get("confidence", 1.0)
+                    else:
+                        rule_pass = False
+                        rule_msg = f"未通过：大模型调用失败 ({res.message})"
+                except Exception as e:
+                    rule_pass = False
+                    rule_msg = f"未通过：大模型调用异常 ({e})"
+                await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
+                
+            elif rule.rule_type == RuleType.regex:
+                import re
+                full_text = context.shared_state.get("full_text", "")
+                try:
+                    match = re.search(rule.rule_content, full_text)
+                    if match:
+                        rule_pass = True
+                        rule_msg = f"通过：检测到正则匹配项 '{match.group(0)}'"
+                    else:
+                        rule_pass = False
+                        rule_msg = "未通过：未检测到匹配正则表达式的内容"
+                except Exception as e:
+                    rule_pass = False
+                    rule_msg = f"未通过：正则表达式错误 ({e})"
+                await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
+                
+            elif rule.rule_type == RuleType.keyword:
+                full_text = context.shared_state.get("full_text", "")
+                if rule.rule_content and rule.rule_content in full_text:
+                    rule_pass = True
+                    rule_msg = f"通过：文档中包含关键字 '{rule.rule_content}'"
+                else:
+                    rule_pass = False
+                    rule_msg = f"未通过：文档中不包含关键字 '{rule.rule_content}'"
+                await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
+
             elif rule.rule_type == RuleType.logic_graph:
                 # Dynamic Variable Interpolation helper
                 def interpolate_vars(val: any, state: dict) -> any:

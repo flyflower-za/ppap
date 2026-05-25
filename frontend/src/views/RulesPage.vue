@@ -158,6 +158,14 @@
             <el-option label="可视化节点图 (Logic Graph)" value="logic_graph" />
           </el-select>
         </el-form-item>
+        
+        <!-- LLM Model Type Selection -->
+        <el-form-item label="大模型引擎" v-if="ruleForm.rule_type === 'llm_prompt'" prop="llm_model_type">
+          <el-radio-group v-model="ruleForm.llm_model_type">
+            <el-radio value="text">纯文本语义分析 (Text LLM)</el-radio>
+            <el-radio value="vision">视觉/版式识别 (Vision LLM)</el-radio>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="严重级别" prop="severity" required>
           <el-radio-group v-model="ruleForm.severity">
             <el-radio value="fail">失败 (直接拦截)</el-radio>
@@ -223,13 +231,14 @@ const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
-const ruleForm = ref<Partial<Rule & { condition_institution?: string }>>({
+const ruleForm = ref<Partial<Rule & { condition_institution?: string, llm_model_type?: string }>>({
   rule_name: '',
   rule_type: 'llm_prompt',
   severity: 'fail',
   rule_content: '',
   logic_config: null,
-  condition_institution: ''
+  condition_institution: '',
+  llm_model_type: 'text'
 })
 
 // Watch rule_type changes to initialize logic_config
@@ -346,6 +355,7 @@ const openRuleDialog = (rule?: Rule) => {
     ruleForm.value = { ...rule }
     // Map condition
     ruleForm.value.condition_institution = rule.logic_config?.conditions?.institution || ''
+    ruleForm.value.llm_model_type = rule.logic_config?.llm_model_type || 'text'
 
     // Ensure logic_config is properly initialized for logic_graph rules
     if (rule.rule_type === 'logic_graph') {
@@ -360,12 +370,13 @@ const openRuleDialog = (rule?: Rule) => {
     ruleForm.value = {
       category_id: activeCategoryId.value,
       rule_name: '',
-      rule_type: 'keyword',
+      rule_type: 'llm_prompt',
       severity: 'fail',
       rule_content: '',
       logic_config: {}, // Fixed: empty object instead of null to pass backend Pydantic validation
       is_active: true,
-      condition_institution: ''
+      condition_institution: '',
+      llm_model_type: 'text'
     }
   }
   ruleDialogVisible.value = true
@@ -405,8 +416,14 @@ const saveRule = async () => {
     }
   }
 
+  if (payload.rule_type === 'llm_prompt') {
+    if (!payload.logic_config) payload.logic_config = {}
+    payload.logic_config.llm_model_type = payload.llm_model_type || 'text'
+  }
+
   // Clean payload
   delete payload.condition_institution
+  delete payload.llm_model_type
 
   try {
     if (payload.id) {
