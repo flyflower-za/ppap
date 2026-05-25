@@ -2,7 +2,7 @@ import client from './client'
 
 export const modulesApi = {
   listModules() {
-    return client.get('/modules/list')
+    return client.get('/modules/list?_t=' + new Date().getTime())
   },
   
   testModule(data: FormData) {
