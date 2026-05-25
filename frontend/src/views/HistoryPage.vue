@@ -341,9 +341,9 @@ const tableKey = ref(1)
 const LOCAL_STORAGE_KEY = 'ppap_history_table_columns_order_v1'
 
 const defaultColumns = [
-  { prop: 'uploaded_at', label: '上传时间', width: 150 },
+  { prop: 'uploaded_at', label: '上传时间', width: 200 },
   { prop: 'original_filename', label: '文件名', minWidth: 250, showOverflowTooltip: true },
-  { prop: 'file_type', label: '文件类型', width: 110, showOverflowTooltip: true },
+  { prop: 'file_type', label: '文件类型', width: 120, showOverflowTooltip: true },
   { prop: 'institution', label: '签发机构', minWidth: 120, showOverflowTooltip: true },
   { prop: 'page_count', label: '页数', width: 60, align: 'center' },
   { prop: 'status', label: '校验状态', width: 110 },
