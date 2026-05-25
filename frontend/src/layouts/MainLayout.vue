@@ -12,6 +12,7 @@
           <router-link to="/tasks">任务中心</router-link>
           <router-link to="/history">历史记录</router-link>
           <router-link to="/rules">规则配置</router-link>
+          <router-link to="/sandbox">模块沙盒</router-link>
           <router-link to="/audit">审计日志</router-link>
           <router-link to="/settings">系统设置</router-link>
         </div>

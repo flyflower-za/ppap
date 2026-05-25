@@ -48,6 +48,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/RulesPage.vue'),
       },
       {
+        path: 'sandbox',
+        name: 'Sandbox',
+        component: () => import('@/views/ModuleSandboxPage.vue'),
+      },
+      {
         path: 'audit',
         name: 'Audit',
         component: () => import('@/views/AuditLogPage.vue'),

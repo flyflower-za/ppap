@@ -154,80 +154,71 @@
         v-loading="loading"
         @selection-change="handleSelectionChange"
         row-key="id"
+        :key="tableKey"
         class="premium-table"
         stripe
         border
       >
-        <el-table-column type="selection" width="45" reserve-selection />
+        <el-table-column type="selection" width="45" reserve-selection fixed="left" />
         
-        <el-table-column prop="uploaded_at" label="上传时间" width="150">
+        <el-table-column
+          v-for="col in tableColumns"
+          :key="col.prop"
+          :prop="col.prop !== 'institution' ? col.prop : undefined"
+          :label="col.label"
+          :width="col.width"
+          :min-width="col.minWidth"
+          :align="col.align"
+          :show-overflow-tooltip="col.showOverflowTooltip"
+        >
           <template #default="{ row }">
-            <span class="font-mono text-secondary">{{ formatDateTime(row.uploaded_at) }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="original_filename" label="文件名" min-width="250" show-overflow-tooltip>
-          <template #default="{ row }">
-            <div class="file-name-cell">
-              <span class="pdf-icon">📄</span>
-              <span class="file-title-text" @click="handleView(row)">{{ row.original_filename }}</span>
-            </div>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="file_type" label="文件类型" width="110" show-overflow-tooltip>
-          <template #default="{ row }">
-            <el-tag :type="getFileTypeTag(row.file_type)" effect="plain" class="type-tag-premium">
-              {{ getFileTypeText(row.file_type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="签发机构" min-width="120" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="text-secondary font-bold">{{ getInstitution(row) }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="page_count" label="页数" width="60" align="center">
-          <template #default="{ row }">
-            <span class="font-mono">{{ row.page_count || 1 }}</span>
-          </template>
-        </el-table-column>
-        
-        <el-table-column prop="status" label="校验状态" width="110">
-          <template #default="{ row }">
-            <div class="status-wrapper">
-              <span class="status-indicator-dot" :class="row.status"></span>
-              <span class="status-label" :class="row.status">{{ statusText(row.status) }}</span>
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="pass_rate" label="指标通过率" width="150">
-          <template #default="{ row }">
-            <div v-if="row.status !== 'pending' && row.status !== 'processing'" class="progress-premium-container">
-              <div class="progress-header font-mono">
-                <span class="rate-value" :class="getPassRateClass(row.pass_rate)">{{ row.pass_rate }}%</span>
-                <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }}</span>
+            <template v-if="col.prop === 'uploaded_at'">
+              <span class="font-mono text-secondary">{{ formatDateTime(row.uploaded_at) }}</span>
+            </template>
+            <template v-else-if="col.prop === 'original_filename'">
+              <div class="file-name-cell">
+                <span class="pdf-icon">📄</span>
+                <span class="file-title-text" @click="handleView(row)">{{ row.original_filename }}</span>
               </div>
-              <el-progress 
-                :percentage="row.pass_rate || 0" 
-                :status="getProgressStatus(row.status)" 
-                :stroke-width="5"
-                :show-text="false"
-                class="progress-bar-premium"
-              />
-            </div>
-            <div v-else class="status-placeholder text-secondary">
-              {{ row.status === 'processing' ? '诊断中...' : '等待中...' }}
-            </div>
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="duration_seconds" label="耗时" width="70" align="center">
-          <template #default="{ row }">
-            <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds}s` : '--' }}</span>
+            </template>
+            <template v-else-if="col.prop === 'file_type'">
+              <el-tag :type="getFileTypeTag(row.file_type)" effect="plain" class="type-tag-premium">
+                {{ getFileTypeText(row.file_type) }}
+              </el-tag>
+            </template>
+            <template v-else-if="col.prop === 'institution'">
+              <span class="text-secondary font-bold">{{ getInstitution(row) }}</span>
+            </template>
+            <template v-else-if="col.prop === 'page_count'">
+              <span class="font-mono">{{ row.page_count || 1 }}</span>
+            </template>
+            <template v-else-if="col.prop === 'status'">
+              <div class="status-wrapper">
+                <span class="status-indicator-dot" :class="row.status"></span>
+                <span class="status-label" :class="row.status">{{ statusText(row.status) }}</span>
+              </div>
+            </template>
+            <template v-else-if="col.prop === 'pass_rate'">
+              <div v-if="row.status !== 'pending' && row.status !== 'processing'" class="progress-premium-container">
+                <div class="progress-header font-mono">
+                  <span class="rate-value" :class="getPassRateClass(row.pass_rate)">{{ row.pass_rate }}%</span>
+                  <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }}</span>
+                </div>
+                <el-progress 
+                  :percentage="row.pass_rate || 0" 
+                  :status="getProgressStatus(row.status)" 
+                  :stroke-width="5"
+                  :show-text="false"
+                  class="progress-bar-premium"
+                />
+              </div>
+              <div v-else class="status-placeholder text-secondary">
+                {{ row.status === 'processing' ? '诊断中...' : '等待中...' }}
+              </div>
+            </template>
+            <template v-else-if="col.prop === 'duration_seconds'">
+              <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds}s` : '--' }}</span>
+            </template>
           </template>
         </el-table-column>
         
@@ -321,10 +312,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Delete, ArrowDown, Tickets } from '@element-plus/icons-vue'
+import Sortable from 'sortablejs'
 import { filesApi } from '@/api/files'
 
 const router = useRouter()
@@ -343,6 +335,66 @@ const filters = reactive({
   date_from: '',
   date_to: '',
 })
+
+const tableKey = ref(1)
+
+const LOCAL_STORAGE_KEY = 'ppap_history_table_columns_order_v1'
+
+const defaultColumns = [
+  { prop: 'uploaded_at', label: '上传时间', width: 150 },
+  { prop: 'original_filename', label: '文件名', minWidth: 250, showOverflowTooltip: true },
+  { prop: 'file_type', label: '文件类型', width: 110, showOverflowTooltip: true },
+  { prop: 'institution', label: '签发机构', minWidth: 120, showOverflowTooltip: true },
+  { prop: 'page_count', label: '页数', width: 60, align: 'center' },
+  { prop: 'status', label: '校验状态', width: 110 },
+  { prop: 'pass_rate', label: '指标通过率', width: 150 },
+  { prop: 'duration_seconds', label: '耗时', width: 70, align: 'center' },
+]
+
+const loadColumns = () => {
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY)
+  if (saved) {
+    try {
+      const parsedProps = JSON.parse(saved)
+      const ordered = parsedProps.map((prop: string) => defaultColumns.find(c => c.prop === prop)).filter(Boolean)
+      const missing = defaultColumns.filter(c => !parsedProps.includes(c.prop))
+      return [...ordered, ...missing]
+    } catch {
+      return [...defaultColumns]
+    }
+  }
+  return [...defaultColumns]
+}
+
+const tableColumns = ref(loadColumns())
+
+const initSortable = () => {
+  const el = document.querySelector('.table-wrapper-card .el-table__header-wrapper tr')
+  if (!el) return
+
+  Sortable.create(el as HTMLElement, {
+    animation: 150,
+    delay: 0,
+    onEnd: (evt) => {
+      const oldIndex = (evt.oldIndex as number) - 1
+      const newIndex = (evt.newIndex as number) - 1
+
+      if (oldIndex < 0 || newIndex < 0) return
+      if (oldIndex >= tableColumns.value.length || newIndex >= tableColumns.value.length) return
+
+      const targetRow = tableColumns.value.splice(oldIndex, 1)[0]
+      tableColumns.value.splice(newIndex, 0, targetRow)
+      
+      // Persist the new order
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tableColumns.value.map(c => c.prop)))
+      
+      tableKey.value++
+      nextTick(() => {
+        initSortable()
+      })
+    }
+  })
+}
 
 const trajectoryDrawerVisible = ref(false)
 const currentTrajectoryFile = ref<any>(null)
@@ -773,6 +825,9 @@ async function handleExport() {
 
 onMounted(() => {
   fetchData()
+  nextTick(() => {
+    initSortable()
+  })
 })
 </script>
 

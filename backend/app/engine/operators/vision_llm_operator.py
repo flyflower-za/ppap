@@ -148,12 +148,20 @@ class VisionLLMOperator(BaseOperator):
 
                 system_prompt = f"""
                 你是一个严谨的文档视觉审核员。请根据提供的文档图像回答审核问题。
-                你必须严格遵循以下 JSON 格式输出，不要输出任何其他多余内容：
-                {VisionOutputSchema.schema_json()}
+                你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+                
+                严格返回以下 JSON 格式：
+                {{
+                    "passed": bool (是否通过审核),
+                    "confidence": float (0.0 到 1.0 的置信度),
+                    "reason": "string (判断的详细理由)",
+                    "extracted_data": {{}} (包含任何提取的关键信息)
+                }}
                 """
 
+                model_name = kwargs.get("model") or ai_config.get("vision_model", "gpt-4o")
                 response = await client.chat.completions.create(
-                    model=ai_config.get("vision_model", "gpt-4o"),
+                    model=model_name,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {

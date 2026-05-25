@@ -91,8 +91,15 @@ class TextLLMOperator(BaseOperator):
 
         system_prompt = f"""
         你是一个严谨的文档审核审核员。请根据以下提取的文档文本回答用户问题。
-        你必须严格遵循以下 JSON 格式输出，不要输出任何其他多余内容：
-        {LLMOutputSchema.schema_json()}
+        你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+        
+        严格返回以下 JSON 格式：
+        {{
+            "passed": bool (是否通过审核),
+            "confidence": float (0.0 到 1.0 的置信度),
+            "reason": "string (判断的详细理由)",
+            "extracted_data": {{}} (包含任何提取的关键信息)
+        }}
         """
 
         user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
@@ -117,9 +124,11 @@ class TextLLMOperator(BaseOperator):
                     base_url=ai_config.get("base_url", "https://api.openai.com/v1")
                 )
 
-                # Wrap the API call in a 15-second timeout circuit breaker
+                model_name = kwargs.get("model") or ai_config.get("text_model", "gpt-4o-mini")
+                
+                # Wrap the API call in a 60-second timeout circuit breaker
                 api_coro = client.chat.completions.create(
-                    model=ai_config.get("text_model", "gpt-4o-mini"),
+                    model=model_name,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -130,15 +139,15 @@ class TextLLMOperator(BaseOperator):
                 )
                 
                 try:
-                    response = await asyncio.wait_for(api_coro, timeout=15.0)
+                    response = await asyncio.wait_for(api_coro, timeout=60.0)
                     raw_content = response.choices[0].message.content
                     response_data = json.loads(raw_content)
                 except asyncio.TimeoutError:
-                    logger.error("LLM API call timed out after 15 seconds.")
+                    logger.error("LLM API call timed out after 60 seconds.")
                     response_data = {
                         "passed": False,
                         "confidence": 0.0,
-                        "reason": "[熔断拦截] 大模型响应超时 (>15s)，已降级",
+                        "reason": "[熔断拦截] 大模型响应超时 (>60s)，已降级",
                         "extracted_data": {}
                     }
 

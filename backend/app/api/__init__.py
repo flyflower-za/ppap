@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api import auth, files, notifications, notes, settings, ldap, websocket, rules, audit
+from app.api import auth, files, notifications, notes, settings, ldap, websocket, rules, audit, modules
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(settings.router, prefix="/settings", tags=["settings"]
 api_router.include_router(ldap.router, prefix="/settings", tags=["ldap"])
 api_router.include_router(rules.router, prefix="/rule-engine", tags=["rules"])
 api_router.include_router(audit.router, prefix="/audit-logs", tags=["audit"])
+api_router.include_router(modules.router, prefix="/modules", tags=["modules"])
