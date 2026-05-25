@@ -76,27 +76,6 @@
             </el-button>
           </el-form>
 
-          <!-- 快捷演示账号面板 (一键登录快捷通道) -->
-          <div class="demo-card">
-            <div class="demo-title">
-              <el-icon><InfoFilled /></el-icon>
-              <span>演示快捷通道</span>
-            </div>
-            <div class="demo-options-list">
-              <button class="demo-btn" @click="fillDemo('admin@example.com')">
-                <span class="role admin-badge">管理员</span>
-                <span class="email">admin@example.com</span>
-              </button>
-              <button class="demo-btn" @click="fillDemo('manager@example.com')">
-                <span class="role manager-badge">经理</span>
-                <span class="email">manager@example.com</span>
-              </button>
-              <button class="demo-btn" @click="fillDemo('user@example.com')">
-                <span class="role user-badge">普通用户</span>
-                <span class="email">user@example.com</span>
-              </button>
-            </div>
-          </div>
 
           <div class="login-footer">
             <p>还没有账户？<a href="#" class="register-link">联系管理员开通</a></p>
@@ -113,7 +92,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { User, Lock, InfoFilled } from '@element-plus/icons-vue'
+import { User, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -140,16 +119,6 @@ const rules: FormRules = {
   ],
 }
 
-// 一键填入演示账号快捷方法
-function fillDemo(email: string) {
-  form.email = email
-  form.password = 'admin123'
-  rememberMe.value = true
-  ElMessage.info({
-    message: `已填入账号: ${email}，默认密码为 admin123`,
-    duration: 3000
-  })
-}
 
 async function handleLogin() {
   if (!formRef.value) return
@@ -466,94 +435,6 @@ async function handleLogin() {
   opacity: 0.8;
 }
 
-/* ==================== 快捷演示卡片 ==================== */
-.demo-card {
-  margin-top: 24px;
-  padding: 18px;
-  border-radius: 16px;
-  border: 1px dashed #e2e8f0;
-  background: #f8fafc;
-  transition: all 0.3s ease;
-}
-
-.demo-card:hover {
-  border-color: #4285f4;
-  background: #f0f7ff;
-}
-
-.demo-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.demo-title :deep(.el-icon) {
-  color: #4285f4;
-  font-size: 15px;
-}
-
-.demo-options-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.demo-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  border: 1px solid transparent;
-  background: #f1f5f9;
-  padding: 8px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.demo-btn:hover {
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-  transform: translateX(3px);
-}
-
-.demo-btn:active {
-  transform: translateX(1px);
-}
-
-.demo-btn .role {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 12px;
-  letter-spacing: 0.02em;
-}
-
-.admin-badge {
-  background: #fee2e2;
-  color: #ef4444;
-}
-
-.user-badge {
-  background: #dbeafe;
-  color: #2563eb;
-}
-
-.manager-badge {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.demo-btn .email {
-  font-size: 12px;
-  color: #475569;
-  font-weight: 500;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
 
 /* ==================== 页脚 ==================== */
 .login-footer {
