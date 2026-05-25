@@ -56,30 +56,39 @@ class FileResponse(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def extract_json(cls, data: Any) -> Any:
+        """
+        Convert verification_result to verification_result_json for consistent
+        frontend consumption. Handles both dict (keyword-arg construction) and
+        ORM model (from_attributes) input.
+        """
+        import json
+
+        # Path A: data is a dict (keyword-arg construction via FileDetailResponse)
+        if isinstance(data, dict):
+            if data.get('verification_result_json') is not None:
+                return data
+            if data.get('verification_result'):
+                raw = data['verification_result']
+                if isinstance(raw, str):
+                    data['verification_result_json'] = json.loads(raw)
+                else:
+                    data['verification_result_json'] = raw
+                data.pop('verification_result', None)
+            return data
+
+        # Path B: data is an ORM object (from_attributes=True)
         if getattr(data, 'verification_result_json', None) is not None:
             return data
-            
+
         if hasattr(data, 'verification_result') and data.verification_result:
             try:
-                import json
-                # Can't easily set attributes on SQLAlchemy instances, so we can just convert to dict
-                # Actually, in mode='before', data could be an ORM object or a dict.
-                if isinstance(data, dict):
-                    if 'verification_result' in data and data['verification_result']:
-                        if isinstance(data['verification_result'], str):
-                            data['verification_result_json'] = json.loads(data['verification_result'])
-                        else:
-                            data['verification_result_json'] = data['verification_result']
-                else:
-                    # SQLAlchemy model
-                    data_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
-                    for prop in ['notes_summary', 'verification_result_json']:
-                        if hasattr(data, prop):
-                            data_dict[prop] = getattr(data, prop)
-                    # Use parsed JSON if the property works
-                    if hasattr(data, 'verification_result') and data.verification_result:
-                        data_dict['verification_result_json'] = json.loads(data.verification_result)
-                    return data_dict
+                data_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
+                for prop in ['notes_summary', 'verification_result_json']:
+                    if hasattr(data, prop):
+                        data_dict[prop] = getattr(data, prop)
+                raw = data.verification_result
+                data_dict['verification_result_json'] = json.loads(raw) if isinstance(raw, str) else raw
+                return data_dict
             except Exception:
                 pass
         return data
@@ -92,7 +101,7 @@ class FileReviewResolution(BaseModel):
 
 class FileDetailResponse(FileResponse):
     """Detailed file response with verification results."""
-    verification_result: Optional[Dict[str, Any]] = None
+    # verification_result is handled by parent class validator and stored in verification_result_json
     uploaded_by: Optional[str] = None  # User email
 
 

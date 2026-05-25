@@ -132,6 +132,37 @@
             <input id="node-expected-issuer" v-model="selectedNode.data.expected_issuer" type="text" class="field-input" placeholder="Centre Testing International" />
           </div>
 
+          <!-- Revision Check -->
+          <div v-if="selectedNode.data?.nodeType === 'revision-check'">
+            <div class="field-group">
+              <label class="field-label" for="node-max-revisions">
+                允许最大修订次数
+                <span class="field-hint">0 = 使用默认逻辑</span>
+              </label>
+              <el-input-number id="node-max-revisions" v-model="selectedNode.data.maxRevisions" :min="0" :max="100" :step="1" size="small" style="width: 140px;" />
+            </div>
+            <div class="field-group">
+              <label class="field-label">
+                允许合法增量更新
+                <span class="field-hint">勾选 = 签名后的非篡改增量更新视为通过</span>
+              </label>
+              <div class="field-checkbox-group">
+                <label class="field-checkbox">
+                  <input type="checkbox" v-model="selectedNode.data.allowIncrementalUpdates" />
+                  <span>允许增量更新</span>
+                </label>
+              </div>
+            </div>
+            <div class="field-hint-card">
+              <p>💡 修订版本检测规则：</p>
+              <ul class="hint-list">
+                <li><strong>Rev=1</strong> — 文档未被修改过 ✅</li>
+                <li><strong>Rev&gt;1 + 已签名</strong> — 签名后存在增量更新，可能被篡改 ⚠️</li>
+                <li><strong>Rev&gt;1 + 允许增量更新</strong> — 仅警告，不阻断</li>
+              </ul>
+            </div>
+          </div>
+
           <!-- Condition -->
           <div v-if="selectedNode.data?.nodeType === 'condition'">
             <div class="field-group">
@@ -142,7 +173,7 @@
               <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" />
             </div>
             <div class="field-hint-card">
-              <p>💡 可用变量：<code>institution</code>, <code>has_signature</code>, <code>qr_count</code>, <code>page_count</code></p>
+              <p>💡 可用变量：<code>institution</code>, <code>has_signature</code>, <code>qr_count</code>, <code>page_count</code>, <code>revision_count</code>, <code>is_tampered</code></p>
             </div>
           </div>
 
@@ -272,6 +303,7 @@ const NODE_REGISTRY: Record<string, NodeMeta> = {
   'text-llm':            { label: '文本大模型',     icon: '🧠', color: '#dbeafe', borderColor: '#3b82f6', group: 'ai',     defaultData: { prompt: '', severity: 'fail', hasSeverity: true } },
   'vision-llm':          { label: '视觉大模型',     icon: '👁️', color: '#ede9fe', borderColor: '#8b5cf6', group: 'ai',     defaultData: { prompt: '', severity: 'fail', hasSeverity: true } },
   'institution-sniffer': { label: '机构嗅探',       icon: '🏢', color: '#fef3c7', borderColor: '#f59e0b', group: 'ai',     defaultData: {} },
+  'revision-check':      { label: '修订版本检查',   icon: '📋', color: '#e0f2fe', borderColor: '#0284c7', group: 'detect', defaultData: { maxRevisions: 1, allowIncrementalUpdates: false, severity: 'fail', hasSeverity: true } },
   'signature':           { label: '数字签名检查',   icon: '🔐', color: '#dcfce7', borderColor: '#22c55e', group: 'detect', defaultData: { expected_issuer: '', severity: 'fail', hasSeverity: true } },
   'qr-code':             { label: '二维码识别',     icon: '📱', color: '#e0e7ff', borderColor: '#6366f1', group: 'detect', defaultData: { severity: 'fail', hasSeverity: true } },
   'pdf-info':            { label: 'PDF 信息提取',   icon: '📄', color: '#f3e8ff', borderColor: '#a855f7', group: 'detect', defaultData: {} },

@@ -19,6 +19,7 @@ import re
 from app.checkers.qr_decoder import decode_pdf_qrcodes
 from app.checkers.sig_verifier import verify_pdf_signatures
 from app.checkers.pdf_info import check_pdf_text_layer
+from app.checkers.revision_checker import check_revision_after_signing
 
 logger = get_task_logger(__name__)
 

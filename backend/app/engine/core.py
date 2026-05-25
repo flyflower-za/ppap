@@ -8,6 +8,7 @@ from app.engine.operators.pdf_info_operator import PDFInfoOperator
 from app.engine.operators.text_llm_operator import TextLLMOperator
 from app.engine.operators.vision_llm_operator import VisionLLMOperator
 from app.engine.operators.sniffer_operator import InstitutionSnifferOperator
+from app.engine.operators.revision_operator import RevisionCheckOperator
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +26,14 @@ class VerificationEngine:
             "TextLLM": TextLLMOperator(),
             "VisionLLM": VisionLLMOperator(),
             "InstitutionSniffer": InstitutionSnifferOperator(),
+            "RevisionCheck": RevisionCheckOperator(),
         }
 
     def _determine_required_operators(self, rules: List[VerificationRule]) -> List[BaseOperator]:
         """
         Analyze the AST/rule dependencies to figure out which operators must run.
         """
-        required_names = set(["PDFInfoExtractor", "InstitutionSniffer"])
+        required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck"])
         for rule in rules:
             if rule.rule_type == RuleType.plugin:
                 # For basic string-based plugins
@@ -58,6 +60,8 @@ class VerificationEngine:
                     required_names.add("PDFInfoExtractor")
                 elif node_type == "institution_sniffer":
                     required_names.add("InstitutionSniffer")
+                elif node_type == "revision_check":
+                    required_names.add("RevisionCheck")
                 elif node_type == "text_llm":
                     required_names.add("TextLLM")
                 elif node_type == "vision_llm":
@@ -297,6 +301,25 @@ class VerificationEngine:
                         sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
                         node_passed = sniffed_inst != "UNKNOWN"
                         node_msg = f"发证机构嗅探完成: {sniffed_inst}"
+
+                    elif node_type == "revision_check":
+                        rev_data = context.shared_state.get("pdf_revisions", {})
+                        is_tampered = rev_data.get("is_tampered_after_sign", False)
+                        rev_count = rev_data.get("revision_count", 1)
+
+                        expected_max = node_data.get("maxRevisions", 0)
+                        if expected_max > 0 and rev_count > expected_max:
+                            node_passed = False
+                            node_msg = f"修订版本数 {rev_count} 超过允许上限 {expected_max}"
+                        elif is_tampered:
+                            node_passed = False
+                            node_msg = f"文档已签名但存在 {rev_count} 次修订 (签名后 {rev_count - 1} 次增量更新)，存在篡改风险"
+                        elif rev_count > 1:
+                            node_passed = node_data.get("allowIncrementalUpdates", True)
+                            node_msg = f"文档包含 {rev_count} 个修订版本 (增量更新)"
+                        else:
+                            node_passed = True
+                            node_msg = f"文档共 {rev_count} 个版本，版本结构完整未修改"
                         
                     else:
                         node_passed = True
