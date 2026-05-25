@@ -68,6 +68,37 @@ async def list_modules(current_user: User = Depends(get_current_user)):
             "params": [
                 {"key": "url", "label": "PDF 下载链接 (URL)", "type": "textarea", "default": "https://example.com/sample.pdf"}
             ]
+        },
+        {
+            "name": "StampDetection",
+            "label": "物理公章/印章检测 (StampDetection)",
+            "description": "基于计算机视觉检测文档中是否包含红色的物理印章或公章",
+            "params": []
+        },
+        {
+            "name": "WatermarkDetection",
+            "label": "水印检测分析 (Watermark)",
+            "description": "分析文档底层文字，提取字号异常的背景文字或关键字水印",
+            "params": [
+                {"key": "watermark_keywords", "label": "水印关键词列表 (以逗号分隔)", "type": "textarea", "default": "受控文件,绝密,机密,DRAFT,CONFIDENTIAL,VOID,作废"}
+            ]
+        },
+        {
+            "name": "DocumentDiff",
+            "label": "智能文档差异比对 (DocumentDiff)",
+            "description": "计算当前文档与基准文档在纯文本级别上的相似度和差异信息",
+            "params": [
+                {"key": "base_document_url", "label": "基准文档URL", "type": "textarea", "default": ""},
+                {"key": "similarity_threshold", "label": "相似度警告阈值 (%)", "type": "number", "default": 95}
+            ]
+        },
+        {
+            "name": "TableVerification",
+            "label": "结构化表格提取与对账 (TableVerification)",
+            "description": "使用专业表格引擎精准提取行列数据，并支持简单的数学列求和验证",
+            "params": [
+                {"key": "target_column_index", "label": "数值求和目标列 (索引自0开始, -1为不求和)", "type": "number", "default": -1}
+            ]
         }
     ]
     
