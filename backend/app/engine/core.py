@@ -9,6 +9,7 @@ from app.engine.operators.text_llm_operator import TextLLMOperator
 from app.engine.operators.vision_llm_operator import VisionLLMOperator
 from app.engine.operators.sniffer_operator import InstitutionSnifferOperator
 from app.engine.operators.revision_operator import RevisionCheckOperator
+from app.engine.operators.url_fetch_operator import URLFetchOperator
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class VerificationEngine:
             "VisionLLM": VisionLLMOperator(),
             "InstitutionSniffer": InstitutionSnifferOperator(),
             "RevisionCheck": RevisionCheckOperator(),
+            "URLFetchOperator": URLFetchOperator(),
         }
 
     def _determine_required_operators(self, rules: List[VerificationRule]) -> List[BaseOperator]:
@@ -194,10 +196,20 @@ class VerificationEngine:
                     
                     if valid_sigs:
                         rule_pass = True
-                        signers = [s.get("signer_cn", "未知签署人") for s in valid_sigs]
-                        rule_msg = f"通过：检测到合法的数字签名。签署人：{', '.join(signers)}"
+                        signers_info = []
+                        for s in valid_sigs:
+                            cn = s.get("signer_cn", "未知签署人")
+                            if s.get("expired", False):
+                                signers_info.append(f"{cn} (证书已过期)")
+                            else:
+                                signers_info.append(f"{cn} (证书有效)")
+                        rule_msg = f"检测到 {len(valid_sigs)} 个有效数字签名。签署人详情：{', '.join(signers_info)}"
+                    elif len(sigs) > 0:
+                        rule_pass = False
+                        rule_msg = f"未通过：检测到 {len(sigs)} 个数字签名，但均已损坏、被篡改或验证失败。"
                     else:
-                        rule_msg = "未通过：该文档缺失强制要求的合法数字签名"
+                        rule_pass = False
+                        rule_msg = "未通过：该文档缺失强制要求的有效电子数字签名。"
                 await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
                 
             elif rule.rule_type == RuleType.llm_prompt:
@@ -320,21 +332,33 @@ class VerificationEngine:
                         valid_sigs = [s for s in sigs if s.get("integrity", False)]
                         
                         expected_issuer = node_data.get("expectedIssuer", "")
-                        if expected_issuer and valid_sigs:
-                            matched = any(expected_issuer.lower() in s.get("signer_cn", "").lower() for s in valid_sigs)
-                            if matched:
-                                node_passed = True
-                                node_msg = f"数字签名完整，签发者匹配 [{expected_issuer}]"
+                        if valid_sigs:
+                            signers_info = []
+                            for s in valid_sigs:
+                                cn = s.get("signer_cn", "未知签署人")
+                                if s.get("expired", False):
+                                    signers_info.append(f"{cn} (证书已过期)")
+                                else:
+                                    signers_info.append(f"{cn} (证书有效)")
+                            signers_str = ", ".join(signers_info)
+                            
+                            if expected_issuer:
+                                matched = any(expected_issuer.lower() in s.get("signer_cn", "").lower() for s in valid_sigs)
+                                if matched:
+                                    node_passed = True
+                                    node_msg = f"检测到 {len(valid_sigs)} 个有效数字签名，签发者匹配 [{expected_issuer}]。详情：{signers_str}"
+                                else:
+                                    node_passed = False
+                                    node_msg = f"检测到 {len(valid_sigs)} 个有效数字签名，但均未匹配预期签发者 [{expected_issuer}]。详情：{signers_str}"
                             else:
-                                node_passed = False
-                                node_msg = f"数字签名完整，但未匹配预期签发者 [{expected_issuer}]"
-                        elif valid_sigs:
-                            node_passed = True
-                            signers = [s.get("signer_cn", "未知签署人") for s in valid_sigs]
-                            node_msg = f"检测到合法的数字签名。签署人：{', '.join(signers)}"
+                                node_passed = True
+                                node_msg = f"检测到 {len(valid_sigs)} 个有效数字签名。签署人详情：{signers_str}"
+                        elif len(sigs) > 0:
+                            node_passed = False
+                            node_msg = f"检测到 {len(sigs)} 个数字签名，但均已损坏、被篡改或验证失败。"
                         else:
                             node_passed = False
-                            node_msg = "缺失合法数字签名"
+                            node_msg = "该文档缺失强制要求的有效电子数字签名。"
                             
                     elif node_type == "qr_scanner":
                         qr_data = context.shared_state.get("qr_codes", [])

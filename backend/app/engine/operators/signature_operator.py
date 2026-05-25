@@ -38,11 +38,20 @@ class SignatureOperator(BaseOperator):
             sigs = results.get("signatures", [])
             valid_sigs = [s for s in sigs if s.get("integrity", False)]
             
-            msg = f"Found {len(sigs)} digital signature(s), {len(valid_sigs)} intact." if is_signed else "No digital signatures found."
+            if is_signed and len(valid_sigs) > 0:
+                pass_status = True
+                signers = [s.get("signer_cn", "未知签署人") for s in valid_sigs]
+                msg = f"检测到 {len(valid_sigs)} 个有效数字签名。签署人：{', '.join(signers)}"
+            elif is_signed:
+                pass_status = False
+                msg = f"检测到 {len(sigs)} 个数字签名，但均已损坏、被篡改或无法验证。"
+            else:
+                pass_status = False
+                msg = "未检测到任何电子数字签名。"
             
             return OperatorResult(
                 operator_name=self.name,
-                pass_status=True,
+                pass_status=pass_status,
                 message=msg,
                 extracted_data={"digital_signatures": results}
             )

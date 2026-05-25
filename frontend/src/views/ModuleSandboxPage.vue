@@ -17,39 +17,45 @@
 
           <el-form :model="form" label-position="top" size="large">
             <!-- 文件源选择 -->
-            <el-form-item label="测试文件来源">
-              <el-radio-group v-model="form.fileSourceType" class="premium-radio-group">
-                <el-radio-button value="existing">从历史中选择</el-radio-button>
-                <el-radio-button value="upload">临时上传新文件</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
+            <template v-if="form.operator_name !== 'URLFetchOperator'">
+              <el-form-item label="测试文件来源">
+                <el-radio-group v-model="form.fileSourceType" class="premium-radio-group">
+                  <el-radio-button value="existing">从历史中选择</el-radio-button>
+                  <el-radio-button value="upload">临时上传新文件</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </template>
 
-            <el-form-item v-if="form.fileSourceType === 'existing'" label="选择已有文件">
-              <el-select v-model="form.file_id" filterable placeholder="选择要测试的文档" style="width: 100%">
-                <el-option
-                  v-for="f in historyFiles"
-                  :key="f.id"
-                  :label="f.original_filename"
-                  :value="f.id"
-                />
-              </el-select>
-            </el-form-item>
+            <template v-if="form.operator_name !== 'URLFetchOperator'">
+              <el-form-item v-if="form.fileSourceType === 'existing'" label="选择已有文件">
+                <el-select v-model="form.file_id" filterable placeholder="选择要测试的文档" style="width: 100%">
+                  <el-option
+                    v-for="f in historyFiles"
+                    :key="f.id"
+                    :label="f.original_filename"
+                    :value="f.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </template>
 
-            <el-form-item v-else label="上传测试文件">
-              <el-upload
-                class="upload-demo"
-                drag
-                action="#"
-                :auto-upload="false"
-                :show-file-list="true"
-                :limit="1"
-                :on-change="handleFileChange"
-                :on-remove="handleFileRemove"
-              >
-                <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-                <div class="el-upload__text">拖拽文件到这里或 <em>点击上传</em></div>
-              </el-upload>
-            </el-form-item>
+            <template v-if="form.operator_name !== 'URLFetchOperator'">
+              <el-form-item v-if="form.fileSourceType === 'upload'" label="上传测试文件">
+                <el-upload
+                  class="upload-demo"
+                  drag
+                  action="#"
+                  :auto-upload="false"
+                  :show-file-list="true"
+                  :limit="1"
+                  :on-change="handleFileChange"
+                  :on-remove="handleFileRemove"
+                >
+                  <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                  <div class="el-upload__text">拖拽文件到这里或 <em>点击上传</em></div>
+                </el-upload>
+              </el-form-item>
+            </template>
 
             <!-- 模块选择 -->
             <el-form-item label="目标测试模块">
@@ -226,9 +232,10 @@ const selectedModuleParams = computed(() => {
 })
 
 const canSubmit = computed(() => {
+  if (!form.operator_name) return false
+  if (form.operator_name === 'URLFetchOperator') return true
   if (form.fileSourceType === 'existing' && !form.file_id) return false
   if (form.fileSourceType === 'upload' && !form.uploadFile) return false
-  if (!form.operator_name) return false
   return true
 })
 

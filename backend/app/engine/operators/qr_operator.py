@@ -40,11 +40,16 @@ class QRScannerOperator(BaseOperator):
             
             # Evaluate against kwargs rules if provided (e.g. required_qr_count, require_content_match)
             # By default, just executing the operator extracts the data.
-            msg = f"Successfully scanned {len(results)} QR code(s)." if results else "No QR codes found."
+            if results and len(results) > 0:
+                pass_status = True
+                msg = f"成功提取到 {len(results)} 个二维码数据。"
+            else:
+                pass_status = False
+                msg = "未检测到任何二维码。"
             
             return OperatorResult(
                 operator_name=self.name,
-                pass_status=True,
+                pass_status=pass_status,
                 message=msg,
                 extracted_data={"qr_codes": results}
             )

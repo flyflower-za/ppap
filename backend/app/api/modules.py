@@ -54,6 +54,14 @@ async def list_modules(current_user: User = Depends(get_current_user)):
             "label": "数字签名校验 (Signature)",
             "description": "基于 PDF 密码学的电子印章和数字签名防伪校验",
             "params": []
+        },
+        {
+            "name": "URLFetchOperator",
+            "label": "远端 PDF 拉取 (URL Fetch)",
+            "description": "通过 URL 下载 PDF 并自动提取其中的文本与基础信息",
+            "params": [
+                {"key": "url", "label": "PDF 下载链接 (URL)", "type": "textarea", "default": "https://example.com/sample.pdf"}
+            ]
         }
     ]
     
@@ -82,7 +90,10 @@ async def test_module(
     
     try:
         # Determine the file path
-        if file_id:
+        if operator_name == "URLFetchOperator":
+            # For URLFetchOperator, we don't need a file upfront
+            temp_file_path = ""
+        elif file_id:
             from app.services.file_service import FileService
             file_service = FileService(db)
             db_file = await file_service.get_file(file_id)
@@ -112,8 +123,9 @@ async def test_module(
 
         # Build DocumentContext
         context = DocumentContext(file_path=temp_file_path)
-        with open(temp_file_path, "rb") as f:
-            context.shared_state["pdf_bytes"] = f.read()
+        if temp_file_path:
+            with open(temp_file_path, "rb") as f:
+                context.shared_state["pdf_bytes"] = f.read()
         
         # If the operator needs PDFInfo (most do, for page parsing), we run PDFInfoExtractor first, unless we are testing it
         if operator_name != "PDFInfoExtractor":
@@ -143,8 +155,12 @@ async def test_module(
         }
     finally:
         # Cleanup temp file
-        if temp_file_path and os.path.exists(temp_file_path):
+        cleanup_path = temp_file_path
+        if 'context' in locals() and hasattr(context, 'file_path') and context.file_path:
+            cleanup_path = context.file_path
+            
+        if cleanup_path and os.path.exists(cleanup_path):
             try:
-                os.remove(temp_file_path)
+                os.remove(cleanup_path)
             except Exception:
                 pass
