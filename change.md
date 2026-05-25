@@ -1,7 +1,7 @@
 # 变更记录
 
 > 日期: 2026-05-25
-> 范围: P0 Revision 检测 + P1 上传并发控制 + 修复校验规则诊断报告加载失败
+> 范围: P0 Revision 检测 + P1 上传并发控制 + 修复校验规则诊断报告加载失败 + 数字签名检测修复 + 端口优化 & PDF 渲染修复 + 签名验证工具集
 
 ---
 
@@ -144,8 +144,55 @@ Is data a dict?
 
 ---
 
-## 四、已更新文档
+## 四、数字签名检测与显示修复
+
+### 问题现象
+
+数字签名被检测到但未在前端 UI 中正确显示。
+
+### 根因分析
+
+1. **签名验证器未处理加密 PDF**：原始 `sig_verifier.py` 在遇到加密 PDF 时直接失败，无法自动解密后验证
+2. **pyHanko 兼容性问题**：某些国密签名或特殊格式的 PDF 与 pyHanko 不完全兼容
+3. **API Schema 校验不匹配**：`verification_result` 字段在前端期望的是 JSON 对象，但后端返回的是字符串
+4. **前端字段路径错误**：`FileDetailPage.vue` 使用 `verification_result` 而非 `verification_result_json` 读取数据
+
+### 修复
+
+| 文件 | 操作 | 关键变化 |
+|------|------|----------|
+| `backend/app/checkers/sig_verifier.py` | 修改 | 增加加密 PDF 自动解密逻辑，失败时 fallback 到手动检查器 |
+| `backend/app/checkers/sig_verifier_manual.py` | 新增 | 独立的手动签名检查器，处理 pyHanko 不兼容的情况 |
+| `backend/app/schemas/file.py` | 修改 | 修正 `extract_json` validator 的 dict/ORM 对象处理顺序 |
+| `frontend/src/views/FileDetailPage.vue` | 修改 | 修正字段路径为 `verification_result_json`，更新签名显示逻辑 |
+
+---
+
+## 五、端口配置优化与 PDF 渲染修复
+
+### 问题背景
+
+1. **端口冲突**：后端默认 8000 端口与其他服务冲突
+2. **PDF.js worker 加载失败**：本地 worker 文件因 MIME 类型检查被浏览器拒绝
+3. **nginx MIME 类型配置缺失**：`.mjs` 文件返回错误的 Content-Type
+
+### 修复
+
+| 文件 | 操作 | 关键变化 |
+|------|------|----------|
+| `frontend/vite.config.ts` | 修改 | 代理端口改为 31234 |
+| `frontend/src/views/FileDetailPage.vue` | 修改 | PDF.js worker 改用 CDN 加载 |
+| `deploy/docker-compose.yml` | 修改 | 环境变量和端口映射更新为 31234 |
+| `deploy/nginx.conf` | 修改 | 新增 `.mjs` MIME 类型配置，优化 location 规则 |
+| `deploy.sh` | 修改 | API 文档地址更新 |
+| `CHANGELOG.md` | 新增 | 详细变更日志 |
+| `setup_firewall.sh` | 新增 | 防火墙配置脚本 |
+
+---
+
+## 六、已更新文档
 
 | 文件 | 说明 |
 |------|------|
-| `check.md` | 差距分析中的 Revision 检测和上传并发控制状态已更新为 ✅ |
+| `check.md` | 差距分析中的 Revision 检测、上传并发控制、数字签名验证状态已更新为 ✅ |
+| `FEATURES.md` | 新增功能特性文档 |

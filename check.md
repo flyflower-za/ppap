@@ -235,7 +235,7 @@ e2dfbb4 fix(frontend): add prop attributes to all el-form-item fields
 | 需求 | 当前状态 | 差距 |
 |------|----------|------|
 | **加密检测** | ⚠️ 部分实现 | `sig_verifier.py` 中作为签名检查的副产物处理，没有独立的加密检测节点/规则 |
-| **数字签名验证** | ✅ pyHanko 异步验证 PKCS#7 签名完整性 | — |
+| **数字签名验证** | ✅ pyHanko 异步验证 PKCS#7 签名完整性 + 加密 PDF 自动解密 + 手动签名检查器 fallback | — |
 | **Revision 检测 (增量更新/二次修改)** | ✅ **已实现** | `checkers/revision_checker.py` 通过 xref 计数检测修订版本数，`RevisionCheckOperator` 跨引用签名数据，`Revision > 1 + 已签名` 时标记篡改风险。前端 RuleGraphEditor 新增 `revision-check` 节点，支持配置允许增量更新 |
 | **内容提取 (文本 + 空间块)** | ✅ pdf_info.py 使用 PyMuPDF 提取文本、字符数、blocks | — |
 | **表格提取** | ❌ 无专用表格解析 | 仅在 `pdf_info.py` 中提取原始 blocks，无结构化表格识别 |
