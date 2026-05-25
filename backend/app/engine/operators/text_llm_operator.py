@@ -8,7 +8,7 @@ from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 logger = logging.getLogger(__name__)
 
 
-async def _get_ai_config(model_type: str = "text") -> dict:
+async def _get_ai_config(model_type: str = "text", requested_model: str = None) -> dict:
     """
     Load AI model config. Prefers the default ModelProfile for the given type.
     Falls back to the legacy single ai_model_config if no profiles exist.
@@ -27,10 +27,17 @@ async def _get_ai_config(model_type: str = "text") -> dict:
                     p for p in profiles
                     if p.get("enabled") and p.get("model_type") in (model_type, "both")
                 ]
-                # Prefer the one marked as default
-                flag = f"is_default_{model_type}"
-                default = next((p for p in matching if p.get(flag)), None)
-                chosen = default or (matching[0] if matching else None)
+                
+                chosen = None
+                if requested_model:
+                    chosen = next((p for p in matching if p.get("model_name") == requested_model), None)
+                
+                if not chosen:
+                    # Prefer the one marked as default
+                    flag = f"is_default_{model_type}"
+                    default = next((p for p in matching if p.get(flag)), None)
+                    chosen = default or (matching[0] if matching else None)
+                    
                 if chosen:
                     return {
                         "enabled": True,
@@ -105,7 +112,7 @@ class TextLLMOperator(BaseOperator):
         user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
 
         try:
-            ai_config = await _get_ai_config()
+            ai_config = await _get_ai_config(requested_model=kwargs.get("model"))
 
             if not ai_config.get("enabled") or not ai_config.get("api_key"):
                 # Fallback to mock when AI is not configured

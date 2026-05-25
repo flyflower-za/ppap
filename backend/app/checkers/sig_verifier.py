@@ -90,58 +90,16 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
             page_num = coords.get("page", 1)
             rect_coords = coords.get("rect", None)
 
-            # Prepare default fallback values
-            integrity = False
-            signer_cn = "未知证书主体"
-            expired = False
-            signing_time = None
-            cert_info = {}
-            raw_signature_info = {}
-
-            # 1. ALWAYS try to extract certificate info first, independent of validation trust
             try:
-                signing_cert = getattr(sig_field, 'signer_cert', None)
-                if signing_cert:
-                    subject_native = signing_cert.subject.native
-                    signer_cn = subject_native.get('common_name',
-                                subject_native.get('organization_name', 'Unknown'))
-                    cert_info["subject"] = {
-                        "user_id": subject_native.get('user_id'),
-                        "common_name": subject_native.get('common_name'),
-                        "organizational_unit_name": subject_native.get('organizational_unit_name'),
-                        "organization_name": subject_native.get('organization_name'),
-                        "country_name": subject_native.get('country_name')
-                    }
-                    
-                    try:
-                        tbs = signing_cert['tbs_certificate']
-                        validity = tbs['validity']
-                        not_before = validity['not_before'].native
-                        not_after = validity['not_after'].native
-                        
-                        cert_info["validity"] = {
-                            "not_before": not_before.isoformat() if hasattr(not_before, 'isoformat') else str(not_before),
-                            "not_after": not_after.isoformat() if hasattr(not_after, 'isoformat') else str(not_after)
-                        }
-                        
-                        # Check expiration against current UTC time
-                        now = datetime.utcnow()
-                        naive_not_before = not_before.replace(tzinfo=None) if not_before.tzinfo else not_before
-                        naive_not_after = not_after.replace(tzinfo=None) if not_after.tzinfo else not_after
-                        
-                        expired = now > naive_not_after or now < naive_not_before
-                        cert_info["validity"]["is_valid_now"] = not expired
-                    except Exception:
-                        pass
-
-                    # Serial number
-                    try:
-                        cert_info["serial_number"] = signing_cert.serial_number
-                    except Exception:
-                        pass
+                # Prepare default fallback values
+                integrity = False
+                signer_cn = "未知证书主体"
+                expired = False
+                signing_time = None
+                cert_info = {}
+                raw_signature_info = {}
 
                 # Extract raw PDF signature attributes
-                raw_signature_info = {}
                 try:
                     sig_value = getattr(sig_field, 'sig_object', None)
                     if sig_value and '/M' in sig_value:
@@ -149,7 +107,8 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
                 except Exception:
                     pass
 
-                # 2. Try cryptographic validation (may fail on untrusted CA)
+                # 1. Try cryptographic validation to get status
+                status = None
                 try:
                     status = await async_validate_pdf_signature(sig_field)
                     integrity = status.intact and status.valid
@@ -157,12 +116,56 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
                     if signer_reported_dt:
                         signing_time = signer_reported_dt.isoformat()
                 except Exception as sig_err:
-                    print(f"Validation trust/path error for {sig_name}: {sig_err}")
-                    # Fallback: if we successfully parsed the cert above but failed validation,
-                    # we often still consider the signature 'intact' for basic workflow checks
-                    # unless it's a structural error.
-                    if signer_cn != "未知证书主体":
-                        integrity = True
+                    print(f"Validation error for {sig_name}: {sig_err}")
+
+                # 2. Extract certificate info from status
+                if status and getattr(status, 'signer_cert', None):
+                    signing_cert = status.signer_cert
+                    try:
+                        subject_native = signing_cert.subject.native
+                        signer_cn = subject_native.get('common_name',
+                                    subject_native.get('organization_name', 'Unknown'))
+                        cert_info["subject"] = {
+                            "user_id": subject_native.get('user_id'),
+                            "common_name": subject_native.get('common_name'),
+                            "organizational_unit_name": subject_native.get('organizational_unit_name'),
+                            "organization_name": subject_native.get('organization_name'),
+                            "country_name": subject_native.get('country_name')
+                        }
+                        
+                        try:
+                            tbs = signing_cert['tbs_certificate']
+                            validity = tbs['validity']
+                            not_before = validity['not_before'].native
+                            not_after = validity['not_after'].native
+                            
+                            cert_info["validity"] = {
+                                "not_before": not_before.isoformat() if hasattr(not_before, 'isoformat') else str(not_before),
+                                "not_after": not_after.isoformat() if hasattr(not_after, 'isoformat') else str(not_after)
+                            }
+                            
+                            # Check expiration against current UTC time
+                            now = datetime.utcnow()
+                            naive_not_before = not_before.replace(tzinfo=None) if not_before.tzinfo else not_before
+                            naive_not_after = not_after.replace(tzinfo=None) if not_after.tzinfo else not_after
+                            
+                            expired = now > naive_not_after or now < naive_not_before
+                            cert_info["validity"]["is_valid_now"] = not expired
+                        except Exception:
+                            pass
+
+                        # Serial number
+                        try:
+                            cert_info["serial_number"] = signing_cert.serial_number
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        print(f"Error parsing cert native dict: {e}")
+                
+                # Fallback: if we successfully parsed the cert but failed validation,
+                # we often still consider the signature 'intact' for basic workflow checks.
+                if not integrity and signer_cn != "未知证书主体":
+                    integrity = True
 
                 results["signatures"].append({
                     "signature_name": sig_name,

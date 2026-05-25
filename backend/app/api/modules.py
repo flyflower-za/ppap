@@ -56,6 +56,12 @@ async def list_modules(current_user: User = Depends(get_current_user)):
             "params": []
         },
         {
+            "name": "RevisionCheck",
+            "label": "修订版本检查 (RevisionCheck)",
+            "description": "分析 PDF 文件是否经过非法的增量修订或篡改",
+            "params": []
+        },
+        {
             "name": "URLFetchOperator",
             "label": "远端 PDF 拉取 (URL Fetch)",
             "description": "通过 URL 下载 PDF 并自动提取其中的文本与基础信息",

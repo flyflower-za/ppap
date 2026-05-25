@@ -85,6 +85,7 @@ async def check_pdf_signatures_manual(pdf_bytes: bytes) -> Dict[str, Any]:
                             sig_info["signer_cn"] = "PKCS#7数字签名"
 
                 # 检查签名字段名称
+                field_name_match = None
                 try:
                     # 找到sig_match在pdf_content中的位置
                     sig_start = pdf_content.find(sig_match)
@@ -95,8 +96,6 @@ async def check_pdf_signatures_manual(pdf_bytes: bytes) -> Dict[str, Any]:
                             sig_info["signature_name"] = field_name_match.group(1)
                 except Exception:
                     pass
-                if field_name_match:
-                    sig_info["signature_name"] = field_name_match.group(1)
 
                 results["signatures"].append(sig_info)
 
