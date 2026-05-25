@@ -36,6 +36,7 @@ class VerificationRule(Base):
     rule_content = Column(Text, nullable=False)
     severity = Column(Enum(Severity), default=Severity.fail)
     is_active = Column(Boolean, default=True)
+    is_system = Column(Boolean, default=False, nullable=False) # True for built-in rules
     logic_config = Column(JSONB, default=dict) # Stores node graph connections / AST
 
     category = relationship("DocumentCategory", back_populates="rules")

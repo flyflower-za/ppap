@@ -77,28 +77,82 @@ class VerificationEngine:
                 
         return ops_to_run
 
-    async def run(self, context: DocumentContext, rules: List[VerificationRule]) -> Dict[str, any]:
+    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None) -> Dict[str, any]:
         """
-        Execute the dynamic pipeline.
-        Returns the overall verification result dict to be stored in DB.
+        Execute the dynamic pipeline with a two-stage architecture.
+        Stage 1: Pre-classification (PDF Info & Institution Sniffer)
+        Stage 2: Execute heavy operators only for rules that match the category/institution.
         """
         logger.info(f"[Engine] Starting dynamic verification for {context.file_path}")
         
-        operators = self._determine_required_operators(rules)
-        logger.info(f"[Engine] Resolved {len(operators)} required operators based on rules.")
+        async def emit_log(msg: str):
+            if progress_callback:
+                await progress_callback(msg)
 
-        # Phase 1: Execute required operators
-        # In the future, this can use asyncio.gather for parallel execution 
-        # of independent nodes based on an execution graph.
+        # ---------------------------------------------------------
+        # STAGE 1: Pre-classification Operators
+        # ---------------------------------------------------------
+        await emit_log("引擎调度：启动基础信息解析与分类嗅探阶段")
+        pre_op_names = ["PDFInfoExtractor", "InstitutionSniffer"]
         operator_results = {}
-        for op in operators:
-            logger.info(f"[Engine] Executing operator: {op.name}")
+        
+        for name in pre_op_names:
+            if name in self._available_operators:
+                op = self._available_operators[name]
+                await emit_log(f"正在执行算子 [{name}]...")
+                try:
+                    res = await op.execute(context)
+                    operator_results[op.name] = res.dict()
+                    await emit_log(f"算子 [{name}] 执行完毕")
+                except Exception as e:
+                    logger.error(f"[Engine] Operator {op.name} crashed: {e}")
+                    operator_results[op.name] = {"pass_status": False, "message": str(e)}
+                    await emit_log(f"算子 [{name}] 执行异常: {e}")
+
+        # ---------------------------------------------------------
+        # FILTER RULES (Based on Institution/Category)
+        # ---------------------------------------------------------
+        sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
+        await emit_log(f"分类嗅探结果: {sniffed_inst}。正在匹配适用规则...")
+        
+        applicable_rules = []
+        for rule in rules:
+            logic = rule.logic_config or {}
+            conditions = logic.get("conditions", {})
+            required_inst = conditions.get("institution")
+            
+            # If the rule has an explicit institution condition, check it.
+            if required_inst and required_inst.lower() != sniffed_inst.lower():
+                logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst}, but sniffed {sniffed_inst})")
+                continue
+                
+            # If the rule has a category_id, we could also check it against a category map here.
+            # For now, if it passes the logic condition, it's applicable.
+            applicable_rules.append(rule)
+
+        await emit_log(f"匹配到 {len(applicable_rules)} 条适用规则，开始阶段二深度分析")
+
+        # ---------------------------------------------------------
+        # STAGE 2: Heavy Operators for Applicable Rules
+        # ---------------------------------------------------------
+        heavy_operators = self._determine_required_operators(applicable_rules)
+        # Filter out ones already run
+        heavy_operators = [op for op in heavy_operators if op.name not in pre_op_names]
+
+        if heavy_operators:
+            await emit_log(f"解析到 {len(heavy_operators)} 个深度分析算子待执行...")
+        
+        for op in heavy_operators:
+            logger.info(f"[Engine] Executing heavy operator: {op.name}")
+            await emit_log(f"正在执行高能耗算子 [{op.name}]...")
             try:
                 res = await op.execute(context)
                 operator_results[op.name] = res.dict()
+                await emit_log(f"算子 [{op.name}] 执行完毕")
             except Exception as e:
                 logger.error(f"[Engine] Operator {op.name} crashed: {e}")
                 operator_results[op.name] = {"pass_status": False, "message": str(e)}
+                await emit_log(f"算子 [{op.name}] 执行异常: {e}")
 
         # Phase 2: Evaluate Rules
         rule_evaluations = []

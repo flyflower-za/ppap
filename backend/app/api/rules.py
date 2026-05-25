@@ -175,6 +175,9 @@ async def delete_rule(
     rule = result.scalars().first()
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
+        
+    if rule.is_system:
+        raise HTTPException(status_code=400, detail="Cannot delete system-provided default rules.")
     
     await db.delete(rule)
     
@@ -190,3 +193,60 @@ async def delete_rule(
     
     await db.commit()
     return {"message": "Rule deleted successfully"}
+
+@router.post("/restore-defaults")
+async def restore_defaults(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Restore default system verification rules."""
+    from app.models.rule import RuleType, Severity
+    
+    default_rules = [
+        {
+            "rule_name": "文档二维码识别与解析",
+            "rule_type": RuleType.plugin,
+            "rule_content": "REQUIRE_QR_CODE",
+            "severity": Severity.warning,
+            "is_system": True
+        },
+        {
+            "rule_name": "PDF 电子数字签名验证",
+            "rule_type": RuleType.plugin,
+            "rule_content": "REQUIRE_SIGNATURE",
+            "severity": Severity.warning,
+            "is_system": True
+        }
+    ]
+    
+    # Iterate through defaults, check if exists, if not create it, if yes reset it.
+    for d_rule in default_rules:
+        result = await db.execute(select(VerificationRule).where(
+            VerificationRule.rule_name == d_rule["rule_name"],
+            VerificationRule.is_system == True
+        ))
+        existing_rule = result.scalars().first()
+        
+        if existing_rule:
+            # Reset values
+            existing_rule.rule_content = d_rule["rule_content"]
+            existing_rule.rule_type = d_rule["rule_type"]
+            existing_rule.severity = d_rule["severity"]
+            existing_rule.is_active = True
+        else:
+            new_rule = VerificationRule(**d_rule)
+            db.add(new_rule)
+            
+    await log_audit_event(
+        db=db,
+        action="RESTORE_DEFAULT_RULES",
+        user=current_user,
+        resource_type="SYSTEM",
+        resource_id=None,
+        details={"action": "Restored default verification rules"},
+        request=request
+    )
+    
+    await db.commit()
+    return {"message": "System default rules restored successfully."}

@@ -85,8 +85,8 @@ class TextLLMOperator(BaseOperator):
 
         target_prompt = kwargs.get("prompt", "请检查文档是否包含完整的盖章审批流程。")
 
-        # Truncate text if too long for the context window
-        max_chars = 10000
+        # Truncate text if too long for the context window (Safety Truncation)
+        max_chars = 3000
         text_context = full_text[:max_chars]
 
         system_prompt = f"""
@@ -111,12 +111,14 @@ class TextLLMOperator(BaseOperator):
                 }
             else:
                 from openai import AsyncOpenAI
+                import asyncio
                 client = AsyncOpenAI(
                     api_key=ai_config["api_key"],
                     base_url=ai_config.get("base_url", "https://api.openai.com/v1")
                 )
 
-                response = await client.chat.completions.create(
+                # Wrap the API call in a 15-second timeout circuit breaker
+                api_coro = client.chat.completions.create(
                     model=ai_config.get("text_model", "gpt-4o-mini"),
                     messages=[
                         {"role": "system", "content": system_prompt},
@@ -126,9 +128,19 @@ class TextLLMOperator(BaseOperator):
                     temperature=ai_config.get("temperature", 0.1),
                     response_format={"type": "json_object"}
                 )
-
-                raw_content = response.choices[0].message.content
-                response_data = json.loads(raw_content)
+                
+                try:
+                    response = await asyncio.wait_for(api_coro, timeout=15.0)
+                    raw_content = response.choices[0].message.content
+                    response_data = json.loads(raw_content)
+                except asyncio.TimeoutError:
+                    logger.error("LLM API call timed out after 15 seconds.")
+                    response_data = {
+                        "passed": False,
+                        "confidence": 0.0,
+                        "reason": "[熔断拦截] 大模型响应超时 (>15s)，已降级",
+                        "extracted_data": {}
+                    }
 
             # Validate with Pydantic
             validated = LLMOutputSchema(**response_data)

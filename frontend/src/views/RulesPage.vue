@@ -1,9 +1,14 @@
 <template>
   <div class="rules-page">
-    <div class="page-header">
+    <div class="page-header flex-between" style="display: flex; justify-content: space-between; align-items: center;">
       <div>
         <h2 class="page-title">规则配置中心</h2>
         <p class="page-subtitle">配置不同文档类型的识别规则与验证规则引擎</p>
+      </div>
+      <div>
+        <el-button type="primary" plain @click="handleRestoreDefaults" :loading="restoringDefaults">
+          <el-icon class="mr-1"><Refresh /></el-icon> 一键重置预置系统规则
+        </el-button>
       </div>
     </div>
 
@@ -60,7 +65,14 @@
           </template>
 
           <el-table :data="rules" style="width: 100%" v-loading="loadingRules">
-            <el-table-column prop="rule_name" label="规则名称" width="180" />
+            <el-table-column prop="rule_name" label="规则名称" min-width="200">
+              <template #default="scope">
+                <div style="display: flex; align-items: center;">
+                  <span>{{ scope.row.rule_name }}</span>
+                  <el-tag v-if="scope.row.is_system" size="small" type="info" effect="plain" style="margin-left: 8px;">系统预置</el-tag>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="rule_type" label="类型" width="120">
               <template #default="scope">
                 <el-tag :type="getRuleTypeTag(scope.row.rule_type)">
@@ -81,10 +93,16 @@
                 <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right">
+            <el-table-column label="操作" width="140" fixed="right">
               <template #default="scope">
                 <el-button link type="primary" @click="openRuleDialog(scope.row)">编辑</el-button>
-                <el-button link type="danger" @click="deleteRuleData(scope.row.id)">删除</el-button>
+                <el-button 
+                  link 
+                  type="danger" 
+                  @click="deleteRuleData(scope.row.id)"
+                  :disabled="scope.row.is_system"
+                  :title="scope.row.is_system ? '系统预置规则不可物理删除' : ''"
+                >删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -183,12 +201,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, MoreFilled } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import { 
   getCategories, createCategory, updateCategory, deleteCategory,
-  getRules, createRule, updateRule, deleteRule,
+  getRules, createRule, updateRule, deleteRule, restoreDefaultRules,
   type Category, type Rule
 } from '../api/rules'
 
@@ -198,6 +216,7 @@ const activeCategoryId = ref<string>('')
 
 const loadingRules = ref(false)
 const saving = ref(false)
+const restoringDefaults = ref(false)
 
 // Dialog states
 const categoryDialogVisible = ref(false)
@@ -428,6 +447,25 @@ const toggleRuleStatus = async (rule: Rule) => {
     rule.is_active = !rule.is_active
     ElMessage.error('切换状态失败')
   }
+}
+
+const handleRestoreDefaults = () => {
+  ElMessageBox.confirm('确定要恢复所有系统的预置默认规则吗？此操作将重置系统规则的内容配置，但不会删除您自定义的规则。', '恢复系统规则', {
+    type: 'warning'
+  }).then(async () => {
+    restoringDefaults.value = true
+    try {
+      await restoreDefaultRules()
+      ElMessage.success('系统默认规则已重置成功')
+      if (activeCategoryId.value || categories.value.length === 0) {
+        await fetchRules()
+      }
+    } catch (e) {
+      ElMessage.error('重置规则失败')
+    } finally {
+      restoringDefaults.value = false
+    }
+  }).catch(() => {})
 }
 
 // Helpers

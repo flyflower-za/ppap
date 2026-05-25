@@ -62,6 +62,13 @@
               >
                 下载原文件
               </el-button>
+              <el-button 
+                @click="trajectoryDrawerVisible = true"
+                class="trajectory-btn glass-btn ml-2"
+                :icon="Tickets"
+              >
+                执行流水
+              </el-button>
             </div>
           </div>
         </div>
@@ -494,6 +501,44 @@
         </el-col>
       </el-row>
     </div>
+
+    <!-- Execution Trajectory Drawer -->
+    <el-drawer
+      v-model="trajectoryDrawerVisible"
+      title="执行流水日志"
+      size="45%"
+      direction="rtl"
+      :destroy-on-close="false"
+      class="trajectory-drawer"
+    >
+      <div class="trajectory-container">
+        <el-timeline>
+          <el-timeline-item
+            v-for="(log, idx) in executionLogs"
+            :key="idx"
+            :type="log.status === 'success' || log.pass_status ? 'success' : (log.status === 'error' || log.pass_status === false ? 'danger' : 'primary')"
+            :color="log.status === 'running' ? '#409EFF' : ''"
+            :hollow="log.status === 'running'"
+            :timestamp="formatDate(log.timestamp)"
+            placement="top"
+          >
+            <el-card shadow="hover" class="log-card">
+              <h4 style="margin:0 0 8px 0; font-size:14px;">{{ log.operator }}</h4>
+              <p class="log-msg" style="margin:0; font-size:13px; color:#666;">{{ log.message }}</p>
+              <el-collapse v-if="log.extracted_data && Object.keys(log.extracted_data).length > 0" class="log-data-collapse mt-2">
+                <el-collapse-item title="详细提取数据" name="1">
+                  <pre class="log-data-pre">{{ JSON.stringify(log.extracted_data, null, 2) }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </el-card>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty 
+          v-if="executionLogs.length === 0" 
+          description="暂无执行流水记录" 
+        />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -501,7 +546,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position, Tickets } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -524,6 +569,52 @@ const submittingNote = ref(false)
 const pdfContainerRef = ref<HTMLElement | null>(null)
 const pdfLoading = ref(false)
 const expandedSigs = ref<Record<number, boolean>>({})
+
+const trajectoryDrawerVisible = ref(false)
+const liveExecutionLogs = ref<any[]>([])
+
+const executionLogs = computed(() => {
+  let logs: any[] = [...liveExecutionLogs.value]
+  
+  if (file.value && file.value.verification_result_json) {
+    const v = file.value.verification_result_json
+    if (v.execution_trajectory && Array.isArray(v.execution_trajectory)) {
+      v.execution_trajectory.forEach((t: any, index: number) => {
+        logs.push({
+          operator: '引擎流程',
+          message: t.message,
+          timestamp: t.time || t.timestamp,
+          status: 'success',
+          _order: index
+        })
+      })
+    }
+    
+    const opLogs = v.operator_logs || {}
+    let opIndex = 1000
+    Object.entries(opLogs).forEach(([operator, data]: [string, any]) => {
+      logs.push({
+        operator: operator,
+        message: data.message,
+        extracted_data: data.extracted_data,
+        status: data.pass_status === false ? 'error' : 'success',
+        timestamp: file.value?.completed_at,
+        _order: opIndex++
+      })
+    })
+  }
+  
+  logs.sort((a, b) => {
+    const timeA = new Date(a.timestamp || 0).getTime()
+    const timeB = new Date(b.timestamp || 0).getTime()
+    if (timeA === timeB) {
+      return (a._order || 0) - (b._order || 0)
+    }
+    return timeA - timeB
+  })
+  
+  return logs
+})
 
 const sniffedInstitution = computed(() => {
   return file.value?.verification_result_json?.operator_logs?.InstitutionSniffer?.extracted_data?.institution || ''
@@ -953,11 +1044,21 @@ function connectWebSocket() {
       return
     }
     
+    if (data.current_step) {
+      liveExecutionLogs.value.push({
+        operator: '实时分析',
+        message: data.current_step,
+        timestamp: new Date().toISOString(),
+        status: 'running'
+      })
+    }
+    
     if (file.value) {
       file.value.verification_progress = data.progress
       file.value.status = data.status
       
       if (data.status !== 'pending' && data.status !== 'processing') {
+        liveExecutionLogs.value = []
         fetchFileDetail(true)
         fetchNotes(true)
         closeWebSocket()

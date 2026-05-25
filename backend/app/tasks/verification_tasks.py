@@ -139,8 +139,20 @@ def queue_verification_task(self, file_id: str):
             await db.commit()
             await publish_progress(60, FileStatus.PROCESSING.value, "引擎执行与分析算子调度中...")
 
+            # Array to capture detailed trajectory logs from the engine
+            trajectory_logs = []
+
+            async def engine_progress_cb(msg: str):
+                log_entry = {
+                    "time": datetime.utcnow().isoformat() + "Z",
+                    "message": msg
+                }
+                trajectory_logs.append(log_entry)
+                # Keep progress pinned at 60 while engine does work, but update the step_msg
+                await publish_progress(60, FileStatus.PROCESSING.value, msg)
+
             engine = VerificationEngine()
-            engine_result = await engine.run(context, active_rules)
+            engine_result = await engine.run(context, active_rules, progress_callback=engine_progress_cb)
 
             # ============================================================
             # Stage 3: Compile Final Report (Progress 100%)
@@ -181,7 +193,8 @@ def queue_verification_task(self, file_id: str):
                     "fail": fail_count,
                     "needs_review": needs_review
                 },
-                "operator_logs": engine_result.get("operator_logs", {})
+                "operator_logs": engine_result.get("operator_logs", {}),
+                "execution_trajectory": trajectory_logs
             }
 
             end_time = datetime.utcnow()

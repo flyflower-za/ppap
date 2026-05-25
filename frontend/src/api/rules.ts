@@ -15,6 +15,7 @@ export interface Rule {
   rule_content: string
   severity: string
   is_active: boolean
+  is_system?: boolean
   logic_config?: any
 }
 
@@ -51,4 +52,8 @@ export const updateRule = async (id: string, data: Partial<Rule>) => {
 
 export const deleteRule = async (id: string) => {
   return await apiClient.delete(`/rule-engine/rules/${id}`)
+}
+
+export const restoreDefaultRules = async () => {
+  return await apiClient.post('/rule-engine/restore-defaults')
 }

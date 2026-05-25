@@ -240,6 +240,15 @@
                 link 
                 type="primary" 
                 size="small" 
+                class="action-btn-view" 
+                @click="handleViewTrajectory(row)"
+              >
+                执行轨迹
+              </el-button>
+              <el-button 
+                link 
+                type="primary" 
+                size="small" 
                 class="action-btn-download" 
                 @click="handleDownload(row)"
                 :disabled="row.status === 'pending' || row.status === 'processing'"
@@ -278,6 +287,44 @@
         />
       </div>
     </el-card>
+
+    <!-- Execution Trajectory Drawer -->
+    <el-drawer
+      v-model="trajectoryDrawerVisible"
+      title="执行流水日志"
+      size="45%"
+      direction="rtl"
+      :destroy-on-close="false"
+      class="trajectory-drawer"
+    >
+      <div class="trajectory-container">
+        <el-timeline>
+          <el-timeline-item
+            v-for="(log, idx) in executionLogs"
+            :key="idx"
+            :type="log.status === 'success' || log.pass_status ? 'success' : (log.status === 'error' || log.pass_status === false ? 'danger' : 'primary')"
+            :color="log.status === 'running' ? '#409EFF' : ''"
+            :hollow="log.status === 'running'"
+            :timestamp="formatDateTime(log.timestamp)"
+            placement="top"
+          >
+            <el-card shadow="hover" class="log-card">
+              <h4 style="margin:0 0 8px 0; font-size:14px;">{{ log.operator }}</h4>
+              <p class="log-msg" style="margin:0; font-size:13px; color:#666;">{{ log.message }}</p>
+              <el-collapse v-if="log.extracted_data && Object.keys(log.extracted_data).length > 0" class="log-data-collapse mt-2">
+                <el-collapse-item title="详细提取数据" name="1">
+                  <pre class="log-data-pre">{{ JSON.stringify(log.extracted_data, null, 2) }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </el-card>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty 
+          v-if="executionLogs.length === 0" 
+          description="暂无执行流水记录" 
+        />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -285,7 +332,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Download, Delete, ArrowDown } from '@element-plus/icons-vue'
+import { Download, Delete, ArrowDown, Tickets } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 
 const router = useRouter()
@@ -303,6 +350,52 @@ const filters = reactive({
   keyword: '',
   date_from: '',
   date_to: '',
+})
+
+const trajectoryDrawerVisible = ref(false)
+const currentTrajectoryFile = ref<any>(null)
+
+const executionLogs = computed(() => {
+  if (!currentTrajectoryFile.value || !currentTrajectoryFile.value.verification_result_json) return []
+  
+  let logs: any[] = []
+  const v = currentTrajectoryFile.value.verification_result_json
+  
+  if (v.execution_trajectory && Array.isArray(v.execution_trajectory)) {
+    v.execution_trajectory.forEach((t: any, index: number) => {
+      logs.push({
+        operator: '引擎流程',
+        message: t.message,
+        timestamp: t.time || t.timestamp,
+        status: 'success',
+        _order: index
+      })
+    })
+  }
+  
+  const opLogs = v.operator_logs || {}
+  let opIndex = 1000
+  Object.entries(opLogs).forEach(([operator, data]: [string, any]) => {
+    logs.push({
+      operator: operator,
+      message: data.message,
+      extracted_data: data.extracted_data,
+      status: data.pass_status === false ? 'error' : 'success',
+      timestamp: currentTrajectoryFile.value?.completed_at,
+      _order: opIndex++
+    })
+  })
+  
+  logs.sort((a, b) => {
+    const timeA = new Date(a.timestamp || 0).getTime()
+    const timeB = new Date(b.timestamp || 0).getTime()
+    if (timeA === timeB) {
+      return (a._order || 0) - (b._order || 0)
+    }
+    return timeA - timeB
+  })
+  
+  return logs
 })
 
 const hasActiveFilters = computed(() => {
@@ -457,6 +550,11 @@ function handleSelectionChange(selection: any[]) {
 
 function handleView(row: { id: string }) {
   router.push(`/files/${row.id}`)
+}
+
+function handleViewTrajectory(row: any) {
+  currentTrajectoryFile.value = row
+  trajectoryDrawerVisible.value = true
 }
 
 async function handleDownload(row: { id: string; original_filename: string }) {
