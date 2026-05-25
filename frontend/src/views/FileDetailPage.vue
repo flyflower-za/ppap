@@ -483,9 +483,9 @@ import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
 import type { FileDetail, Note } from '@/types'
 import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker
+// Use CDN for PDF.js worker to avoid MIME type issues
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
 
 const route = useRoute()
 const router = useRouter()

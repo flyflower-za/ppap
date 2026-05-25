@@ -64,6 +64,7 @@ services:
     container_name: ppap-backend
     restart: unless-stopped
     environment:
+      PORT: "31234"
       DATABASE_URL: postgresql+asyncpg://ppap:ppap123@postgres:5432/ppap
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
@@ -71,7 +72,8 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-this-in-production}
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173"]'
     ports:
-      - "8000:8000"
+      - "31234:31234"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "31234"]
     depends_on:
       postgres:
         condition: service_healthy
