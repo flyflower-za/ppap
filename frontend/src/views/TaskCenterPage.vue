@@ -160,6 +160,7 @@ const batchMode = ref(true) // Default to batch confirmation mode
 const activeTab = ref('all')
 const uploading = ref(false)
 const fileList = ref<any[]>([])
+const concurrencyLimit = ref(3) // Max concurrent uploads
 
 // TaskList references for reactive updates
 const allTaskListRef = ref<InstanceType<typeof TaskList> | null>(null)
@@ -236,60 +237,65 @@ function clearQueue() {
   fileList.value = []
 }
 
-// Batch Confirm Upload Handler
+// Batch Confirm Upload Handler with concurrency control
 async function handleConfirmUpload() {
   if (fileList.value.length === 0) return
-  
+
   uploading.value = true
   let successCount = 0
   let failCount = 0
 
-  // Sequential or concurrent upload
-  const uploadPromises = fileList.value.map(async (fileItem) => {
-    if (fileItem.status === 'success') {
-      successCount++
-      return
-    }
-    
-    fileItem.status = 'uploading'
-    try {
-      await filesApi.upload(fileItem.raw)
-      fileItem.status = 'success'
-      successCount++
-    } catch (err) {
-      fileItem.status = 'error'
-      failCount++
-    }
-  })
+  // Concurrency-controlled upload: process files with limited parallelism
+  const queue = fileList.value.filter(f => f.status !== 'success')
+  const maxConcurrent = concurrencyLimit.value
 
-  try {
-    await Promise.all(uploadPromises)
+  async function worker() {
+    while (queue.length > 0) {
+      const fileItem = queue.shift()
+      if (!fileItem) break
+      if (fileItem.status === 'success') {
+        successCount++
+        continue
+      }
 
-    if (failCount === 0) {
-      ElMessage.success(`批量上传成功！已成功载入 ${successCount} 个文件进行智能校验。`)
-    } else {
-      ElMessage.warning(`批量上传完成。成功 ${successCount} 个，失败 ${failCount} 个。`)
+      fileItem.status = 'uploading'
+      try {
+        await filesApi.upload(fileItem.raw)
+        fileItem.status = 'success'
+        successCount++
+      } catch (err) {
+        fileItem.status = 'error'
+        failCount++
+        console.error(`Failed to upload ${fileItem.name}:`, err)
+      }
     }
-
-    // Refresh dashboard tasks list
-    activeTab.value = 'all'
-    if (allTaskListRef.value) {
-      allTaskListRef.value.refresh()
-    }
-    if (processingTaskListRef.value) {
-      processingTaskListRef.value.refresh()
-    }
-
-    // After 1.5 seconds, clear the successful items from queue
-    setTimeout(() => {
-      fileList.value = fileList.value.filter(f => f.status === 'error')
-    }, 1500)
-
-  } catch (error) {
-    ElMessage.error('上传队列处理时发生错误')
-  } finally {
-    uploading.value = false
   }
+
+  // Start N concurrent workers
+  const workers = Array.from({ length: Math.min(maxConcurrent, queue.length) }, () => worker())
+  await Promise.all(workers)
+
+  if (failCount === 0) {
+    ElMessage.success(`批量上传成功！已成功载入 ${successCount} 个文件进行智能校验。`)
+  } else {
+    ElMessage.warning(`批量上传完成。成功 ${successCount} 个，失败 ${failCount} 个。`)
+  }
+
+  // Refresh dashboard tasks list
+  activeTab.value = 'all'
+  if (allTaskListRef.value) {
+    allTaskListRef.value.refresh()
+  }
+  if (processingTaskListRef.value) {
+    processingTaskListRef.value.refresh()
+  }
+
+  // After 1.5 seconds, clear the successful items from queue
+  setTimeout(() => {
+    fileList.value = fileList.value.filter(f => f.status === 'error')
+  }, 1500)
+
+  uploading.value = false
 }
 
 function handleTaskFinished() {
