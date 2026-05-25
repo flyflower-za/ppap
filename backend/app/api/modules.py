@@ -83,16 +83,22 @@ async def test_module(
     try:
         # Determine the file path
         if file_id:
-            db_file = FileService.get_file(db, file_id)
+            from app.services.file_service import FileService
+            file_service = FileService(db)
+            db_file = await file_service.get_file(file_id)
             if not db_file:
                 raise HTTPException(status_code=404, detail="File not found in database")
+            
+            from app.core.minio_client import minio_client
+            pdf_bytes = minio_client.download_file(db_file.file_path)
             
             # Download file from MinIO to temp location
             import tempfile
             _, temp_ext = os.path.splitext(db_file.original_filename)
             fd, temp_file_path = tempfile.mkstemp(suffix=temp_ext)
             os.close(fd)
-            FileService.download_to_local(db_file.minio_object_name, temp_file_path)
+            with open(temp_file_path, "wb") as f:
+                f.write(pdf_bytes)
             
         elif file:
             import tempfile
