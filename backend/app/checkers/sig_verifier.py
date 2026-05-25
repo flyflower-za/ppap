@@ -40,14 +40,50 @@ async def verify_pdf_signatures(pdf_bytes: bytes) -> dict:
         return results
 
     try:
+        # Handle encrypted PDFs
+        # First, check if PDF is encrypted and decrypt it
+        decrypted_bytes = pdf_bytes
+        try:
+            # Try to decrypt the PDF if it's encrypted
+            import pypdf
+            pdf_reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+
+            if pdf_reader.is_encrypted:
+                # Try to decrypt with empty password (common for signed PDFs)
+                if pdf_reader.decrypt(""):
+                    # Create a decrypted version
+                    writer = pypdf.PdfWriter()
+                    for page in pdf_reader.pages:
+                        writer.add_page(page)
+
+                    decrypted_stream = io.BytesIO()
+                    writer.write(decrypted_stream)
+                    decrypted_bytes = decrypted_stream.getvalue()
+                    print("🔓 PDF已自动解密用于签名检查")
+                else:
+                    print("⚠️  PDF已加密但无法解密，签名检查可能失败")
+        except Exception as decrypt_err:
+            print(f"⚠️  PDF解密尝试失败: {decrypt_err}")
+            # Continue with original bytes
+
         # Wrap bytes in an in-memory BytesIO stream
-        stream = io.BytesIO(pdf_bytes)
+        stream = io.BytesIO(decrypted_bytes)
         reader = PdfFileReader(stream)
         
         # Extract all embedded signatures
         embedded_sigs = list(reader.embedded_signatures)
         if embedded_sigs:
             results["signed"] = True
+        else:
+            # pyhanko无法检测到签名，尝试手动检查
+            print("⚠️  pyhanko未检测到签名，尝试手动检查...")
+            from app.checkers.sig_verifier_manual import check_pdf_signatures_manual
+            manual_results = await check_pdf_signatures_manual(decrypted_bytes)
+            if manual_results.get("signed", False):
+                results = manual_results
+                print("✅ 手动检查成功找到数字签名")
+            else:
+                print("❌ 手动检查也未找到签名")
             
             # --- EXTRACT SPATIAL COORDINATES WITH FITZ ---
             sig_coords = {}

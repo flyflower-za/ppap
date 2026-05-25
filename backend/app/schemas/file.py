@@ -92,7 +92,7 @@ class FileReviewResolution(BaseModel):
 
 class FileDetailResponse(FileResponse):
     """Detailed file response with verification results."""
-    verification_result: Optional[Dict[str, Any]] = None
+    # verification_result is handled by parent class validator and stored in verification_result_json
     uploaded_by: Optional[str] = None  # User email
 
 

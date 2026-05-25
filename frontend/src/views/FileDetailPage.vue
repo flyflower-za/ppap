@@ -148,7 +148,7 @@
           <div class="glass-card section-panel mb-4">
             <div class="section-title flex-between">
               <h3>校验规则诊断报告</h3>
-              <div class="checks-counters" v-if="file.verification_result?.summary">
+              <div class="checks-counters" v-if="file.verification_result_json?.summary">
                 <span class="counter-badge pass">{{ file.pass_count }} 通过</span>
                 <span class="counter-badge warning" v-if="file.warning_count > 0">{{ file.warning_count }} 警告</span>
                 <span class="counter-badge fail" v-if="file.fail_count > 0">{{ file.fail_count }} 不合规</span>
@@ -158,16 +158,16 @@
               </div>
             </div>
 
-            <el-empty 
-              v-if="!file.verification_result || !file.verification_result.checks || file.verification_result.checks.length === 0" 
-              description="校验正在进行中，完成后将自动在此生成详细报告..." 
+            <el-empty
+              v-if="!file.verification_result_json || !file.verification_result_json.checks || file.verification_result_json.checks.length === 0"
+              description="校验正在进行中，完成后将自动在此生成详细报告..."
               :image-size="120"
               class="empty-report-state"
             />
 
             <div v-else class="diagnostic-checklist">
               <div
-                v-for="(check, index) in file.verification_result.checks"
+                v-for="(check, index) in file.verification_result_json.checks"
                 :key="index"
                 class="diagnostic-check-card"
                 :class="[check.status, check.page ? 'has-page-link' : '']"
@@ -211,7 +211,7 @@
               </div>
               <div class="info-detail-item">
                 <span class="lbl">校验模型</span>
-                <span class="val">{{ file.verification_result?.model_version || file.verification_model || '智能校验引擎 2.0' }}</span>
+                <span class="val">{{ file.verification_result_json?.model_version || file.verification_model || '智能校验引擎 2.0' }}</span>
               </div>
               <div class="info-detail-item">
                 <span class="lbl">合规项目</span>
