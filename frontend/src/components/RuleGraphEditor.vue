@@ -205,8 +205,9 @@
           <!-- HTTP Call -->
           <div v-if="selectedNode.data?.nodeType === 'http-call'">
             <div class="field-group">
-              <label class="field-label" for="node-url-template">请求 URL 模板</label>
+              <label class="field-label" for="node-url-template">请求 URL <span class="required-mark">*</span></label>
               <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" />
+              <span class="field-hint">支持变量插值，如 {{qr_content}}, {{extracted_report_id}}</span>
             </div>
             <div class="field-group">
               <span class="field-label">HTTP 方法</span>
@@ -217,6 +218,58 @@
                 <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'POST' }">
                   <input type="radio" v-model="selectedNode.data.http_method" value="POST" /> POST
                 </label>
+                <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'PUT' }">
+                  <input type="radio" v-model="selectedNode.data.http_method" value="PUT" /> PUT
+                </label>
+              </div>
+            </div>
+
+            <!-- Advanced Options (Collapsible) -->
+            <div class="field-group">
+              <div class="collapsible-header" @click="toggleHttpAdvanced">
+                <span>高级选项</span>
+                <span class="caret" :class="{ open: httpAdvancedExpanded }">▸</span>
+              </div>
+              <div v-show="httpAdvancedExpanded" class="collapsible-content">
+                <!-- Headers -->
+                <div class="sub-field-group">
+                  <label class="field-label">请求 Headers (可选)</label>
+                  <div class="key-value-list">
+                    <div v-for="(header, idx) in (selectedNode.data?.headers || [])" :key="header._id || idx" class="key-value-row">
+                      <input v-model="header.key" type="text" class="field-input mono key-input" placeholder="Header 名称 (如: Authorization)" />
+                      <input v-model="header.value" type="text" class="field-input mono value-input" placeholder="Header 值 (如: Bearer {{token}})" />
+                      <button @click.prevent="removeHttpHeader(idx)" class="remove-btn" :disabled="header.key === 'Content-Type' && header.value === 'application/json'">×</button>
+                    </div>
+                    <button @click.prevent="addHttpHeader" class="add-btn">+ 添加 Header</button>
+                  </div>
+                </div>
+
+                <!-- Body (for POST/PUT) -->
+                <div class="sub-field-group" v-if="selectedNode.data.http_method === 'POST' || selectedNode.data.http_method === 'PUT'">
+                  <label class="field-label">请求 Body (可选)</label>
+                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "{{extracted_report_id}}", "code": "{{qr_content}}"}'></textarea>
+                  <span class="field-hint">JSON 格式，支持变量插值</span>
+                </div>
+
+                <!-- Timeout -->
+                <div class="sub-field-group">
+                  <label class="field-label">超时时间 (秒)</label>
+                  <input v-model.number="selectedNode.data.timeout" type="number" class="field-input" style="width: 100px;" min="1" max="120" placeholder="30" />
+                </div>
+
+                <!-- Success Criteria -->
+                <div class="sub-field-group">
+                  <label class="field-label">验证通过条件</label>
+                  <select v-model="selectedNode.data.success_type" class="field-input">
+                    <option value="status_code">状态码等于 200</option>
+                    <option value="status_2xx">状态码为 2xx (成功)</option>
+                    <option value="json_path">JSON Path 匹配</option>
+                    <option value="text_contains">响应文本包含</option>
+                  </select>
+                  <input v-if="selectedNode.data.success_type === 'json_path'" v-model="selectedNode.data.json_path" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="$.valid" />
+                  <input v-if="selectedNode.data.success_type === 'json_path'" v-model="selectedNode.data.json_expected" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="true" />
+                  <input v-if="selectedNode.data.success_type === 'text_contains'" v-model="selectedNode.data.text_contains" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="OK" />
+                </div>
               </div>
             </div>
           </div>
@@ -336,7 +389,7 @@ const NODE_REGISTRY: Record<string, NodeMeta> = {
   'regex':               { label: '正则校验',       icon: '📐', color: '#fef9c3', borderColor: '#eab308', group: 'detect', defaultData: { pattern: '', severity: 'fail', hasSeverity: true } },
   'condition':           { label: '条件分支',       icon: '🔀', color: '#fce7f3', borderColor: '#ec4899', group: 'flow',   defaultData: { expression: '' } },
   'human-review':        { label: '人工审核点',     icon: '🙋', color: '#fff7ed', borderColor: '#ea580c', group: 'flow',   defaultData: { review_hint: '' } },
-  'http-call':           { label: 'HTTP 外部验证',  icon: '🌐', color: '#ecfdf5', borderColor: '#059669', group: 'flow',   defaultData: { url_template: '', http_method: 'GET', severity: 'fail', hasSeverity: true } },
+  'http-call':           { label: 'HTTP 外部验证',  icon: '🌐', color: '#ecfdf5', borderColor: '#059669', group: 'flow',   defaultData: { url_template: '', http_method: 'GET', headers: [{ key: 'Content-Type', value: 'application/json', _id: 1 }], body_template: '', timeout: 30, success_type: 'status_2xx', json_path: '', json_expected: 'true', text_contains: '', severity: 'fail', hasSeverity: true } },
   'data-compare':        { label: '数据比对',       icon: '⚖️', color: '#f0f9ff', borderColor: '#0284c7', group: 'flow',   defaultData: { source_a: '', source_b: '', severity: 'fail', hasSeverity: true } },
   'vote':                { label: '聚合投票',       icon: '🗳️', color: '#faf5ff', borderColor: '#7c3aed', group: 'flow',   defaultData: { min_pass: 2 } },
 }
@@ -384,6 +437,28 @@ function updateNodeLabel(node: any) {
   }
 }
 
+// HTTP Headers management
+let headerIdCounter = 0
+
+function addHttpHeader() {
+  if (!selectedNode.value?.data) return
+  if (!selectedNode.value.data.headers) {
+    selectedNode.value.data.headers = [{ key: 'Content-Type', value: 'application/json', _id: ++headerIdCounter }]
+  }
+  selectedNode.value.data.headers.push({ key: '', value: '', _id: ++headerIdCounter })
+}
+
+function removeHttpHeader(idx: number | string) {
+  if (!selectedNode.value?.data?.headers) return
+  const index = typeof idx === 'string' ? parseInt(idx, 10) : idx
+  if (selectedNode.value.data.headers.length <= 1) return // Keep at least one
+  selectedNode.value.data.headers.splice(index, 1)
+}
+
+function toggleHttpAdvanced() {
+  httpAdvancedExpanded.value = !httpAdvancedExpanded.value
+}
+
 // ─── Props & Emit ───
 const props = defineProps({
   modelValue: {
@@ -397,6 +472,7 @@ const nodes = ref<any[]>([])
 const edges = ref<any[]>([])
 const selectedNode = ref<any | null>(null)
 const isInitialized = ref(false)
+const httpAdvancedExpanded = ref(false)
 
 const defaultNodes = [
   {
@@ -431,6 +507,15 @@ function safeCloneNodes(nodesArray: any[]) {
     if (node.selectable !== undefined) serialized.selectable = node.selectable
     if (node.connectable !== undefined) serialized.connectable = node.connectable
     if (node.deletable !== undefined) serialized.deletable = node.deletable
+
+    // Ensure headers have _id for http-call nodes
+    if (serialized.data?.headers && Array.isArray(serialized.data.headers)) {
+      serialized.data.headers = serialized.data.headers.map((h: any) => ({
+        ...h,
+        _id: h._id || ++headerIdCounter
+      }))
+    }
+
     return serialized
   })
 }
@@ -526,13 +611,22 @@ const addNode = (type: string) => {
   const col = existingCount % 3
   const row = Math.floor(existingCount / 3)
 
+  // Deep clone default data and regenerate IDs for headers
+  const defaultData = JSON.parse(JSON.stringify(meta.defaultData))
+  if (defaultData.headers) {
+    defaultData.headers = defaultData.headers.map((h: any) => ({
+      ...h,
+      _id: ++headerIdCounter
+    }))
+  }
+
   const newNode = {
     id: `node-${type}-${Date.now()}-${nodeCounter}`,
     label: `${meta.icon} ${meta.label}`,
     position: { x: 80 + col * 220, y: 150 + row * 120 },
     class: 'rounded-lg p-2 text-sm shadow-md',
     style: { backgroundColor: meta.color, borderColor: meta.borderColor, borderWidth: '2px', borderStyle: 'solid' },
-    data: { nodeType: type, ...JSON.parse(JSON.stringify(meta.defaultData)) },
+    data: { nodeType: type, ...defaultData },
   }
 
   // Update label based on operation mode
@@ -1186,6 +1280,119 @@ function startResize(e: MouseEvent) {
 .inspector-empty p {
   margin: 0;
   font-size: 13px;
+}
+
+/* ─── HTTP Advanced Options ─── */
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  transition: background 0.15s;
+}
+
+.collapsible-header:hover {
+  background: var(--el-fill-color);
+}
+
+.collapsible-header .caret {
+  transition: transform 0.2s;
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+}
+
+.collapsible-header .caret.open {
+  transform: rotate(90deg);
+}
+
+.collapsible-content {
+  margin-top: 12px;
+  padding-left: 8px;
+}
+
+.sub-field-group {
+  margin-bottom: 16px;
+}
+
+.sub-field-group:last-child {
+  margin-bottom: 0;
+}
+
+.key-value-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.key-value-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.key-value-row .key-input {
+  flex: 1;
+  min-width: 120px;
+}
+
+.key-value-row .value-input {
+  flex: 2;
+}
+
+.key-value-row .remove-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: white;
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  transition: all 0.15s;
+}
+
+.key-value-row .remove-btn:hover:not(:disabled) {
+  background: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-5);
+  color: var(--el-color-danger);
+}
+
+.key-value-row .remove-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.add-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+}
+
+.add-btn:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.required-mark {
+  color: var(--el-color-danger);
+  margin-left: 2px;
 }
 
 /* ─── Transitions ─── */

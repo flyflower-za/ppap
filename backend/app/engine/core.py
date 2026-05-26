@@ -516,7 +516,121 @@ class VerificationEngine:
                         else:
                             node_passed = True
                             node_msg = f"文档共 {rev_count} 个版本，版本结构完整未修改"
-                        
+
+                    elif node_type == "http_call":
+                        # HTTP External Verification Node
+                        try:
+                            import httpx
+                            import re
+                            import json as json_lib
+
+                            # Helper function for variable interpolation
+                            def interpolate_vars(val: str, state: dict) -> str:
+                                if isinstance(val, str):
+                                    matches = re.findall(r'\{\{([^}]+)\}\}', val)
+                                    for match in matches:
+                                        key = match.strip()
+                                        replacement = state.get(key, "")
+                                        if replacement is None:
+                                            replacement = ""
+                                        val = val.replace(f"{{{{{match}}}}}", str(replacement))
+                                return val
+
+                            # Get configuration
+                            url_template = node_data.get("url_template", "")
+                            http_method = node_data.get("http_method", "GET")
+                            headers_list = node_data.get("headers", [])
+                            body_template = node_data.get("body_template", "")
+                            timeout = node_data.get("timeout", 30)
+                            success_type = node_data.get("success_type", "status_2xx")
+                            json_path = node_data.get("json_path", "")
+                            json_expected = node_data.get("json_expected", "true")
+                            text_contains = node_data.get("text_contains", "")
+
+                            # Interpolate variables in URL
+                            url = interpolate_vars(url_template, context.shared_state)
+
+                            if not url:
+                                node_passed = False
+                                node_msg = "HTTP 验证失败: URL 模板为空"
+                            else:
+                                # Build headers
+                                headers = {}
+                                for header in headers_list:
+                                    key = interpolate_vars(header.get("key", ""), context.shared_state)
+                                    value = interpolate_vars(header.get("value", ""), context.shared_state)
+                                    if key:
+                                        headers[key] = value
+
+                                # Build body for POST/PUT
+                                body = None
+                                if http_method in ["POST", "PUT"] and body_template:
+                                    body = interpolate_vars(body_template, context.shared_state)
+
+                                # Make HTTP request
+                                async with httpx.AsyncClient(timeout=timeout) as client:
+                                    if http_method == "GET":
+                                        response = await client.get(url, headers=headers)
+                                    elif http_method == "POST":
+                                        response = await client.post(url, headers=headers, content=body)
+                                    elif http_method == "PUT":
+                                        response = await client.put(url, headers=headers, content=body)
+                                    else:
+                                        response = await client.get(url, headers=headers)
+
+                                # Check success criteria
+                                status_code = response.status_code
+
+                                if success_type == "status_code":
+                                    node_passed = status_code == 200
+                                    node_msg = f"HTTP 验证完成: 状态码 {status_code}"
+                                elif success_type == "status_2xx":
+                                    node_passed = 200 <= status_code < 300
+                                    node_msg = f"HTTP 验证完成: 状态码 {status_code}"
+                                elif success_type == "json_path":
+                                    try:
+                                        response_json = response.json()
+                                        # Simple JSON path evaluation (supports $.field or $.field.nested)
+                                        path_parts = json_path.replace("$.", "").split(".")
+                                        value = response_json
+                                        for part in path_parts:
+                                            if isinstance(value, dict):
+                                                value = value.get(part)
+                                            else:
+                                                value = None
+                                                break
+
+                                        # Compare with expected value
+                                        if json_expected.lower() == "true":
+                                            node_passed = bool(value)
+                                        elif json_expected.lower() == "false":
+                                            node_passed = not bool(value)
+                                        else:
+                                            node_passed = str(value) == json_expected
+
+                                        node_msg = f"HTTP 验证完成: JSON Path {json_path} = {value}"
+                                    except Exception as e:
+                                        node_passed = False
+                                        node_msg = f"HTTP 验证失败: JSON 解析错误 - {str(e)}"
+                                elif success_type == "text_contains":
+                                    response_text = response.text
+                                    node_passed = text_contains in response_text
+                                    node_msg = f"HTTP 验证完成: 响应{'包含' if node_passed else '不包含'} '{text_contains}'"
+                                else:
+                                    node_passed = 200 <= status_code < 300
+                                    node_msg = f"HTTP 验证完成: 状态码 {status_code}"
+
+                        except httpx.TimeoutException:
+                            node_passed = False
+                            node_msg = f"HTTP 验证失败: 请求超时 (>{timeout}s)"
+                        except httpx.HTTPError as e:
+                            node_passed = False
+                            node_msg = f"HTTP 验证失败: {str(e)}"
+                        except Exception as e:
+                            logger.error(f"[Engine] HTTP call node failed: {e}")
+                            node_passed = False
+                            node_msg = f"HTTP 验证异常: {str(e)}"
+
                     else:
                         node_passed = True
                         node_msg = f"节点 {node_type} 执行完毕"
