@@ -769,5 +769,6 @@ class VerificationEngine:
             "warning_count": warning_count,
             "fail_count": fail_count,
             "reference_count": reference_count,
-            "needs_review": needs_review
+            "needs_review": needs_review,
+            "institution": context.shared_state.get("institution", None)
         }

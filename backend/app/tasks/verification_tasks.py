@@ -170,6 +170,7 @@ def queue_verification_task(self, file_id: str):
             warning_count = engine_result.get("warning_count", 0)
             fail_count = engine_result.get("fail_count", 0)
             reference_count = engine_result.get("reference_count", 0)
+            institution = engine_result.get("institution", None)
             needs_review = engine_result.get("needs_review", False)
             # Reference items do NOT affect total_checks or pass_rate — advisory only
             total_checks = pass_count + warning_count + fail_count
@@ -196,6 +197,7 @@ def queue_verification_task(self, file_id: str):
                     "warning": warning_count,
                     "fail": fail_count,
                     "reference": reference_count,
+                    "institution": institution,
                     "needs_review": needs_review
                 },
                 "operator_logs": engine_result.get("operator_logs", {}),
