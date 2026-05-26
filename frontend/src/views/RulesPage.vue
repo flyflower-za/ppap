@@ -65,7 +65,7 @@
           </template>
 
           <el-table :data="rules" style="width: 100%" v-loading="loadingRules">
-            <el-table-column prop="rule_name" label="规则名称" min-width="200">
+            <el-table-column prop="rule_name" label="规则名称" min-width="180">
               <template #default="scope">
                 <div style="display: flex; align-items: center;">
                   <span>{{ scope.row.rule_name }}</span>
@@ -166,7 +166,38 @@
             <el-radio value="vision">视觉/版式识别 (Vision LLM)</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="严重级别" prop="severity" required>
+
+        <!-- LLM Operation Mode -->
+        <el-form-item label="操作模式" v-if="ruleForm.rule_type === 'llm_prompt'" prop="llm_operation_mode">
+          <div class="operation-mode-selector">
+            <div
+              class="mode-card"
+              :class="{ active: ruleForm.llm_operation_mode === 'verification' }"
+              @click="ruleForm.llm_operation_mode = 'verification'"
+            >
+              <div class="mode-icon">✓</div>
+              <div class="mode-content">
+                <div class="mode-title">验证模式</div>
+                <div class="mode-desc">判断文档是否满足条件，返回通过/不通过</div>
+              </div>
+              <div class="mode-badge">VERIFICATION</div>
+            </div>
+            <div
+              class="mode-card"
+              :class="{ active: ruleForm.llm_operation_mode === 'extraction' }"
+              @click="ruleForm.llm_operation_mode = 'extraction'"
+            >
+              <div class="mode-icon">⋮</div>
+              <div class="mode-content">
+                <div class="mode-title">提取模式</div>
+                <div class="mode-desc">从文档中提取数据，不进行验证判断</div>
+              </div>
+              <div class="mode-badge">EXTRACTION</div>
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="严重级别" prop="severity" required v-if="ruleForm.llm_operation_mode !== 'extraction'">
           <el-radio-group v-model="ruleForm.severity">
             <el-radio value="fail">失败 (直接拦截)</el-radio>
             <el-radio value="warning">警告 (提示风险)</el-radio>
@@ -231,14 +262,15 @@ const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
-const ruleForm = ref<Partial<Rule & { condition_institution?: string, llm_model_type?: string }>>({
+const ruleForm = ref<Partial<Rule & { condition_institution?: string, llm_model_type?: string, llm_operation_mode?: string }>>({
   rule_name: '',
   rule_type: 'llm_prompt',
   severity: 'fail',
   rule_content: '',
   logic_config: null,
   condition_institution: '',
-  llm_model_type: 'text'
+  llm_model_type: 'text',
+  llm_operation_mode: 'verification'
 })
 
 // Watch rule_type changes to initialize logic_config
@@ -356,6 +388,7 @@ const openRuleDialog = (rule?: Rule) => {
     // Map condition
     ruleForm.value.condition_institution = rule.logic_config?.conditions?.institution || ''
     ruleForm.value.llm_model_type = rule.logic_config?.llm_model_type || 'text'
+    ruleForm.value.llm_operation_mode = rule.logic_config?.llm_operation_mode || 'verification'
 
     // Ensure logic_config is properly initialized for logic_graph rules
     if (rule.rule_type === 'logic_graph') {
@@ -376,7 +409,8 @@ const openRuleDialog = (rule?: Rule) => {
       logic_config: {}, // Fixed: empty object instead of null to pass backend Pydantic validation
       is_active: true,
       condition_institution: '',
-      llm_model_type: 'text'
+      llm_model_type: 'text',
+      llm_operation_mode: 'verification'
     }
   }
   ruleDialogVisible.value = true
@@ -419,11 +453,13 @@ const saveRule = async () => {
   if (payload.rule_type === 'llm_prompt') {
     if (!payload.logic_config) payload.logic_config = {}
     payload.logic_config.llm_model_type = payload.llm_model_type || 'text'
+    payload.logic_config.llm_operation_mode = payload.llm_operation_mode || 'verification'
   }
 
   // Clean payload
   delete payload.condition_institution
   delete payload.llm_model_type
+  delete payload.llm_operation_mode
 
   try {
     if (payload.id) {
@@ -552,5 +588,91 @@ const getRuleTypeTag = (type: string) => {
 
 .text-danger {
   color: var(--el-color-danger);
+}
+
+/* Operation Mode Selector */
+.operation-mode-selector {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.mode-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--el-border-color);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--el-bg-color);
+  position: relative;
+  overflow: hidden;
+}
+
+.mode-card:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.mode-card.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
+}
+
+.mode-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--el-fill-color-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--el-text-color-regular);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.mode-card.active .mode-icon {
+  background: var(--el-color-primary);
+  color: white;
+}
+
+.mode-content {
+  flex: 1;
+}
+
+.mode-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  margin-bottom: 2px;
+}
+
+.mode-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+
+.mode-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--el-text-color-placeholder);
+  opacity: 0.5;
+  letter-spacing: 0.5px;
+}
+
+.mode-card.active .mode-badge {
+  color: var(--el-color-primary);
+  opacity: 0.3;
 }
 </style>

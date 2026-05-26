@@ -52,9 +52,9 @@ async def _get_ai_config(model_type: str = "vision", requested_model: str = None
 
 
 class VisionOutputSchema(BaseModel):
-    passed: bool = Field(..., description="Whether the verification passed based on visual evidence")
-    confidence: float = Field(..., description="Confidence score from 0.0 to 1.0")
-    reason: str = Field(..., description="Explanation of the visual reasoning")
+    passed: bool = Field(default=True, description="Whether the verification passed based on visual evidence")
+    confidence: float = Field(default=1.0, description="Confidence score from 0.0 to 1.0")
+    reason: str = Field(default="", description="Explanation of the visual reasoning")
     bounding_boxes: List[dict] = Field(default_factory=list, description="Any detected bounding boxes {x0, y0, x1, y1, label}")
 
 
@@ -92,6 +92,7 @@ class VisionLLMOperator(BaseOperator):
 
         target_prompt = kwargs.get("prompt", "请检查页面右下角是否包含红色实体公章。")
         target_page = kwargs.get("page_num", 1)
+        operation_mode = kwargs.get("operation_mode", "verification")
         # Optional: crop_bbox = (x0, y0, x1, y1) in PDF user-space points
         crop_bbox: Optional[tuple] = kwargs.get("crop_bbox", None)
 
@@ -152,18 +153,32 @@ class VisionLLMOperator(BaseOperator):
                     base_url=ai_config.get("base_url", "https://api.openai.com/v1")
                 )
 
-                system_prompt = f"""
-                你是一个严谨的文档视觉审核员。请根据提供的文档图像回答审核问题。
-                你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
-                
-                严格返回以下 JSON 格式：
-                {{
-                    "passed": bool (是否通过审核),
-                    "confidence": float (0.0 到 1.0 的置信度),
-                    "reason": "string (判断的详细理由)",
-                    "extracted_data": {{}} (包含任何提取的关键信息)
-                }}
-                """
+                # Adjust system prompt based on operation mode
+                if operation_mode == "extraction":
+                    system_prompt = """
+                    你是一个文档信息提取专家。请从提供的文档图像中提取指定信息。
+                    你必须且只能返回一个包含提取结果的 JSON 数据实例。
+
+                    严格返回以下 JSON 格式，直接包含提取的字段：
+                    {
+                        "report_number": "string (报告编号)",
+                        "verification_code": "string (校验码)",
+                        ... (其他请求提取的字段)
+                    }
+                    """
+                else:
+                    system_prompt = f"""
+                    你是一个严谨的文档视觉审核员。请根据提供的文档图像回答审核问题。
+                    你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+
+                    严格返回以下 JSON 格式：
+                    {{
+                        "passed": bool (是否通过审核),
+                        "confidence": float (0.0 到 1.0 的置信度),
+                        "reason": "string (判断的详细理由)",
+                        "extracted_data": {{}} (包含任何提取的关键信息)
+                    }}
+                    """
 
                 model_name = kwargs.get("model") or ai_config.get("vision_model", "gpt-4o")
                 response = await client.chat.completions.create(
@@ -195,7 +210,20 @@ class VisionLLMOperator(BaseOperator):
                 raw_content = response.choices[0].message.content
                 response_data = json.loads(raw_content)
 
-            # Validate with Pydantic
+            # Handle extraction mode (LLM only returned extracted_data without verification fields)
+            has_verification_fields = any(k in response_data for k in ("passed", "confidence", "reason"))
+            if not has_verification_fields:
+                # Pure extraction mode - pass validation and save extracted data
+                # Support both {"extracted_data": {...}} and direct {"field": "value"} formats
+                extracted = response_data.get("extracted_data", response_data)
+                return OperatorResult(
+                    operator_name=self.name,
+                    pass_status=True,
+                    message=f"成功提取数据: {', '.join(extracted.keys())}",
+                    extracted_data=extracted
+                )
+
+            # Validate with Pydantic for verification mode
             validated = VisionOutputSchema(**response_data)
 
             # Update shared state
@@ -207,7 +235,7 @@ class VisionLLMOperator(BaseOperator):
                 operator_name=self.name,
                 pass_status=validated.passed,
                 message=validated.reason,
-                extracted_data=validated.dict()
+                extracted_data=response_data.get("extracted_data", validated.dict())
             )
         except Exception as e:
             logger.error(f"VisionLLMOperator failed: {e}")

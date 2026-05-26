@@ -233,22 +233,44 @@ class VerificationEngine:
                 
             elif rule.rule_type == RuleType.llm_prompt:
                 model_type = logic.get("llm_model_type", "text")
+                operation_mode = logic.get("llm_operation_mode", "verification")
+
                 if model_type == "vision":
-                    await emit_log(f"大模型算子开始理解规则语义并执行视觉分析 (Vision LLM)...")
+                    if operation_mode == "extraction":
+                        await emit_log(f"大模型算子开始执行数据提取 (Vision LLM Extraction)...")
+                    else:
+                        await emit_log(f"大模型算子开始理解规则语义并执行视觉分析 (Vision LLM)...")
                     from app.engine.operators.vision_llm_operator import VisionLLMOperator
                     op = VisionLLMOperator()
                 else:
-                    await emit_log(f"大模型算子开始理解规则语义并执行文本匹配 (Text LLM)...")
+                    if operation_mode == "extraction":
+                        await emit_log(f"大模型算子开始执行数据提取 (Text LLM Extraction)...")
+                    else:
+                        await emit_log(f"大模型算子开始理解规则语义并执行文本匹配 (Text LLM)...")
                     from app.engine.operators.text_llm_operator import TextLLMOperator
                     op = TextLLMOperator()
-                
+
                 try:
-                    res = await op.execute(context, prompt=rule.rule_content)
+                    res = await op.execute(context, prompt=rule.rule_content, operation_mode=operation_mode)
                     if res.pass_status:
                         llm_data = res.extracted_data
-                        rule_pass = llm_data.get("passed", False)
-                        rule_msg = llm_data.get("reason", "大模型分析未返回原因。")
-                        confidence = llm_data.get("confidence", 1.0)
+
+                        # Extraction mode: always pass, display extracted keys
+                        if operation_mode == "extraction":
+                            rule_pass = True
+                            if isinstance(llm_data, dict):
+                                extracted_keys = list(llm_data.keys())
+                                # Store extracted data in shared state for other rules to use
+                                for key, value in llm_data.items():
+                                    context.shared_state[f"extracted_{key}"] = value
+                                rule_msg = f"数据提取成功: {', '.join(extracted_keys)}"
+                            else:
+                                rule_msg = f"数据提取成功"
+                        else:
+                            # Verification mode: check passed status
+                            rule_pass = llm_data.get("passed", False)
+                            rule_msg = llm_data.get("reason", "大模型分析未返回原因。")
+                            confidence = llm_data.get("confidence", 1.0)
                     else:
                         rule_pass = False
                         rule_msg = f"未通过：大模型调用失败 ({res.message})"
