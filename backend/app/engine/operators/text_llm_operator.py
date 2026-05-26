@@ -58,9 +58,9 @@ async def _get_ai_config(model_type: str = "text", requested_model: str = None) 
 
 
 class LLMOutputSchema(BaseModel):
-    passed: bool = Field(..., description="Whether the verification passed")
-    confidence: float = Field(..., description="Confidence score from 0.0 to 1.0")
-    reason: str = Field(..., description="Explanation of the reasoning")
+    passed: bool = Field(default=True, description="Whether the verification passed")
+    confidence: float = Field(default=1.0, description="Confidence score from 0.0 to 1.0")
+    reason: str = Field(default="", description="Explanation of the reasoning")
     extracted_data: dict = Field(default_factory=dict, description="Any extracted data relevant to the rule")
 
 
@@ -91,25 +91,39 @@ class TextLLMOperator(BaseOperator):
             )
 
         target_prompt = kwargs.get("prompt", "请检查文档是否包含完整的盖章审批流程。")
+        operation_mode = kwargs.get("operation_mode", "verification")
 
         # Truncate text if too long for the context window (Safety Truncation)
         max_chars = 3000
         text_context = full_text[:max_chars]
 
-        system_prompt = f"""
-        你是一个严谨的文档审核审核员。请根据以下提取的文档文本回答用户问题。
-        你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
-        
-        严格返回以下 JSON 格式：
-        {{
-            "passed": bool (是否通过审核),
-            "confidence": float (0.0 到 1.0 的置信度),
-            "reason": "string (判断的详细理由)",
-            "extracted_data": {{}} (包含任何提取的关键信息)
-        }}
-        """
+        # Adjust system prompt based on operation mode
+        if operation_mode == "extraction":
+            system_prompt = """
+            你是一个文档信息提取专家。请从提供的文档文本中提取指定信息。
+            你必须且只能返回一个包含提取结果的 JSON 数据实例。
 
-        user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
+            严格返回以下 JSON 格式，直接包含提取的字段：
+            {
+                "field_name": "value",
+                ...
+            }
+            """
+            user_prompt = f"文档内容:\n{text_context}\n\n提取要求:\n{target_prompt}"
+        else:
+            system_prompt = f"""
+            你是一个严谨的文档审核审核员。请根据以下提取的文档文本回答用户问题。
+            你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+
+            严格返回以下 JSON 格式：
+            {{
+                "passed": bool (是否通过审核),
+                "confidence": float (0.0 到 1.0 的置信度),
+                "reason": "string (判断的详细理由)",
+                "extracted_data": {{}} (包含任何提取的关键信息)
+            }}
+            """
+            user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
 
         try:
             ai_config = await _get_ai_config(requested_model=kwargs.get("model"))
@@ -158,7 +172,19 @@ class TextLLMOperator(BaseOperator):
                         "extracted_data": {}
                     }
 
-            # Validate with Pydantic
+            # Handle extraction mode (LLM only returned extracted data without verification fields)
+            has_verification_fields = any(k in response_data for k in ("passed", "confidence", "reason"))
+            if not has_verification_fields:
+                # Pure extraction mode - pass validation and save extracted data
+                extracted = response_data
+                return OperatorResult(
+                    operator_name=self.name,
+                    pass_status=True,
+                    message=f"成功提取数据: {', '.join(extracted.keys())}",
+                    extracted_data=extracted
+                )
+
+            # Validate with Pydantic for verification mode
             validated = LLMOutputSchema(**response_data)
 
             # Update shared state
@@ -170,7 +196,7 @@ class TextLLMOperator(BaseOperator):
                 operator_name=self.name,
                 pass_status=validated.passed,
                 message=validated.reason,
-                extracted_data=validated.dict()
+                extracted_data=response_data.get("extracted_data", validated.dict())
             )
         except Exception as e:
             logger.error(f"TextLLMOperator failed: {e}")

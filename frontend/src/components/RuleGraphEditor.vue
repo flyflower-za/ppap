@@ -97,12 +97,37 @@
           <!-- === Type-Specific Fields === -->
 
           <!-- LLM Prompt -->
-          <div class="field-group" v-if="selectedNode.data?.nodeType === 'text-llm' || selectedNode.data?.nodeType === 'vision-llm'">
-            <label class="field-label" for="node-prompt">
-              Prompt 指令
-              <span class="field-hint">告诉大模型要检查什么</span>
-            </label>
-            <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="5" placeholder="请检查该文档是否包含..."></textarea>
+          <div v-if="selectedNode.data?.nodeType === 'text-llm' || selectedNode.data?.nodeType === 'vision-llm'">
+            <div class="field-group">
+              <label class="field-label" for="node-prompt">
+                Prompt 指令
+                <span class="field-hint">告诉大模型要检查什么</span>
+              </label>
+              <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="4" placeholder="请检查该文档是否包含..."></textarea>
+            </div>
+
+            <!-- LLM Operation Mode -->
+            <div class="field-group">
+              <span class="field-label">操作模式</span>
+              <div class="node-mode-selector">
+                <div
+                  class="node-mode-chip"
+                  :class="{ active: selectedNode.data.operation_mode === 'verification' }"
+                  @click="selectedNode.data.operation_mode = 'verification'"
+                >
+                  <span class="mode-icon">✓</span>
+                  <span class="mode-text">验证</span>
+                </div>
+                <div
+                  class="node-mode-chip"
+                  :class="{ active: selectedNode.data.operation_mode === 'extraction' }"
+                  @click="selectedNode.data.operation_mode = 'extraction'"
+                >
+                  <span class="mode-icon">⋮</span>
+                  <span class="mode-text">提取</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Keyword -->
@@ -228,7 +253,7 @@
           </div>
 
           <!-- === Common: Severity === -->
-          <div class="field-group" v-if="selectedNode.data?.hasSeverity">
+          <div class="field-group" v-if="selectedNode.data?.hasSeverity && !isLLMExtractionMode(selectedNode.data)">
             <span class="field-label">不通过时的处理</span>
             <div class="severity-options">
               <label
@@ -300,8 +325,8 @@ interface NodeMeta {
 }
 
 const NODE_REGISTRY: Record<string, NodeMeta> = {
-  'text-llm':            { label: '文本大模型',     icon: '🧠', color: '#dbeafe', borderColor: '#3b82f6', group: 'ai',     defaultData: { prompt: '', severity: 'fail', hasSeverity: true } },
-  'vision-llm':          { label: '视觉大模型',     icon: '👁️', color: '#ede9fe', borderColor: '#8b5cf6', group: 'ai',     defaultData: { prompt: '', severity: 'fail', hasSeverity: true } },
+  'text-llm':            { label: '文本大模型',     icon: '🧠', color: '#dbeafe', borderColor: '#3b82f6', group: 'ai',     defaultData: { prompt: '', operation_mode: 'verification', severity: 'fail', hasSeverity: true } },
+  'vision-llm':          { label: '视觉大模型',     icon: '👁️', color: '#ede9fe', borderColor: '#8b5cf6', group: 'ai',     defaultData: { prompt: '', operation_mode: 'verification', severity: 'fail', hasSeverity: true } },
   'institution-sniffer': { label: '机构嗅探',       icon: '🏢', color: '#fef3c7', borderColor: '#f59e0b', group: 'ai',     defaultData: {} },
   'revision-check':      { label: '修订版本检查',   icon: '📋', color: '#e0f2fe', borderColor: '#0284c7', group: 'detect', defaultData: { maxRevisions: 1, allowIncrementalUpdates: false, severity: 'fail', hasSeverity: true } },
   'signature':           { label: '数字签名检查',   icon: '🔐', color: '#dcfce7', borderColor: '#22c55e', group: 'detect', defaultData: { expected_issuer: '', severity: 'fail', hasSeverity: true } },
@@ -341,6 +366,23 @@ const paletteGroups = [
 const openGroups = reactive<Record<string, boolean>>({ ai: true, detect: true, flow: true })
 function toggleGroup(key: string) { openGroups[key] = !openGroups[key] }
 function getNodeMeta(nodeType?: string): NodeMeta | undefined { return nodeType ? NODE_REGISTRY[nodeType] : undefined }
+
+function isLLMExtractionMode(nodeData: any): boolean {
+  return (nodeData?.nodeType === 'text-llm' || nodeData?.nodeType === 'vision-llm') &&
+         nodeData?.operation_mode === 'extraction'
+}
+
+function updateNodeLabel(node: any) {
+  const meta = getNodeMeta(node.data?.nodeType)
+  if (!meta) return
+
+  const isExtraction = isLLMExtractionMode(node.data)
+  if (isExtraction) {
+    node.label = `${meta.icon} ${meta.label} [提取]`
+  } else {
+    node.label = `${meta.icon} ${meta.label}`
+  }
+}
 
 // ─── Props & Emit ───
 const props = defineProps({
@@ -457,6 +499,13 @@ watch([nodes, edges], () => {
   })
 }, { deep: true })
 
+// Watch selected node operation mode changes to update label
+watch(() => selectedNode.value?.data?.operation_mode, () => {
+  if (selectedNode.value) {
+    updateNodeLabel(selectedNode.value)
+  }
+})
+
 const onConnect = (connection: any) => {
   edges.value.push({
     id: `e-${connection.source}-${connection.target}`,
@@ -477,14 +526,19 @@ const addNode = (type: string) => {
   const col = existingCount % 3
   const row = Math.floor(existingCount / 3)
 
-  nodes.value.push({
+  const newNode = {
     id: `node-${type}-${Date.now()}-${nodeCounter}`,
     label: `${meta.icon} ${meta.label}`,
     position: { x: 80 + col * 220, y: 150 + row * 120 },
     class: 'rounded-lg p-2 text-sm shadow-md',
     style: { backgroundColor: meta.color, borderColor: meta.borderColor, borderWidth: '2px', borderStyle: 'solid' },
     data: { nodeType: type, ...JSON.parse(JSON.stringify(meta.defaultData)) },
-  })
+  }
+
+  // Update label based on operation mode
+  updateNodeLabel(newNode)
+
+  nodes.value.push(newNode)
 }
 
 const onNodeClick = (event: any) => { selectedNode.value = event.node }
@@ -1035,6 +1089,56 @@ function startResize(e: MouseEvent) {
   background: #f5f3ff;
 }
 .severity-chip.active.review .chip-label { color: #7c3aed; }
+
+/* ─── Node Mode Selector ─── */
+.node-mode-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.node-mode-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 2px solid var(--el-border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.node-mode-chip:hover {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.node-mode-chip.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.node-mode-chip .mode-icon {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--el-text-color-secondary);
+}
+
+.node-mode-chip.active .mode-icon {
+  color: var(--el-color-primary);
+}
+
+.node-mode-chip .mode-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+.node-mode-chip.active .mode-text {
+  color: var(--el-color-primary);
+}
 
 /* ─── Inspector Footer ─── */
 .inspector-footer {

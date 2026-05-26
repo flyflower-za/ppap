@@ -451,15 +451,47 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = f"字段一致校验失败: {field_a} != {field_b}"
                             
-                    elif node_type == "text_llm":
-                        llm_results = context.shared_state.get("llm_semantic_analysis", [])
-                        if llm_results:
-                            res = llm_results[-1]
-                            node_passed = res.get("passed", False)
-                            node_msg = f"大模型审核点: {res.get('reason')}"
-                        else:
-                            node_passed = True
-                            node_msg = "大模型节点（未运行）模拟通过"
+                    elif node_type == "text_llm" or node_type == "vision_llm":
+                        # Get node configuration
+                        node_prompt = node_data.get("prompt", "")
+                        operation_mode = node_data.get("operation_mode", "verification")
+
+                        # Execute LLM operator dynamically
+                        try:
+                            if node_type == "vision_llm":
+                                from app.engine.operators.vision_llm_operator import VisionLLMOperator
+                                op = VisionLLMOperator()
+                            else:
+                                from app.engine.operators.text_llm_operator import TextLLMOperator
+                                op = TextLLMOperator()
+
+                            res = await op.execute(context, prompt=node_prompt, operation_mode=operation_mode)
+
+                            if res.pass_status:
+                                llm_data = res.extracted_data if res.extracted_data else {}
+
+                                if operation_mode == "extraction":
+                                    # Extraction mode: always pass
+                                    node_passed = True
+                                    if isinstance(llm_data, dict):
+                                        # Store extracted data in shared state
+                                        for key, value in llm_data.items():
+                                            context.shared_state[f"extracted_{key}"] = value
+                                        extracted_keys = list(llm_data.keys())
+                                        node_msg = f"数据提取成功: {', '.join(extracted_keys)}"
+                                    else:
+                                        node_msg = f"数据提取成功"
+                                else:
+                                    # Verification mode
+                                    node_passed = llm_data.get("passed", True)
+                                    node_msg = llm_data.get("reason", "大模型审核通过")
+                            else:
+                                node_passed = False
+                                node_msg = f"大模型执行失败: {res.message}"
+                        except Exception as e:
+                            logger.error(f"[Engine] LLM node {node_type} failed: {e}")
+                            node_passed = False
+                            node_msg = f"大模型节点异常: {str(e)}"
                             
                     elif node_type == "institution_sniffer":
                         sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
