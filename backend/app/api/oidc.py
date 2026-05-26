@@ -336,8 +336,6 @@ async def get_authorization_url(
 @router.post("/callback", response_model=Token)
 async def oidc_callback(
     request: Request,
-    code: str,
-    state: str,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -346,6 +344,17 @@ async def oidc_callback(
     This endpoint receives the authorization code from any OIDC provider,
     exchanges it for tokens, and creates/updates the user.
     """
+    # Parse form data from request body
+    form_data = await request.form()
+    code = form_data.get("code")
+    state = form_data.get("state")
+
+    if not code or not state:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required parameters: code and state"
+        )
+
     config = await get_oidc_config(db)
 
     if not config.get("enabled"):
