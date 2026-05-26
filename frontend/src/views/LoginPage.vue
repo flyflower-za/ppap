@@ -288,7 +288,6 @@ async function handleLogin() {
 
 .login-left {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -334,7 +333,6 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  background: linear-gradient(160deg, #f8f9ff 0%, #eef0fb 100%);
 }
 
 .top-logo {
