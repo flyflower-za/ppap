@@ -80,11 +80,20 @@
                 </el-tag>
               </template>
             </el-table-column>
+            <el-table-column prop="operation_mode" label="模式" width="90">
+              <template #default="scope">
+                <el-tag v-if="scope.row.rule_type === 'llm_prompt'" :type="getOperationModeType(scope.row.logic_config?.llm_operation_mode)" size="small">
+                  {{ getOperationModeName(scope.row.logic_config?.llm_operation_mode) }}
+                </el-tag>
+                <span v-else class="text-placeholder">—</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="severity" label="级别" width="90">
               <template #default="scope">
-                <el-tag :type="scope.row.severity === 'fail' ? 'danger' : 'warning'" size="small">
+                <el-tag v-if="!isExtractionMode(scope.row)" :type="scope.row.severity === 'fail' ? 'danger' : 'warning'" size="small">
                   {{ scope.row.severity === 'fail' ? '拦截' : '警告' }}
                 </el-tag>
+                <span v-else class="text-placeholder">—</span>
               </template>
             </el-table-column>
             <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip />
@@ -543,6 +552,26 @@ const getRuleTypeTag = (type: string) => {
   }
   return map[type] || 'info'
 }
+
+const getOperationModeName = (mode: string) => {
+  const map: Record<string, string> = {
+    'verification': '验证',
+    'extraction': '提取',
+  }
+  return map[mode] || '验证'
+}
+
+const getOperationModeType = (mode: string) => {
+  const map: Record<string, string> = {
+    'verification': 'success',
+    'extraction': 'info',
+  }
+  return map[mode] || 'success'
+}
+
+const isExtractionMode = (rule: any) => {
+  return rule.rule_type === 'llm_prompt' && rule.logic_config?.llm_operation_mode === 'extraction'
+}
 </script>
 
 <style scoped>
@@ -569,6 +598,11 @@ const getRuleTypeTag = (type: string) => {
 .system-tag {
   margin-left: 8px;
   transform: scale(0.9);
+}
+
+.text-placeholder {
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
 }
 
 .category-card, .rules-list-card {
