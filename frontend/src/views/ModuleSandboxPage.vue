@@ -326,11 +326,33 @@ async function runTest() {
 .header {
   margin-bottom: 24px;
 }
+
+/* 左右卡片高度对齐 */
+:deep(.el-row) {
+  display: flex;
+  align-items: stretch;
+}
+
+:deep(.el-col) {
+  display: flex;
+  flex-direction: column;
+}
+
 .premium-card {
   border-radius: 12px;
   border: none;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
+
+:deep(.premium-card .el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .card-header {
   font-size: 16px;
   display: flex;

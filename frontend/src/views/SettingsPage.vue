@@ -2446,4 +2446,14 @@ code {
   border-radius: 4px;
   font-family: 'Courier New', monospace;
 }
+
+/* Card rounded corners */
+:deep(.el-card) {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.el-card__header) {
+  border-radius: 12px 12px 0 0;
+}
 </style>

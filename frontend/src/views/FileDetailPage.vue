@@ -2210,4 +2210,9 @@ onUnmounted(() => {
     print-color-adjust: exact !important;
   }
 }
+
+/* Timeline log cards */
+.log-card {
+  border-radius: 8px;
+}
 </style>

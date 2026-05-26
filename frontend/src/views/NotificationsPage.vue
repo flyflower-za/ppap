@@ -5,7 +5,7 @@
       <el-button v-if="hasUnread" @click="handleMarkAllRead">全部已读</el-button>
     </div>
 
-    <el-card shadow="never">
+    <el-card shadow="never" class="notifications-card">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="全部" name="all">
           <NotificationList :unread-only="false" />
@@ -31,3 +31,9 @@ function handleMarkAllRead() {
   hasUnread.value = false
 }
 </script>
+
+<style scoped>
+.notifications-card {
+  border-radius: 12px;
+}
+</style>

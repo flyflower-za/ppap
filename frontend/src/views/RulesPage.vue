@@ -607,6 +607,8 @@ const isExtractionMode = (rule: any) => {
 
 .category-card, .rules-list-card {
   height: 100%;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .card-header {
