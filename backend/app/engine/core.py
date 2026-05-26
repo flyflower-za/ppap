@@ -11,7 +11,6 @@ from app.engine.operators.sniffer_operator import InstitutionSnifferOperator
 from app.engine.operators.revision_operator import RevisionCheckOperator
 from app.engine.operators.url_fetch_operator import URLFetchOperator
 from app.engine.operators.stamp_operator import StampDetectionOperator
-from app.engine.operators.watermark_operator import WatermarkOperator
 from app.engine.operators.diff_operator import DocumentDiffOperator
 from app.engine.operators.table_operator import TableVerificationOperator
 
@@ -34,7 +33,6 @@ class VerificationEngine:
             "RevisionCheck": RevisionCheckOperator(),
             "URLFetchOperator": URLFetchOperator(),
             "StampDetection": StampDetectionOperator(),
-            "WatermarkDetection": WatermarkOperator(),
             "DocumentDiff": DocumentDiffOperator(),
             "TableVerification": TableVerificationOperator(),
         }
@@ -78,8 +76,6 @@ class VerificationEngine:
                     required_names.add("VisionLLM")
                 elif node_type == "stamp_detection":
                     required_names.add("StampDetection")
-                elif node_type == "watermark_detection":
-                    required_names.add("WatermarkDetection")
                 elif node_type == "document_diff":
                     required_names.add("DocumentDiff")
                 elif node_type == "table_verification":

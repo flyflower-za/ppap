@@ -76,14 +76,6 @@ async def list_modules(current_user: User = Depends(get_current_user)):
             "params": []
         },
         {
-            "name": "WatermarkDetection",
-            "label": "水印检测分析 (Watermark)",
-            "description": "分析文档底层文字，提取字号异常的背景文字或关键字水印",
-            "params": [
-                {"key": "watermark_keywords", "label": "水印关键词列表 (以逗号分隔)", "type": "textarea", "default": "受控文件,绝密,机密,DRAFT,CONFIDENTIAL,VOID,作废"}
-            ]
-        },
-        {
             "name": "DocumentDiff",
             "label": "智能文档差异比对 (DocumentDiff)",
             "description": "计算当前文档与基准文档在纯文本级别上的相似度和差异信息",
