@@ -68,32 +68,32 @@
             <el-table-column prop="rule_name" label="规则名称" min-width="180">
               <template #default="scope">
                 <div style="display: flex; align-items: center;">
-                  <span>{{ scope.row.rule_name }}</span>
-                  <el-tag v-if="scope.row.is_system" size="small" type="info" effect="plain" style="margin-left: 8px;">系统预置</el-tag>
+                  <span class="rule-name-text">{{ scope.row.rule_name }}</span>
+                  <el-tag v-if="scope.row.is_system" size="small" type="info" effect="plain" class="system-tag">系统预置</el-tag>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column prop="rule_type" label="类型" width="120">
+            <el-table-column prop="rule_type" label="类型" width="100">
               <template #default="scope">
-                <el-tag :type="getRuleTypeTag(scope.row.rule_type)">
+                <el-tag :type="getRuleTypeTag(scope.row.rule_type)" size="small">
                   {{ getRuleTypeName(scope.row.rule_type) }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="severity" label="严重级别" width="100">
+            <el-table-column prop="severity" label="级别" width="90">
               <template #default="scope">
-                <el-tag :type="scope.row.severity === 'fail' ? 'danger' : 'warning'">
-                  {{ scope.row.severity === 'fail' ? '失败 (Fail)' : '警告 (Warn)' }}
+                <el-tag :type="scope.row.severity === 'fail' ? 'danger' : 'warning'" size="small">
+                  {{ scope.row.severity === 'fail' ? '拦截' : '警告' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="rule_content" label="规则内容" show-overflow-tooltip />
-            <el-table-column prop="is_active" label="状态" width="80">
+            <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip />
+            <el-table-column prop="is_active" label="状态" width="70" align="center">
               <template #default="scope">
-                <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" />
+                <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" size="small" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="120" fixed="right" align="center">
               <template #default="scope">
                 <el-button link type="primary" @click="openRuleDialog(scope.row)">编辑</el-button>
                 <el-button 
@@ -554,6 +554,21 @@ const getRuleTypeTag = (type: string) => {
 
 .rules-container {
   min-height: calc(100vh - 200px);
+}
+
+/* Rules Table Styles */
+.rules-table :deep(.el-table__header th) {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.rule-name-text {
+  font-weight: 500;
+}
+
+.system-tag {
+  margin-left: 8px;
+  transform: scale(0.9);
 }
 
 .category-card, .rules-list-card {
