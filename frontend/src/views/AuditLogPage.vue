@@ -68,7 +68,9 @@
         <el-table-column prop="user_email" label="操作人" min-width="180">
           <template #default="{ row }">
             <div class="user-cell">
-              <el-avatar :size="24" :src="`https://api.dicebear.com/7.x/identicon/svg?seed=${row.user_email || 'anonymous'}`" />
+              <el-avatar :size="24" :style="getAvatarStyle(row.user_email)">
+                {{ getAvatarText(row.user_email) }}
+              </el-avatar>
               <span>{{ row.user_email || 'System' }}</span>
             </div>
           </template>
@@ -248,6 +250,48 @@ const getActionTagType = (action: string) => {
   if (action.includes('UPDATE') || action.includes('RESOLVE')) return 'warning'
   if (action.includes('LOGIN')) return 'primary'
   return 'info'
+}
+
+// ─── 100% 离线自研：首字母彩虹头像算法 ───
+const getAvatarText = (email: string | null) => {
+  if (!email || email.toLowerCase() === 'system') return 'S'
+  return email.charAt(0).toUpperCase()
+}
+
+const getAvatarStyle = (email: string | null) => {
+  const text = email || 'System'
+  // 简易哈希计算
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  
+  // 精选莫兰迪高级质感色板 (100% 离线美学)
+  const colors = [
+    '#3b82f6', // 晴空蓝
+    '#10b981', // 翡翠绿
+    '#f59e0b', // 琥珀黄
+    '#ef4444', // 珊瑚红
+    '#8b5cf6', // 紫罗兰
+    '#ec4899', // 玫瑰粉
+    '#06b6d4', // 冰川青
+    '#14b8a6', // 薄荷绿
+    '#6366f1', // 靛青蓝
+    '#f43f5e', // 蔷薇红
+    '#64748b'  // 石板灰
+  ]
+  
+  const index = Math.abs(hash) % colors.length
+  return {
+    backgroundColor: colors[index],
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'system-ui, sans-serif'
+  }
 }
 </script>
 
