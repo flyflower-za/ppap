@@ -31,7 +31,7 @@ class OIDCConfig(BaseModel):
     discovery_url: str = ""  # Must be provided: https://provider.com/.well-known/openid-configuration
     client_id: str = ""
     client_secret: str = ""
-    redirect_uri: str = "http://localhost:5173/auth/callback"
+    redirect_uri: str = "http://47.114.107.127/auth/callback"
 
     # Scope configuration (default: openid email profile)
     scope: str = "openid email profile"
@@ -83,7 +83,7 @@ async def get_oidc_config(db: AsyncSession) -> dict:
             "discovery_url": result.sso_idp_sso_url or "",
             "client_id": result.sso_entity_id or "",
             "client_secret": result.sso_sp_key or "",
-            "redirect_uri": result.sso_acs_url or "http://localhost:5173/auth/callback",
+            "redirect_uri": result.sso_acs_url or "http://47.114.107.127/auth/callback",
             "scope": "openid email profile",
             "admin_roles": [],
             "manager_roles": [],
@@ -100,7 +100,7 @@ async def get_oidc_config(db: AsyncSession) -> dict:
         "discovery_url": "",
         "client_id": "",
         "client_secret": "",
-        "redirect_uri": "http://localhost:5173/auth/callback",
+        "redirect_uri": "http://47.114.107.127/auth/callback",
         "scope": "openid email profile",
         "admin_roles": [],
         "manager_roles": [],

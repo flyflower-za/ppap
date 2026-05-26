@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     FILE_RETENTION_DAYS: int = 30
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = ["http://47.114.107.127", "http://localhost:5173", "http://localhost:3000"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
