@@ -131,6 +131,8 @@ def queue_verification_task(self, file_id: str):
                 active_rules.append(VerificationRule(rule_name="文档二维码识别与解析", rule_type=RuleType.plugin, rule_content="REQUIRE_QR_CODE", severity=Severity.warning))
             if not any(r.rule_content == "REQUIRE_SIGNATURE" for r in active_rules):
                 active_rules.append(VerificationRule(rule_name="PDF 电子数字签名验证", rule_type=RuleType.plugin, rule_content="REQUIRE_SIGNATURE", severity=Severity.warning))
+            if not any(r.rule_content == "REQUIRE_REVISION_CHECK" for r in active_rules):
+                active_rules.append(VerificationRule(rule_name="电子文档篡改及完整性校验", rule_type=RuleType.plugin, rule_content="REQUIRE_REVISION_CHECK", severity=Severity.fail))
 
             # Let Engine do the heavy lifting
             task_record.progress = 60

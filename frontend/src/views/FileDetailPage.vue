@@ -188,10 +188,44 @@
           <div class="glass-card section-panel mb-4">
             <div class="section-title flex-between">
               <h3>校验规则诊断报告</h3>
-              <div class="checks-counters" v-if="file.verification_result_json?.summary">
-                <span class="counter-badge pass">{{ file.pass_count }} 通过</span>
-                <span class="counter-badge warning" v-if="file.warning_count > 0">{{ file.warning_count }} 警告</span>
-                <span class="counter-badge fail" v-if="file.fail_count > 0">{{ file.fail_count }} 不合规</span>
+              <div class="checks-counters" v-if="file.verification_result_json?.summary" style="align-items: center;">
+                <span 
+                  class="counter-badge pass clickable-counter" 
+                  :class="{ 'is-active': activeFilter === 'pass' }"
+                  @click="toggleFilter('pass')"
+                  style="cursor: pointer; transition: all 0.2s; user-select: none;"
+                >
+                  {{ file.pass_count }} 通过
+                </span>
+                <span 
+                  class="counter-badge warning clickable-counter" 
+                  v-if="file.warning_count > 0"
+                  :class="{ 'is-active': activeFilter === 'warning' }"
+                  @click="toggleFilter('warning')"
+                  style="cursor: pointer; transition: all 0.2s; user-select: none;"
+                >
+                  {{ file.warning_count }} 警告
+                </span>
+                <span 
+                  class="counter-badge fail clickable-counter" 
+                  v-if="file.fail_count > 0"
+                  :class="{ 'is-active': activeFilter === 'fail' }"
+                  @click="toggleFilter('fail')"
+                  style="cursor: pointer; transition: all 0.2s; user-select: none;"
+                >
+                  {{ file.fail_count }} 不合规
+                </span>
+                <el-button 
+                  v-if="activeFilter !== 'all'"
+                  size="small" 
+                  link
+                  type="info"
+                  class="ml-2"
+                  @click="activeFilter = 'all'"
+                  style="font-size: 11px;"
+                >
+                  重置筛选
+                </el-button>
                 <el-button size="small" type="primary" plain class="ml-3 print-btn hide-on-print" @click="handlePrintReport">
                   导出报告 (PDF)
                 </el-button>
@@ -206,8 +240,15 @@
             />
 
             <div v-else class="diagnostic-checklist">
+              <el-empty 
+                v-if="filteredChecks.length === 0" 
+                description="无匹配此筛选状态的规则项" 
+                :image-size="60"
+                style="padding: 20px 0;"
+              />
               <div
-                v-for="(check, index) in file.verification_result_json.checks"
+                v-else
+                v-for="(check, index) in filteredChecks"
                 :key="index"
                 class="diagnostic-check-card"
                 :class="[check.status, check.page ? 'has-page-link' : '']"
@@ -219,7 +260,7 @@
                   <el-icon v-else-if="check.status === 'warning'"><Warning /></el-icon>
                   <el-icon v-else><Close /></el-icon>
                 </div>
-                <div class="diagnostic-check-body">
+                <div class="diagnostic-check-body" style="width: 100%;">
                   <div class="check-title-row flex-between">
                     <h4 class="flex-align-center">
                       {{ check.name }}
@@ -230,6 +271,14 @@
                     <span class="check-status-tag" :class="check.status">{{ checkStatusLabel(check.status) }}</span>
                   </div>
                   <p class="check-message">{{ check.message }}</p>
+                  
+                  <!-- Visual Positioning Hint -->
+                  <div v-if="check.page" class="locate-tip-wrapper" style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                    <span class="locate-tip" style="font-size: 11px; font-weight: 600; color: #4285f4; display: inline-flex; align-items: center; gap: 4px; opacity: 0.7; transition: all 0.2s;">
+                      点击在左侧预览中精准定位此问题
+                      <el-icon class="arrow-icon-slide"><Right /></el-icon>
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -237,35 +286,41 @@
 
           <!-- General Details Card -->
           <div class="glass-card section-panel mb-4 small-card">
-            <div class="section-title">
+            <div class="section-title flex-between cursor-pointer" @click="generalDetailsCollapsed = !generalDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
               <h3>文件诊断详情</h3>
+              <el-button link type="primary" style="font-size: 13px;">
+                {{ generalDetailsCollapsed ? '展开' : '收起' }}
+                <el-icon class="ml-1"><component :is="generalDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
+              </el-button>
             </div>
-            <div class="info-details-list">
-              <div class="info-detail-item">
-                <span class="lbl">校验ID</span>
-                <span class="val text-monospace">#{{ file.id.substring(0, 8) }}</span>
+            <el-collapse-transition>
+              <div v-show="!generalDetailsCollapsed" class="info-details-list mt-4">
+                <div class="info-detail-item">
+                  <span class="lbl">校验ID</span>
+                  <span class="val text-monospace">#{{ file.id.substring(0, 8) }}</span>
+                </div>
+                <div class="info-detail-item">
+                  <span class="lbl">上传账号</span>
+                  <span class="val">{{ file.uploaded_by || '-' }}</span>
+                </div>
+                <div class="info-detail-item">
+                  <span class="lbl">校验模型</span>
+                  <span class="val">{{ file.verification_result_json?.model_version || file.verification_model || '智能校验引擎 2.0' }}</span>
+                </div>
+                <div class="info-detail-item">
+                  <span class="lbl">合规项目</span>
+                  <span class="val color-pass">{{ file.pass_count }} 项</span>
+                </div>
+                <div class="info-detail-item">
+                  <span class="lbl">预警项目</span>
+                  <span class="val color-warning">{{ file.warning_count }} 项</span>
+                </div>
+                <div class="info-detail-item">
+                  <span class="lbl">异常项目</span>
+                  <span class="val color-fail">{{ file.fail_count }} 项</span>
+                </div>
               </div>
-              <div class="info-detail-item">
-                <span class="lbl">上传账号</span>
-                <span class="val">{{ file.uploaded_by || '-' }}</span>
-              </div>
-              <div class="info-detail-item">
-                <span class="lbl">校验模型</span>
-                <span class="val">{{ file.verification_result_json?.model_version || file.verification_model || '智能校验引擎 2.0' }}</span>
-              </div>
-              <div class="info-detail-item">
-                <span class="lbl">合规项目</span>
-                <span class="val color-pass">{{ file.pass_count }} 项</span>
-              </div>
-              <div class="info-detail-item">
-                <span class="lbl">预警项目</span>
-                <span class="val color-warning">{{ file.warning_count }} 项</span>
-              </div>
-              <div class="info-detail-item">
-                <span class="lbl">异常项目</span>
-                <span class="val color-fail">{{ file.fail_count }} 项</span>
-              </div>
-            </div>
+            </el-collapse-transition>
           </div>
 
           <!-- Digital Signature Details Card -->
@@ -273,163 +328,173 @@
             v-if="digitalSignatures"
             class="glass-card section-panel mb-4 small-card"
           >
-            <div class="section-title flex-between">
+            <div class="section-title flex-between cursor-pointer" @click="signatureDetailsCollapsed = !signatureDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
               <h3>数字签名详情</h3>
-              <el-tag
-                :type="digitalSignatures.signed ? 'success' : 'info'"
-                size="small"
-              >
-                {{ digitalSignatures.signed ? '已签名' : '未签名' }}
-              </el-tag>
-            </div>
-
-            <!-- No Signatures -->
-            <el-empty
-              v-if="!digitalSignatures.signed"
-              description="该文档未包含数字签名"
-              :image-size="60"
-              class="compact-empty"
-            />
-
-            <!-- Signature List -->
-            <div v-else class="signatures-list">
-              <div
-                v-for="(sig, index) in digitalSignatures.signatures"
-                :key="index"
-                class="signature-card"
-                :class="{ 'sig-invalid': !sig.integrity || sig.expired }"
-              >
-                <!-- Signature Header -->
-                <div class="sig-header flex-between">
-                  <div class="sig-name-group">
-                    <el-icon class="sig-icon" :color="sig.integrity && !sig.expired ? '#67C23A' : '#F56C6C'">
-                      <Key />
-                    </el-icon>
-                    <span class="sig-field-name">{{ sig.signature_name }}</span>
-                  </div>
-                  <div class="sig-badges">
-                    <el-tag
-                      :type="sig.integrity ? 'success' : 'danger'"
-                      size="small"
-                      effect="plain"
-                    >
-                      {{ sig.integrity ? '完整' : '已篡改' }}
-                    </el-tag>
-                    <el-tag
-                      :type="sig.expired ? 'danger' : 'success'"
-                      size="small"
-                      effect="plain"
-                    >
-                      {{ sig.expired ? '已过期' : '有效' }}
-                    </el-tag>
-                  </div>
-                </div>
-
-                <!-- Signature Details -->
-                <div class="sig-details">
-                  <div class="sig-detail-row">
-                    <span class="sig-detail-label">签署主体</span>
-                    <span class="sig-detail-value text-bold">{{ sig.signer_cn }}</span>
-                  </div>
-                  <div class="sig-detail-row" v-if="sig.signing_time">
-                    <span class="sig-detail-label">签署时间</span>
-                    <span class="sig-detail-value">{{ formatDate(sig.signing_time) }}</span>
-                  </div>
-                  <div class="sig-detail-row">
-                    <span class="sig-detail-label">数据完整性</span>
-                    <span
-                      class="sig-detail-value"
-                      :class="sig.integrity ? 'color-pass' : 'color-fail'"
-                    >
-                      {{ sig.integrity ? '未被篡改' : '已遭篡改/损坏' }}
-                    </span>
-                  </div>
-                  <div class="sig-detail-row">
-                    <span class="sig-detail-label">证书时效性</span>
-                    <span
-                      class="sig-detail-value"
-                      :class="!sig.expired ? 'color-pass' : 'color-fail'"
-                    >
-                      {{ sig.expired ? '已过期' : '有效期内' }}
-                    </span>
-                  </div>
-
-                  <!-- Toggle Expansion Button -->
-                  <div v-if="sig.cert_info && Object.keys(sig.cert_info).length > 0" class="sig-expand-toggle-row">
-                    <el-button 
-                      link 
-                      type="primary" 
-                      size="small" 
-                      @click="toggleSigExpand(index)"
-                      class="expand-toggle-btn"
-                    >
-                      {{ expandedSigs[index] ? '收起证书详情' : '展开详细证书识别信息' }}
-                      <el-icon class="ml-1">
-                        <component :is="expandedSigs[index] ? ArrowUp : ArrowDown" />
-                      </el-icon>
-                    </el-button>
-                  </div>
-
-                  <!-- Expanded Certificate Details (Collapsible) -->
-                  <el-collapse-transition>
-                    <div v-show="expandedSigs[index]" class="cert-expanded-section mt-2">
-                      <el-divider class="compact-divider" />
-                      
-                      <!-- Subject Details -->
-                      <div class="cert-sub-group" v-if="sig.cert_info.subject">
-                        <span class="cert-group-title">证书主体识别 (Subject)</span>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organization_name">
-                          <span class="sig-detail-label">组织 (O)</span>
-                          <span class="sig-detail-value">{{ sig.cert_info.subject.organization_name }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organizational_unit_name">
-                          <span class="sig-detail-label">部门 (OU)</span>
-                          <span class="sig-detail-value">{{ sig.cert_info.subject.organizational_unit_name }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.user_id">
-                          <span class="sig-detail-label">用户 ID</span>
-                          <span class="sig-detail-value text-monospace">{{ sig.cert_info.subject.user_id }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.country_name">
-                          <span class="sig-detail-label">国家 (C)</span>
-                          <span class="sig-detail-value">{{ sig.cert_info.subject.country_name }}</span>
-                        </div>
-                      </div>
-
-                      <!-- Issuer Details -->
-                      <div class="cert-sub-group mt-2" v-if="sig.cert_info.issuer">
-                        <span class="cert-group-title">颁发机构 (Issuer CA)</span>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.common_name">
-                          <span class="sig-detail-label">机构 CN</span>
-                          <span class="sig-detail-value">{{ sig.cert_info.issuer.common_name }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.organization_name">
-                          <span class="sig-detail-label">颁发组织</span>
-                          <span class="sig-detail-value">{{ sig.cert_info.issuer.organization_name }}</span>
-                        </div>
-                      </div>
-
-                      <!-- Validity & Serial Details -->
-                      <div class="cert-sub-group mt-2">
-                        <span class="cert-group-title">证书有效期与凭证</span>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_before">
-                          <span class="sig-detail-label">生效时间</span>
-                          <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_before) }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_after">
-                          <span class="sig-detail-label">失效时间</span>
-                          <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_after) }}</span>
-                        </div>
-                        <div class="sig-detail-row small-txt" v-if="sig.cert_info.serial_number">
-                          <span class="sig-detail-label">证书序列号</span>
-                          <span class="sig-detail-value text-monospace word-break-serial">{{ sig.cert_info.serial_number }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </el-collapse-transition>
-                </div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <el-tag
+                  :type="digitalSignatures.signed ? 'success' : 'info'"
+                  size="small"
+                >
+                  {{ digitalSignatures.signed ? '已签名' : '未签名' }}
+                </el-tag>
+                <el-button link type="primary" style="font-size: 13px;">
+                  {{ signatureDetailsCollapsed ? '展开' : '收起' }}
+                  <el-icon class="ml-1"><component :is="signatureDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
+                </el-button>
               </div>
             </div>
+
+            <el-collapse-transition>
+              <div v-show="!signatureDetailsCollapsed" class="mt-4">
+                <!-- No Signatures -->
+                <el-empty
+                  v-if="!digitalSignatures.signed"
+                  description="该文档未包含数字签名"
+                  :image-size="60"
+                  class="compact-empty"
+                />
+
+                <!-- Signature List -->
+                <div v-else class="signatures-list">
+                  <div
+                    v-for="(sig, index) in digitalSignatures.signatures"
+                    :key="index"
+                    class="signature-card"
+                    :class="{ 'sig-invalid': !sig.integrity || sig.expired }"
+                  >
+                    <!-- Signature Header -->
+                    <div class="sig-header flex-between">
+                      <div class="sig-name-group">
+                        <el-icon class="sig-icon" :color="sig.integrity && !sig.expired ? '#67C23A' : '#F56C6C'">
+                          <Key />
+                        </el-icon>
+                        <span class="sig-field-name">{{ sig.signature_name }}</span>
+                      </div>
+                      <div class="sig-badges">
+                        <el-tag
+                          :type="sig.integrity ? 'success' : 'danger'"
+                          size="small"
+                          effect="plain"
+                        >
+                          {{ sig.integrity ? '完整' : '已篡改' }}
+                        </el-tag>
+                        <el-tag
+                          :type="sig.expired ? 'danger' : 'success'"
+                          size="small"
+                          effect="plain"
+                        >
+                          {{ sig.expired ? '已过期' : '有效' }}
+                        </el-tag>
+                      </div>
+                    </div>
+
+                    <!-- Signature Details -->
+                    <div class="sig-details">
+                      <div class="sig-detail-row">
+                        <span class="sig-detail-label">签署主体</span>
+                        <span class="sig-detail-value text-bold">{{ sig.signer_cn }}</span>
+                      </div>
+                      <div class="sig-detail-row" v-if="sig.signing_time">
+                        <span class="sig-detail-label">签署时间</span>
+                        <span class="sig-detail-value">{{ formatDate(sig.signing_time) }}</span>
+                      </div>
+                      <div class="sig-detail-row">
+                        <span class="sig-detail-label">数据完整性</span>
+                        <span
+                          class="sig-detail-value"
+                          :class="sig.integrity ? 'color-pass' : 'color-fail'"
+                        >
+                          {{ sig.integrity ? '未被篡改' : '已遭篡改/损坏' }}
+                        </span>
+                      </div>
+                      <div class="sig-detail-row">
+                        <span class="sig-detail-label">证书时效性</span>
+                        <span
+                          class="sig-detail-value"
+                          :class="!sig.expired ? 'color-pass' : 'color-fail'"
+                        >
+                          {{ sig.expired ? '已过期' : '有效期内' }}
+                        </span>
+                      </div>
+
+                      <!-- Toggle Expansion Button -->
+                      <div v-if="sig.cert_info && Object.keys(sig.cert_info).length > 0" class="sig-expand-toggle-row">
+                        <el-button 
+                          link 
+                          type="primary" 
+                          size="small" 
+                          @click="toggleSigExpand(index)"
+                          class="expand-toggle-btn"
+                        >
+                          {{ expandedSigs[index] ? '收起证书详情' : '展开详细证书识别信息' }}
+                          <el-icon class="ml-1">
+                            <component :is="expandedSigs[index] ? ArrowUp : ArrowDown" />
+                          </el-icon>
+                        </el-button>
+                      </div>
+
+                      <!-- Expanded Certificate Details (Collapsible) -->
+                      <el-collapse-transition>
+                        <div v-show="expandedSigs[index]" class="cert-expanded-section mt-2">
+                          <el-divider class="compact-divider" />
+                          
+                          <!-- Subject Details -->
+                          <div class="cert-sub-group" v-if="sig.cert_info.subject">
+                            <span class="cert-group-title">证书主体识别 (Subject)</span>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organization_name">
+                              <span class="sig-detail-label">组织 (O)</span>
+                              <span class="sig-detail-value">{{ sig.cert_info.subject.organization_name }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organizational_unit_name">
+                              <span class="sig-detail-label">部门 (OU)</span>
+                              <span class="sig-detail-value">{{ sig.cert_info.subject.organizational_unit_name }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.user_id">
+                              <span class="sig-detail-label">用户 ID</span>
+                              <span class="sig-detail-value text-monospace">{{ sig.cert_info.subject.user_id }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.country_name">
+                              <span class="sig-detail-label">国家 (C)</span>
+                              <span class="sig-detail-value">{{ sig.cert_info.subject.country_name }}</span>
+                            </div>
+                          </div>
+
+                          <!-- Issuer Details -->
+                          <div class="cert-sub-group mt-2" v-if="sig.cert_info.issuer">
+                            <span class="cert-group-title">颁发机构 (Issuer CA)</span>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.common_name">
+                              <span class="sig-detail-label">机构 CN</span>
+                              <span class="sig-detail-value">{{ sig.cert_info.issuer.common_name }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.organization_name">
+                              <span class="sig-detail-label">颁发组织</span>
+                              <span class="sig-detail-value">{{ sig.cert_info.issuer.organization_name }}</span>
+                            </div>
+                          </div>
+
+                          <!-- Validity & Serial Details -->
+                          <div class="cert-sub-group mt-2">
+                            <span class="cert-group-title">证书有效期与凭证</span>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_before">
+                              <span class="sig-detail-label">生效时间</span>
+                              <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_before) }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_after">
+                              <span class="sig-detail-label">失效时间</span>
+                              <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_after) }}</span>
+                            </div>
+                            <div class="sig-detail-row small-txt" v-if="sig.cert_info.serial_number">
+                              <span class="sig-detail-label">证书序列号</span>
+                              <span class="sig-detail-value text-monospace word-break-serial">{{ sig.cert_info.serial_number }}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </el-collapse-transition>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-collapse-transition>
           </div>
 
           <!-- Reviewer Notes Panel -->
@@ -455,8 +520,8 @@
                 >
                   <div class="note-meta flex-between">
                     <div class="author-avatar-info">
-                      <div class="avatar-circle">
-                        {{ note.author_name ? note.author_name.charAt(0).toUpperCase() : 'U' }}
+                      <div class="avatar-circle" :style="getAvatarStyle(note.author_name)">
+                        {{ getAvatarText(note.author_name) }}
                       </div>
                       <span class="author-name">{{ note.author_name }}</span>
                     </div>
@@ -555,7 +620,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position, Tickets } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position, Tickets, Right } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -581,6 +646,24 @@ const expandedSigs = ref<Record<number, boolean>>({})
 
 const trajectoryDrawerVisible = ref(false)
 const liveExecutionLogs = ref<any[]>([])
+
+// ─── 诊断指标微型过滤器 ───
+const activeFilter = ref<'all' | 'pass' | 'warning' | 'fail'>('all')
+
+// ─── 右侧卡片折叠状态管理 ───
+const generalDetailsCollapsed = ref(true)
+const signatureDetailsCollapsed = ref(true)
+
+function toggleFilter(status: 'pass' | 'warning' | 'fail') {
+  activeFilter.value = activeFilter.value === status ? 'all' : status
+}
+
+const filteredChecks = computed(() => {
+  if (!file.value?.verification_result_json?.checks) return []
+  const checks = file.value.verification_result_json.checks
+  if (activeFilter.value === 'all') return checks
+  return checks.filter((c: any) => c.status === activeFilter.value)
+})
 
 const executionLogs = computed(() => {
   let logs: any[] = [...liveExecutionLogs.value]
@@ -1550,18 +1633,88 @@ onUnmounted(() => {
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background: rgba(255, 255, 255, 0.4);
-  border: 1px solid rgba(0, 0, 0, 0.04);
   border-radius: 12px;
   position: relative;
   overflow: hidden;
-  transition: all 0.25s ease;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.4);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diagnostic-check-card.pass {
+  background: rgba(76, 175, 80, 0.02);
+  border-color: rgba(76, 175, 80, 0.1);
+}
+.diagnostic-check-card.pass:hover {
+  background: rgba(76, 175, 80, 0.05);
+  border-color: rgba(76, 175, 80, 0.25);
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.06);
+}
+
+.diagnostic-check-card.warning {
+  background: rgba(255, 152, 0, 0.025);
+  border-color: rgba(255, 152, 0, 0.1);
+}
+.diagnostic-check-card.warning:hover {
+  background: rgba(255, 152, 0, 0.06);
+  border-color: rgba(255, 152, 0, 0.25);
+  box-shadow: 0 4px 15px rgba(255, 152, 0, 0.06);
+}
+
+.diagnostic-check-card.fail {
+  background: rgba(244, 67, 54, 0.025);
+  border-color: rgba(244, 67, 54, 0.1);
+}
+.diagnostic-check-card.fail:hover {
+  background: rgba(244, 67, 54, 0.06);
+  border-color: rgba(244, 67, 54, 0.25);
+  box-shadow: 0 4px 15px rgba(244, 67, 54, 0.06);
 }
 
 .diagnostic-check-card:hover {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.7);
-  box-shadow: 0 6px 15px rgba(0,0,0,0.03);
+}
+
+/* Clicking locator cues style */
+.locate-tip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #4285f4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.65;
+  transition: all 0.2s ease;
+}
+
+.diagnostic-check-card:hover .locate-tip {
+  opacity: 1 !important;
+  color: #2b6de0 !important;
+}
+
+.arrow-icon-slide {
+  transition: transform 0.2s ease;
+}
+
+.diagnostic-check-card:hover .arrow-icon-slide {
+  transform: translateX(4px);
+}
+
+/* Clickable micro-filters */
+.clickable-counter {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1.5px solid transparent !important;
+}
+
+.clickable-counter:hover {
+  transform: scale(1.05);
+  filter: brightness(0.95);
+}
+
+.clickable-counter.is-active {
+  border-color: currentColor !important;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.08);
+  transform: scale(1.06);
 }
 
 .check-left-indicator {

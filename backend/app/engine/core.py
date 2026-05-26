@@ -222,6 +222,13 @@ class VerificationEngine:
                     else:
                         rule_pass = False
                         rule_msg = "未通过：该文档缺失强制要求的有效电子数字签名。"
+                
+                elif rule.rule_content == "REQUIRE_REVISION_CHECK":
+                    rev_data = context.shared_state.get("pdf_revisions", {})
+                    is_tampered = rev_data.get("is_tampered_after_sign", False)
+                    rule_pass = not is_tampered
+                    rule_msg = rev_data.get("tamper_message", "未执行修订版本分析。")
+                    
                 await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
                 
             elif rule.rule_type == RuleType.llm_prompt:
