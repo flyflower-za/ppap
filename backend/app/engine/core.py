@@ -74,6 +74,8 @@ class VerificationEngine:
                     required_names.add("TextLLM")
                 elif node_type == "vision_llm":
                     required_names.add("VisionLLM")
+                elif node_type == "http_call" or node_type == "http-call":
+                    required_names.add("URLFetchOperator")
                 elif node_type == "stamp_detection":
                     required_names.add("StampDetection")
                 elif node_type == "document_diff":
@@ -517,12 +519,11 @@ class VerificationEngine:
                             node_passed = True
                             node_msg = f"文档共 {rev_count} 个版本，版本结构完整未修改"
 
-                    elif node_type == "http_call":
+                    elif node_type == "http_call" or node_type == "http-call":
                         # HTTP External Verification Node
                         try:
                             import httpx
                             import re
-                            import json as json_lib
 
                             # Helper function for variable interpolation
                             def interpolate_vars(val: str, state: dict) -> str:
@@ -557,6 +558,7 @@ class VerificationEngine:
                                 # Build headers
                                 headers = {}
                                 for header in headers_list:
+                                    # Skip internal fields like _id
                                     key = interpolate_vars(header.get("key", ""), context.shared_state)
                                     value = interpolate_vars(header.get("value", ""), context.shared_state)
                                     if key:

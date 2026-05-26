@@ -207,18 +207,18 @@
             <div class="field-group">
               <label class="field-label" for="node-url-template">请求 URL <span class="required-mark">*</span></label>
               <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" />
-              <span class="field-hint">支持变量插值，如 {{qr_content}}, {{extracted_report_id}}</span>
+              <span class="field-hint">支持变量插值，如 qr_content, extracted_report_id</span>
             </div>
             <div class="field-group">
               <span class="field-label">HTTP 方法</span>
               <div class="field-radio-group">
-                <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'GET' }">
+                <label class="field-radio" :class="{ active: selectedNode.data?.http_method === 'GET' }">
                   <input type="radio" v-model="selectedNode.data.http_method" value="GET" /> GET
                 </label>
-                <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'POST' }">
+                <label class="field-radio" :class="{ active: selectedNode.data?.http_method === 'POST' }">
                   <input type="radio" v-model="selectedNode.data.http_method" value="POST" /> POST
                 </label>
-                <label class="field-radio" :class="{ active: selectedNode.data.http_method === 'PUT' }">
+                <label class="field-radio" :class="{ active: selectedNode.data?.http_method === 'PUT' }">
                   <input type="radio" v-model="selectedNode.data.http_method" value="PUT" /> PUT
                 </label>
               </div>
@@ -245,9 +245,9 @@
                 </div>
 
                 <!-- Body (for POST/PUT) -->
-                <div class="sub-field-group" v-if="selectedNode.data.http_method === 'POST' || selectedNode.data.http_method === 'PUT'">
+                <div class="sub-field-group" v-if="selectedNode.data?.http_method === 'POST' || selectedNode.data?.http_method === 'PUT'">
                   <label class="field-label">请求 Body (可选)</label>
-                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "{{extracted_report_id}}", "code": "{{qr_content}}"}'></textarea>
+                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "xxx", "code": "xxx"}'></textarea>
                   <span class="field-hint">JSON 格式，支持变量插值</span>
                 </div>
 
@@ -266,9 +266,9 @@
                     <option value="json_path">JSON Path 匹配</option>
                     <option value="text_contains">响应文本包含</option>
                   </select>
-                  <input v-if="selectedNode.data.success_type === 'json_path'" v-model="selectedNode.data.json_path" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="$.valid" />
-                  <input v-if="selectedNode.data.success_type === 'json_path'" v-model="selectedNode.data.json_expected" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="true" />
-                  <input v-if="selectedNode.data.success_type === 'text_contains'" v-model="selectedNode.data.text_contains" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="OK" />
+                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_path" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="$.valid" />
+                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_expected" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="true" />
+                  <input v-if="selectedNode.data?.success_type === 'text_contains'" v-model="selectedNode.data.text_contains" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="OK" />
                 </div>
               </div>
             </div>
@@ -635,7 +635,13 @@ const addNode = (type: string) => {
   nodes.value.push(newNode)
 }
 
-const onNodeClick = (event: any) => { selectedNode.value = event.node }
+const onNodeClick = (event: any) => {
+  selectedNode.value = event.node
+  // Reset advanced options expansion when switching nodes
+  if (event.node?.data?.nodeType !== 'http-call') {
+    httpAdvancedExpanded.value = false
+  }
+}
 const onPaneClick = () => { selectedNode.value = null }
 const onPaneReady = (vueFlowInstance: any) => {
   // Ensure the view is fitted properly once the canvas is fully ready
