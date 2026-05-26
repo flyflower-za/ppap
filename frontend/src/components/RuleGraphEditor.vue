@@ -321,6 +321,36 @@
               </label>
             </div>
           </div>
+
+          <!-- === Variables Panel (Common) === -->
+          <div class="variables-section">
+            <div class="variables-header" @click="variablesExpanded = !variablesExpanded">
+              <span class="variables-title">📋 可用变量</span>
+              <span class="variables-count">{{ getTotalVariablesCount() }} 个</span>
+              <span class="caret" :class="{ open: variablesExpanded }">▸</span>
+            </div>
+            <div v-show="variablesExpanded" class="variables-content">
+              <div v-for="group in availableVariables" :key="group.category" class="variable-group">
+                <div class="variable-group-title">{{ group.icon }} {{ group.label }}</div>
+                <div class="variable-list">
+                  <div
+                    v-for="variable in group.variables"
+                    :key="variable.name"
+                    class="variable-item"
+                    @click="insertVariable(variable.name)"
+                    :title="`点击插入 {{ variable.name }}`"
+                  >
+                    <span class="variable-syntax">{{ `{{${variable.name}}}` }}</span>
+                    <span class="variable-desc">{{ variable.desc }}</span>
+                    <span class="variable-insert-hint">→</span>
+                  </div>
+                </div>
+              </div>
+              <div class="variables-footer-hint">
+                💡 点击变量即可插入到光标位置
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Inspector Footer -->
@@ -459,6 +489,95 @@ function toggleHttpAdvanced() {
   httpAdvancedExpanded.value = !httpAdvancedExpanded.value
 }
 
+// ─── Variables Management ───
+// Available variables from backend shared_state
+const availableVariables = [
+  {
+    category: 'system',
+    icon: '⚙️',
+    label: '系统变量',
+    variables: [
+      { name: 'institution', desc: '发证机构名称' },
+      { name: 'page_count', desc: 'PDF 页数' },
+      { name: 'full_text', desc: '完整文本内容' },
+    ]
+  },
+  {
+    category: 'qr',
+    icon: '📱',
+    label: '二维码',
+    variables: [
+      { name: 'qr_content', desc: '第一个二维码内容' },
+      { name: 'qr_codes', desc: '所有二维码数据数组' },
+    ]
+  },
+  {
+    category: 'signature',
+    icon: '🔐',
+    label: '数字签名',
+    variables: [
+      { name: 'digital_signatures', desc: '签名完整数据' },
+      { name: 'signer_cn', desc: '签署人通用名' },
+      { name: 'signature_valid', desc: '签名是否有效' },
+    ]
+  },
+  {
+    category: 'pdf',
+    icon: '📄',
+    label: 'PDF 元数据',
+    variables: [
+      { name: 'pdf_info', desc: 'PDF 完整信息' },
+      { name: 'is_tampered', desc: '是否被篡改' },
+      { name: 'revision_count', desc: '修订版本数' },
+    ]
+  },
+  {
+    category: 'extract',
+    icon: '📤',
+    label: '提取数据',
+    variables: [
+      { name: 'extracted_report_number', desc: '报告编号 (提取模式)' },
+      { name: 'extracted_verification_code', desc: '校验码 (提取模式)' },
+      { name: 'extracted_tables', desc: '提取的表格数据' },
+      { name: 'llm_semantic_analysis', desc: 'LLM 语义分析结果' },
+      { name: 'vision_analysis', desc: '视觉分析结果' },
+      { name: 'detected_stamps', desc: '检测到的印章' },
+      { name: 'diff_results', desc: '文档比对结果' },
+    ]
+  }
+]
+
+function getTotalVariablesCount() {
+  return availableVariables.reduce((sum, group) => sum + group.variables.length, 0)
+}
+
+function insertVariable(varName: string) {
+  // Insert variable at cursor position or append to focused input
+  const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement
+  if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+    const variableSyntax = `{{${varName}}}`
+    const start = activeElement.selectionStart ?? 0
+    const end = activeElement.selectionEnd ?? 0
+    const value = activeElement.value || ''
+
+    const newValue = value.substring(0, start) + variableSyntax + value.substring(end)
+    activeElement.value = newValue
+
+    // Set cursor position after inserted variable
+    const newCursorPos = start + variableSyntax.length
+    activeElement.setSelectionRange(newCursorPos, newCursorPos)
+
+    // Trigger input event to update v-model
+    activeElement.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Flash effect on the input to show insertion happened
+    activeElement.classList.add('variable-inserted-flash')
+    setTimeout(() => {
+      activeElement.classList.remove('variable-inserted-flash')
+    }, 300)
+  }
+}
+
 // ─── Props & Emit ───
 const props = defineProps({
   modelValue: {
@@ -473,6 +592,7 @@ const edges = ref<any[]>([])
 const selectedNode = ref<any | null>(null)
 const isInitialized = ref(false)
 const httpAdvancedExpanded = ref(false)
+const variablesExpanded = ref(true)
 
 const defaultNodes = [
   {
@@ -1399,6 +1519,194 @@ function startResize(e: MouseEvent) {
 .required-mark {
   color: var(--el-color-danger);
   margin-left: 2px;
+}
+
+/* ─── Variables Panel ─── */
+.variables-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.variables-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, var(--el-color-primary-light-9) 0%, var(--el-fill-color-light) 100%);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.variables-header:hover {
+  background: linear-gradient(135deg, var(--el-color-primary-light-8) 0%, var(--el-fill-color) 100%);
+  border-color: var(--el-color-primary-light-5);
+}
+
+.variables-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.variables-count {
+  font-size: 10px;
+  background: var(--el-color-primary);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.variables-header .caret {
+  transition: transform 0.2s;
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
+}
+
+.variables-header .caret.open {
+  transform: rotate(90deg);
+}
+
+.variables-content {
+  margin-top: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.variable-group {
+  margin-bottom: 16px;
+}
+
+.variable-group:last-child {
+  margin-bottom: 0;
+}
+
+.variable-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--el-text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.variable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.variable-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+  border: 1px solid var(--el-border-color-lighter);
+  position: relative;
+  overflow: hidden;
+}
+
+.variable-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--el-color-primary-light-5);
+  transition: width 0.2s ease;
+}
+
+.variable-item:hover {
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-5);
+  transform: translateX(2px);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.variable-item:hover::before {
+  width: 4px;
+  background: var(--el-color-primary);
+}
+
+.variable-item:active {
+  transform: translateX(3px) scale(0.99);
+}
+
+.variable-syntax {
+  font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-size: 11px;
+  color: var(--el-color-primary);
+  font-weight: 600;
+  background: var(--el-color-primary-light-9);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--el-color-primary-light-5);
+  white-space: nowrap;
+}
+
+.variable-desc {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  flex: 1;
+  line-height: 1.4;
+}
+
+.variable-insert-hint {
+  font-size: 14px;
+  color: var(--el-color-primary-light-3);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.variable-item:hover .variable-insert-hint {
+  opacity: 1;
+}
+
+.variables-footer-hint {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--el-color-success-light-9);
+  border: 1px solid var(--el-color-success-light-5);
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--el-color-success-dark-2);
+  text-align: center;
+}
+
+/* Flash effect for variable insertion */
+.variable-inserted-flash {
+  animation: flashHighlight 0.3s ease;
+}
+
+@keyframes flashHighlight {
+  0% {
+    box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.7);
+    border-color: var(--el-color-primary);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.3);
+    border-color: var(--el-color-primary);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(64, 158, 255, 0);
+  }
 }
 
 /* ─── Transitions ─── */

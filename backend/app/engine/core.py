@@ -37,6 +37,51 @@ class VerificationEngine:
             "TableVerification": TableVerificationOperator(),
         }
 
+    def _flatten_shared_state(self, context: DocumentContext) -> None:
+        """
+        Flatten commonly used nested values from shared_state for easier variable access.
+        This makes it simpler to reference things like signer_cn without full path.
+        """
+        # Flatten signature data
+        sig_data = context.shared_state.get("digital_signatures", {})
+        if isinstance(sig_data, dict):
+            sigs = sig_data.get("signatures", [])
+            if sigs and len(sigs) > 0:
+                # Get first valid signature's info
+                valid_sig = None
+                for sig in sigs:
+                    if sig.get("integrity", False):
+                        valid_sig = sig
+                        break
+                # If no valid signature, use first one
+                if not valid_sig and len(sigs) > 0:
+                    valid_sig = sigs[0]
+
+                if valid_sig:
+                    context.shared_state["signer_cn"] = valid_sig.get("signer_cn", "")
+                    context.shared_state["signature_valid"] = valid_sig.get("integrity", False)
+                    context.shared_state["signature_expired"] = valid_sig.get("expired", False)
+
+        # Flatten revision data
+        rev_data = context.shared_state.get("pdf_revisions", {})
+        if isinstance(rev_data, dict):
+            context.shared_state["is_tampered"] = rev_data.get("is_tampered_after_sign", False)
+            context.shared_state["revision_count"] = rev_data.get("revision_count", 1)
+        # Register available operators
+        self._available_operators: Dict[str, BaseOperator] = {
+            "PDFInfoExtractor": PDFInfoOperator(),
+            "QRScanner": QRScannerOperator(),
+            "SignatureVerifier": SignatureOperator(),
+            "TextLLM": TextLLMOperator(),
+            "VisionLLM": VisionLLMOperator(),
+            "InstitutionSniffer": InstitutionSnifferOperator(),
+            "RevisionCheck": RevisionCheckOperator(),
+            "URLFetchOperator": URLFetchOperator(),
+            "StampDetection": StampDetectionOperator(),
+            "DocumentDiff": DocumentDiffOperator(),
+            "TableVerification": TableVerificationOperator(),
+        }
+
     def _determine_required_operators(self, rules: List[VerificationRule]) -> List[BaseOperator]:
         """
         Analyze the AST/rule dependencies to figure out which operators must run.
@@ -111,7 +156,7 @@ class VerificationEngine:
         await emit_log("引擎调度：启动基础信息解析与分类嗅探阶段")
         pre_op_names = ["PDFInfoExtractor", "InstitutionSniffer"]
         operator_results = {}
-        
+
         for name in pre_op_names:
             if name in self._available_operators:
                 op = self._available_operators[name]
@@ -124,6 +169,9 @@ class VerificationEngine:
                     logger.error(f"[Engine] Operator {op.name} crashed: {e}")
                     operator_results[op.name] = {"pass_status": False, "message": str(e)}
                     await emit_log(f"算子 [{name}] 执行异常: {e}")
+
+        # Flatten commonly used nested values for easier access
+        self._flatten_shared_state(context)
 
         # ---------------------------------------------------------
         # FILTER RULES (Based on Institution/Category)
@@ -157,7 +205,7 @@ class VerificationEngine:
 
         if heavy_operators:
             await emit_log(f"解析到 {len(heavy_operators)} 个深度分析算子待执行...")
-        
+
         for op in heavy_operators:
             logger.info(f"[Engine] Executing heavy operator: {op.name}")
             await emit_log(f"正在执行高能耗算子 [{op.name}]...")
@@ -169,6 +217,9 @@ class VerificationEngine:
                 logger.error(f"[Engine] Operator {op.name} crashed: {e}")
                 operator_results[op.name] = {"pass_status": False, "message": str(e)}
                 await emit_log(f"算子 [{op.name}] 执行异常: {e}")
+
+        # Flatten any newly added shared_state values
+        self._flatten_shared_state(context)
 
         # Phase 2: Evaluate Rules
         rule_evaluations = []
@@ -373,7 +424,7 @@ class VerificationEngine:
                         sig_data = context.shared_state.get("digital_signatures", {})
                         sigs = sig_data.get("signatures", [])
                         valid_sigs = [s for s in sigs if s.get("integrity", False)]
-                        
+
                         expected_issuer = node_data.get("expectedIssuer", "")
                         if valid_sigs:
                             signers_info = []
@@ -384,7 +435,7 @@ class VerificationEngine:
                                 else:
                                     signers_info.append(f"{cn} (证书有效)")
                             signers_str = ", ".join(signers_info)
-                            
+
                             if expected_issuer:
                                 matched = any(expected_issuer.lower() in s.get("signer_cn", "").lower() for s in valid_sigs)
                                 if matched:
@@ -402,13 +453,19 @@ class VerificationEngine:
                         else:
                             node_passed = False
                             node_msg = "该文档缺失强制要求的有效电子数字签名。"
+
+                        # Flatten signature data for variable access
+                        self._flatten_shared_state(context)
                             
-                    elif node_type == "qr_scanner":
+                    elif node_type == "qr_scanner" or node_type == "qr-code":
                         qr_data = context.shared_state.get("qr_codes", [])
                         if len(qr_data) > 0:
                             node_passed = True
                             qr_texts = [qr.get("data", "未知") for qr in qr_data if isinstance(qr, dict)]
                             node_msg = f"检测到 {len(qr_data)} 个二维码。内容：{', '.join(qr_texts)}"
+                            # Store first QR content for easy reference
+                            if qr_data and len(qr_data) > 0:
+                                context.shared_state["qr_content"] = qr_data[0].get("data", "")
                         else:
                             node_passed = False
                             node_msg = "未检测到任何二维码"
@@ -518,6 +575,9 @@ class VerificationEngine:
                         else:
                             node_passed = True
                             node_msg = f"文档共 {rev_count} 个版本，版本结构完整未修改"
+
+                        # Flatten revision data for variable access
+                        self._flatten_shared_state(context)
 
                     elif node_type == "http_call" or node_type == "http-call":
                         # HTTP External Verification Node

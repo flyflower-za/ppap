@@ -2,6 +2,105 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-05-27] - 变量面板功能
+
+### 功能描述
+- 在规则图编辑器中添加变量面板，显示所有可用的数据源变量
+- 支持点击变量自动插入到输入框光标位置
+- 按节点类型分组显示变量，便于查找
+
+### 详细修改记录
+
+#### 1. 后端 - 数据扁平化支持
+**文件路径**: `/Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/engine/core.py`
+**修改时间**: 2026-05-27
+
+**新增方法**: `_flatten_shared_state(context)`
+```python
+def _flatten_shared_state(self, context: DocumentContext) -> None:
+    """
+    Flatten commonly used nested values from shared_state for easier variable access.
+    This makes it simpler to reference things like signer_cn without full path.
+    """
+```
+
+**扁平化的变量**:
+- `signer_cn` - 从 `digital_signatures.signatures[0].signer_cn` 提取
+- `signature_valid` - 从 `digital_signatures.signatures[0].integrity` 提取
+- `signature_expired` - 从 `digital_signatures.signatures[0].expired` 提取
+- `is_tampered` - 从 `pdf_revisions.is_tampered_after_sign` 提取
+- `revision_count` - 从 `pdf_revisions.revision_count` 提取
+
+**调用时机**:
+- Stage 1 预分类算子执行后
+- Stage 2 深度算子执行后
+- 签名验证节点执行后
+- 修订检查节点执行后
+
+---
+
+#### 2. 前端 - 变量面板 UI
+**文件路径**: `/Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/components/RuleGraphEditor.vue`
+**修改时间**: 2026-05-27
+
+**新增数据结构**:
+```typescript
+const availableVariables = [
+  { category: 'system', icon: '⚙️', label: '系统变量', variables: [...] },
+  { category: 'qr', icon: '📱', label: '二维码', variables: [...] },
+  { category: 'signature', icon: '🔐', label: '数字签名', variables: [...] },
+  { category: 'pdf', icon: '📄', label: 'PDF 元数据', variables: [...] },
+  { category: 'extract', icon: '📤', label: '提取数据', variables: [...] },
+]
+```
+
+**新增方法**:
+- `getTotalVariablesCount()` - 计算变量总数
+- `insertVariable(varName)` - 点击插入变量到输入框，支持光标位置插入和闪烁动画反馈
+
+**UI 特性**:
+- 可折叠面板，默认展开
+- 显示变量总数统计
+- 悬停效果和点击动画
+- 变量语法显示为 `{{variable_name}}`
+
+**可用变量列表** (共18个):
+
+| 分类 | 变量名 | 描述 |
+|-----|-------|------|
+| ⚙️ 系统变量 | `institution` | 发证机构名称 |
+| | `page_count` | PDF 页数 |
+| | `full_text` | 完整文本内容 |
+| 📱 二维码 | `qr_content` | 第一个二维码内容 |
+| | `qr_codes` | 所有二维码数据数组 |
+| 🔐 数字签名 | `digital_signatures` | 签名完整数据 |
+| | `signer_cn` | 签署人通用名 |
+| | `signature_valid` | 签名是否有效 |
+| 📄 PDF 元数据 | `pdf_info` | PDF 完整信息 |
+| | `is_tampered` | 是否被篡改 |
+| | `revision_count` | 修订版本数 |
+| 📤 提取数据 | `extracted_report_number` | 报告编号 (提取模式) |
+| | `extracted_verification_code` | 校验码 (提取模式) |
+| | `extracted_tables` | 提取的表格数据 |
+| | `llm_semantic_analysis` | LLM 语义分析结果 |
+| | `vision_analysis` | 视觉分析结果 |
+| | `detected_stamps` | 检测到的印章 |
+| | `diff_results` | 文档比对结果 |
+
+### 使用方法
+1. 在规则图编辑器中选中一个节点
+2. 在右侧配置面板底部找到"📋 可用变量"区域
+3. 点击任意变量即可插入到当前焦点输入框
+4. 变量以 `{{变量名}}` 的格式插入
+
+### 影响范围
+- ✅ 前端规则图编辑器
+- ✅ 后端数据流处理
+- ❌ 无数据库变更
+- ❌ 无破坏性变更
+
+---
+
 ## [2026-05-25] - 端口配置优化
 
 ### 问题描述
@@ -277,5 +376,6 @@ docker compose up -d --build
 
 | 日期 | 版本 | 描述 |
 |------|------|------|
+| 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
 | 2026-05-25 | 1.0.1 | 端口配置优化，解决8000端口冲突 |
 | 2026-05-24 | 1.0.0 | PPAP项目初始版本 |
