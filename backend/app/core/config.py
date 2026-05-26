@@ -40,10 +40,13 @@ class Settings(BaseSettings):
     # File Upload Limits
     MAX_FILE_SIZE: int = 50 * 1024 * 1024  # 50MB
 
-    # Aliyun AI
-    ALIYUN_ACCESS_KEY_ID: Optional[str] = None
-    ALIYUN_ACCESS_KEY_SECRET: Optional[str] = None
-    ALIYUN_AGENT_ENDPOINT: Optional[str] = None
+    # Legacy Aliyun AI Configuration (DEPRECATED - Use System Settings > AI Model Configuration instead)
+    # These environment variables are kept for backward compatibility only
+    # All new LLM configurations should be done through the web UI: System Settings > AI Model Configuration
+    ALIYUN_ACCESS_KEY_ID: Optional[str] = None  # Deprecated: Use database model profiles instead
+    ALIYUN_ACCESS_KEY_SECRET: Optional[str] = None  # Deprecated: Not used for OpenAI-compatible APIs
+    ALIYUN_AGENT_ENDPOINT: Optional[str] = None  # Deprecated: Use database model profiles instead
+    ALIYUN_MODEL_NAME: Optional[str] = "gpt-3.5-turbo"  # Deprecated: Use database model profiles instead
 
     # Email / SMTP
     SMTP_ENABLED: bool = False
