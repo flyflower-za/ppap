@@ -334,7 +334,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   padding: 40px;
-  background-color: #f8f9fa;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
 }
 
 .top-logo {
@@ -354,10 +354,9 @@ async function handleLogin() {
 }
 
 .login-container {
-  background: white;
+  background: transparent;
   border-radius: 16px;
   padding: 40px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .login-header {
