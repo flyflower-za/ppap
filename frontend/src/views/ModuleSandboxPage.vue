@@ -28,13 +28,18 @@
 
             <template v-if="form.operator_name !== 'URLFetchOperator'">
               <el-form-item v-if="form.fileSourceType === 'existing'" label="选择已有文件">
-                <el-select v-model="form.file_id" filterable placeholder="选择要测试的文档" style="width: 100%">
+                <el-select v-model="form.file_id" filterable placeholder="选择要测试的文档" style="width: 100%" popper-class="sandbox-file-select-dropdown">
                   <el-option
                     v-for="f in historyFiles"
                     :key="f.id"
                     :label="f.original_filename"
                     :value="f.id"
-                  />
+                    class="file-select-option"
+                  >
+                    <div class="file-option-content" :title="f.original_filename">
+                      {{ f.original_filename }}
+                    </div>
+                  </el-option>
                 </el-select>
               </el-form-item>
             </template>
@@ -42,7 +47,7 @@
             <template v-if="form.operator_name !== 'URLFetchOperator'">
               <el-form-item v-if="form.fileSourceType === 'upload'" label="上传测试文件">
                 <el-upload
-                  class="upload-demo"
+                  class="upload-demo sandbox-upload"
                   drag
                   action="#"
                   :auto-upload="false"
@@ -59,15 +64,18 @@
 
             <!-- 模块选择 -->
             <el-form-item label="目标测试模块">
-              <el-select v-model="form.operator_name" placeholder="请选择底层模块" @change="handleModuleChange" style="width: 100%">
+              <el-select v-model="form.operator_name" placeholder="请选择底层模块" @change="handleModuleChange" style="width: 100%" popper-class="sandbox-module-select-dropdown">
                 <el-option
                   v-for="mod in availableModules"
                   :key="mod.name"
                   :label="mod.label"
                   :value="mod.name"
+                  class="module-select-option"
                 >
-                  <span style="float: left">{{ mod.label }}</span>
-                  <span style="float: right; color: #8492a6; font-size: 13px">{{ mod.name }}</span>
+                  <div class="module-option-content">
+                    <span class="module-label">{{ mod.label }}</span>
+                    <span class="module-name">{{ mod.name }}</span>
+                  </div>
                 </el-option>
               </el-select>
               <div v-if="selectedModuleDesc" class="module-desc text-secondary mt-1 text-sm">
@@ -331,4 +339,104 @@ async function runTest() {
 .border-success { border-color: #67c23a; }
 .bg-danger-light { background-color: #fef0f0; }
 .border-danger { border-color: #f56c6c; }
+
+/* 文件名截断优化 */
+.file-option-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
+}
+
+/* 上传组件文件列表优化 */
+:deep(.sandbox-upload .el-upload-list__item-name) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+/* 拖拽上传区域宽度优化 */
+:deep(.sandbox-upload .el-upload-dragger) {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+}
+
+:deep(.sandbox-upload .el-upload-dragger .el-icon--upload) {
+  font-size: 48px !important;
+  color: #409eff !important;
+}
+
+:deep(.sandbox-upload .el-upload-dragger .el-upload__text) {
+  font-size: 14px !important;
+  color: #606266 !important;
+  margin-top: 12px !important;
+}
+
+:deep(.sandbox-upload .el-upload-dragger .el-upload__text em) {
+  color: #409eff !important;
+  font-style: normal !important;
+}
+
+/* 上传组件容器宽度 */
+:deep(.sandbox-upload) {
+  width: 100%;
+}
+
+:deep(.sandbox-upload .el-upload) {
+  width: 100%;
+  display: block !important;
+}
+
+/* 选择器下拉框宽度控制 */
+:deep(.sandbox-file-select-dropdown .el-select-dropdown__item) {
+  max-width: 400px;
+}
+
+/* 配置卡片宽度控制 */
+.config-card {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 表单项宽度控制 */
+:deep(.config-card .el-form-item__content) {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 模块选择器样式优化 */
+.module-option-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+.module-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 12px;
+}
+
+.module-name {
+  color: #8492a6;
+  font-size: 13px;
+  flex-shrink: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 模块下拉框宽度控制 */
+:deep(.sandbox-module-select-dropdown .el-select-dropdown__item) {
+  max-width: 450px;
+}
 </style>

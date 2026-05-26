@@ -204,9 +204,9 @@
                   <span class="rate-value" :class="getPassRateClass(row.pass_rate)">{{ row.pass_rate }}%</span>
                   <span class="fraction text-secondary">{{ row.pass_count }}/{{ row.pass_count + row.warning_count + row.fail_count }}</span>
                 </div>
-                <el-progress 
-                  :percentage="row.pass_rate || 0" 
-                  :status="getProgressStatus(row.status)" 
+                <el-progress
+                  :percentage="row.pass_rate || 0"
+                  :status="getProgressStatus(row.status)"
                   :stroke-width="5"
                   :show-text="false"
                   class="progress-bar-premium"
@@ -215,9 +215,6 @@
               <div v-else class="status-placeholder text-secondary">
                 {{ row.status === 'processing' ? '诊断中...' : '等待中...' }}
               </div>
-            </template>
-            <template v-else-if="col.prop === 'duration_seconds'">
-              <span class="font-mono text-secondary">{{ row.duration_seconds ? `${row.duration_seconds}s` : '--' }}</span>
             </template>
           </template>
         </el-table-column>
@@ -348,7 +345,6 @@ const defaultColumns = [
   { prop: 'page_count', label: '页数', width: 60, align: 'center' },
   { prop: 'status', label: '校验状态', width: 110 },
   { prop: 'pass_rate', label: '指标通过率', width: 150 },
-  { prop: 'duration_seconds', label: '耗时', width: 70, align: 'center' },
 ]
 
 const loadColumns = () => {
