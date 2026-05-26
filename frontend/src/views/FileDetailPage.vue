@@ -21,55 +21,64 @@
             </div>
             <div class="file-details">
               <h2 class="file-title" :title="file.original_filename">{{ file.original_filename }}</h2>
-              <div class="file-sub-info">
-                <span class="file-type-pill">{{ fileTypeLabel(file.file_type) }}</span>
+              <div class="file-sub-info" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span class="file-type-pill" style="height: 24px; line-height: 24px; display: inline-flex; align-items: center; font-size: 12px;">{{ fileTypeLabel(file.file_type) }}</span>
                 <span class="dot-separator">•</span>
-                <span class="file-meta-txt">{{ formatFileSize(file.file_size) }}</span>
+                <span class="file-meta-txt" style="font-size: 13px;">{{ formatFileSize(file.file_size) }}</span>
                 <span class="dot-separator">•</span>
-                <span class="file-meta-txt">{{ file.page_count || '-' }} 页</span>
+                <span class="file-meta-txt" style="font-size: 13px;">{{ file.page_count || '-' }} 页</span>
                 <span class="dot-separator">•</span>
-                <span class="file-meta-txt">追踪ID: {{ file.id ? file.id.substring(0, 8) : '-' }}</span>
-              </div>
-              <div class="file-feature-tags mt-2" v-if="file.status !== 'pending' && file.status !== 'processing'">
-                <el-tag size="small" :type="digitalSignatures?.signed ? 'success' : 'danger'" effect="plain" class="feature-tag">
-                  {{ digitalSignatures?.signed ? '✓ 已数字签名' : '⚠ 无有效签名' }}
-                </el-tag>
-                <el-tag size="small" :type="isTextPdf ? 'primary' : 'warning'" effect="plain" class="feature-tag ml-2">
-                  {{ isTextPdf ? '✓ 矢量文本型' : '⚠ 扫描/图片型' }}
-                </el-tag>
-                <el-tag size="small" type="info" effect="plain" class="feature-tag ml-2">
-                  二维码: {{ qrCodeCount }} 个
-                </el-tag>
+                <span class="file-meta-txt" style="font-size: 13px;">追踪ID: {{ file.id ? file.id.substring(0, 8) : '-' }}</span>
+                
+                <template v-if="file.status !== 'pending' && file.status !== 'processing'">
+                  <span class="dot-separator">•</span>
+                  <el-tag :type="digitalSignatures?.signed ? 'success' : 'danger'" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
+                    {{ digitalSignatures?.signed ? '✓ 已数字签名' : '⚠ 无有效签名' }}
+                  </el-tag>
+                  <el-tag :type="isTextPdf ? 'primary' : 'warning'" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
+                    {{ isTextPdf ? '✓ 矢量文本型' : '⚠ 扫描/图片型' }}
+                  </el-tag>
+                  <el-tag type="info" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
+                    二维码: {{ qrCodeCount }} 个
+                  </el-tag>
+                </template>
               </div>
             </div>
           </div>
           
-          <div class="header-actions" style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-            <div v-if="file.status !== 'pending' && file.status !== 'processing'" class="risk-level-badge" :class="riskLevelClass" style="font-weight: 600; font-size: 14px; padding: 4px 12px; border-radius: 6px; border: 1px solid currentColor;">
+          <div class="header-actions" style="display: flex; align-items: center; gap: 12px;">
+            <el-tag
+              v-if="file.status !== 'pending' && file.status !== 'processing'"
+              :type="file.status === 'completed' ? 'success' : (file.status === 'failed' ? 'danger' : 'warning')"
+              effect="plain"
+              class="risk-level-tag"
+              style="font-weight: 700; border-radius: 6px; padding: 0 12px; height: 32px; line-height: 30px; font-size: 13px;"
+            >
               {{ riskLevelText }}
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span class="premium-status-badge" :class="file.status">
-                <span class="pulse-indicator" v-if="file.status === 'processing'"></span>
-                {{ statusText(file.status) }}
-              </span>
-              <el-button 
-                type="primary" 
-                :icon="Download" 
-                @click="handleDownload"
-                :disabled="file.status === 'pending' || file.status === 'processing'"
-                class="download-report-btn"
-              >
-                下载原文件
-              </el-button>
-              <el-button 
-                @click="trajectoryDrawerVisible = true"
-                class="trajectory-btn glass-btn ml-2"
-                :icon="Tickets"
-              >
-                执行流水
-              </el-button>
-            </div>
+            </el-tag>
+            <span v-else class="premium-status-badge" :class="file.status" style="font-size: 13px; padding: 4px 12px; border-radius: 6px; height: 32px; display: inline-flex; align-items: center;">
+              <span class="pulse-indicator" v-if="file.status === 'processing'"></span>
+              {{ statusText(file.status) }}
+            </span>
+            
+            <el-button 
+              type="primary" 
+              :icon="Download" 
+              @click="handleDownload"
+              :disabled="file.status === 'pending' || file.status === 'processing'"
+              class="download-report-btn"
+              style="height: 32px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center;"
+            >
+              下载原文件
+            </el-button>
+            <el-button 
+              @click="trajectoryDrawerVisible = true"
+              class="trajectory-btn glass-btn"
+              :icon="Tickets"
+              style="height: 32px; border-radius: 6px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; margin-left: 0 !important;"
+            >
+              执行流水
+            </el-button>
           </div>
         </div>
 
@@ -77,37 +86,37 @@
 
         <!-- File Metadata Grid -->
         <el-row :gutter="24" class="file-meta-grid">
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">签发机构 (AI 嗅探)</span>
               <span class="meta-value text-primary font-bold">{{ sniffedInstitution || '未知 / 分析中' }}</span>
             </div>
           </el-col>
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">上传账号</span>
               <span class="meta-value">{{ file.uploaded_by || '-' }}</span>
             </div>
           </el-col>
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">上传时间</span>
               <span class="meta-value">{{ formatDate(file.uploaded_at) }}</span>
             </div>
           </el-col>
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">完成时间</span>
               <span class="meta-value">{{ file.completed_at ? formatDate(file.completed_at) : '-' }}</span>
             </div>
           </el-col>
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">校验耗时</span>
               <span class="meta-value">{{ file.duration_seconds !== null && file.duration_seconds !== undefined ? formatDuration(file.duration_seconds) : '-' }}</span>
             </div>
           </el-col>
-          <el-col :xs="12" :sm="6" class="meta-col">
+          <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
               <span class="meta-label">最终通过率</span>
               <span class="meta-value pass-rate-highlight" :class="passRateClass(file.pass_rate)">
@@ -661,6 +670,55 @@ function toggleSigExpand(index: number) {
   expandedSigs.value[index] = !expandedSigs.value[index]
 }
 
+// ─── 升级版结构化卡片数据提取器 ───
+const diffResults = computed(() => {
+  return file.value?.verification_result_json?.operator_logs?.DocumentDiff?.extracted_data || null
+})
+
+const tableResults = computed(() => {
+  return file.value?.verification_result_json?.operator_logs?.TableVerification?.extracted_data || null
+})
+
+// ─── 100% 离线自研：彩虹首字母头像系统 ───
+const getAvatarText = (name: string | null) => {
+  if (!name || name.toLowerCase() === 'system') return 'S'
+  return name.charAt(0).toUpperCase()
+}
+
+const getAvatarStyle = (name: string | null) => {
+  const text = name || 'System'
+  let hash = 0
+  for (let i = 0; i < text.length; i++) {
+    hash = text.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  
+  const colors = [
+    '#3b82f6', // 晴空蓝
+    '#10b981', // 翡翠绿
+    '#f59e0b', // 琥珀黄
+    '#ef4444', // 珊瑚红
+    '#8b5cf6', // 紫罗兰
+    '#ec4899', // 玫瑰粉
+    '#06b6d4', // 冰川青
+    '#14b8a6', // 薄荷绿
+    '#6366f1', // 靛青蓝
+    '#f43f5e', // 蔷薇红
+    '#64748b'  // 石板灰
+  ]
+  
+  const index = Math.abs(hash) % colors.length
+  return {
+    backgroundColor: colors[index],
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'system-ui, sans-serif'
+  }
+}
+
 let pollTimer: any = null
 
 async function renderPdf(downloadUrl: string, verificationResult: any) {
@@ -1142,7 +1200,7 @@ onUnmounted(() => {
 .glass-btn {
   background: rgba(255, 255, 255, 0.8);
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
+  border-radius: 6px;
   color: #555;
   font-weight: 500;
   transition: all 0.25s ease;
@@ -1319,15 +1377,14 @@ onUnmounted(() => {
 .download-report-btn {
   background: linear-gradient(135deg, #4285f4, #2b6de0);
   border: none;
-  border-radius: 10px;
+  border-radius: 6px;
   font-weight: 600;
-  padding: 10px 20px;
-  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.2);
+  box-shadow: 0 4px 10px rgba(66, 133, 244, 0.2);
   transition: all 0.25s ease;
 }
 
 .download-report-btn:hover:not(:disabled) {
-  box-shadow: 0 6px 18px rgba(66, 133, 244, 0.35);
+  box-shadow: 0 6px 14px rgba(66, 133, 244, 0.3);
   transform: translateY(-1px);
 }
 
