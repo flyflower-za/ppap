@@ -300,3 +300,170 @@ async def update_user_role(
         "message": f"用户角色已更新为 {role}",
         "role": role
     }
+
+
+class UserCreateModel(BaseModel):
+    """User creation schema for admins"""
+    email: EmailStr
+    full_name: str
+    department: Optional[str] = None
+    role: Literal["ADMIN", "MANAGER", "USER"] = "USER"
+    password: Optional[str] = None  # For local admin account creation
+
+
+class UserUpdateModel(BaseModel):
+    """User update schema for admins"""
+    full_name: Optional[str] = None
+    department: Optional[str] = None
+    role: Optional[Literal["ADMIN", "MANAGER", "USER"]] = None
+
+
+@router.post("/users")
+async def create_user(
+    user_data: UserCreateModel,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new user
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    # Check if email already exists
+    from sqlalchemy import select
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    if result.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="该邮箱已被注册")
+
+    import uuid
+    new_user = User(
+        id=str(uuid.uuid4()),
+        email=user_data.email,
+        full_name=user_data.full_name,
+        department=user_data.department,
+        role=UserRole(user_data.role),
+        is_active=True,
+        is_admin=(user_data.role == "ADMIN")
+    )
+
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+
+    return {
+        "message": "用户创建成功",
+        "user": {
+            "id": new_user.id,
+            "email": new_user.email,
+            "full_name": new_user.full_name,
+            "department": new_user.department,
+            "role": new_user.role.value,
+            "is_active": new_user.is_active
+        }
+    }
+
+
+@router.put("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    user_data: UserUpdateModel,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update user information
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # Prevent self-modification of role
+    if user.id == current_user.id and user_data.role is not None:
+        raise HTTPException(status_code=400, detail="不能修改自己的角色")
+
+    if user_data.full_name is not None:
+        user.full_name = user_data.full_name
+    if user_data.department is not None:
+        user.department = user_data.department
+    if user_data.role is not None:
+        user.role = UserRole(user_data.role)
+        user.is_admin = (user_data.role == "ADMIN")
+
+    await db.commit()
+
+    return {
+        "message": "用户信息已更新",
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "department": user.department,
+            "role": user.role.value,
+            "is_active": user.is_active
+        }
+    }
+
+
+@router.patch("/users/{user_id}/toggle-status")
+async def toggle_user_status(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Toggle user active status (enable/disable)
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # Prevent self-disable
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="不能禁用自己的账号")
+
+    user.is_active = not user.is_active
+
+    await db.commit()
+
+    status_text = "启用" if user.is_active else "禁用"
+    return {
+        "message": f"用户已{status_text}",
+        "is_active": user.is_active
+    }
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a user
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # Prevent self-deletion
+    if user.id == current_user.id:
+        raise HTTPException(status_code=400, detail="不能删除自己的账号")
+
+    await db.delete(user)
+    await db.commit()
+
+    return {"message": "用户已删除"}

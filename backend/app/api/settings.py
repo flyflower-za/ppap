@@ -766,6 +766,26 @@ async def test_model_profile(
     )
 
 
+@router.get("/ai-models/public")
+async def list_public_model_profiles(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """List enabled model profiles for all authenticated users (no sensitive data)."""
+    profiles = await _load_profiles_raw(db)
+    # Return only enabled profiles with safe fields (no API keys)
+    return [
+        {
+            "id": p["id"],
+            "name": p["name"],
+            "model_name": p["model_name"],
+            "model_type": p["model_type"]
+        }
+        for p in profiles
+        if p.get("enabled", True)
+    ]
+
+
 @router.post("/ai-models/{profile_id}/set-default")
 async def set_default_model_profile(
     profile_id: str,

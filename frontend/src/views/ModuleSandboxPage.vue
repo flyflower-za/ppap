@@ -212,11 +212,11 @@ import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesApi } from '@/api/files'
 import { modulesApi } from '@/api/modules'
-import { settingsApi, ModelProfile } from '@/api/settings'
+import { settingsApi, PublicModelProfile } from '@/api/settings'
 
 const historyFiles = ref<any[]>([])
 const availableModules = ref<any[]>([])
-const aiModelProfiles = ref<ModelProfile[]>([])
+const aiModelProfiles = ref<PublicModelProfile[]>([])
 
 const form = reactive({
   fileSourceType: 'existing',
@@ -263,7 +263,8 @@ onMounted(async () => {
   }
 
   try {
-    const profileRes = await settingsApi.listModelProfiles()
+    // Use public endpoint for model profiles (works for non-admin users)
+    const profileRes = await settingsApi.listPublicModelProfiles()
     aiModelProfiles.value = profileRes || []
   } catch (e) {
     console.error('Failed to load AI model profiles:', e)

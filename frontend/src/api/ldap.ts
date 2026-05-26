@@ -79,5 +79,47 @@ export const ldapApi = {
     return client.put<any, { message: string; role: string }>(`/settings/users/${userId}/role`, null, {
       params: { role }
     })
+  },
+
+  /**
+   * Create a new user
+   */
+  createUser(data: CreateUserDto): Promise<{ message: string; user: UserInfo }> {
+    return client.post<any, { message: string; user: UserInfo }>('/settings/users', data)
+  },
+
+  /**
+   * Update user information
+   */
+  updateUser(userId: string, data: UpdateUserDto): Promise<{ message: string; user: UserInfo }> {
+    return client.put<any, { message: string; user: UserInfo }>(`/settings/users/${userId}`, data)
+  },
+
+  /**
+   * Toggle user active status
+   */
+  toggleUserStatus(userId: string): Promise<{ message: string; is_active: boolean }> {
+    return client.patch<any, { message: string; is_active: boolean }>(`/settings/users/${userId}/toggle-status`)
+  },
+
+  /**
+   * Delete a user
+   */
+  deleteUser(userId: string): Promise<{ message: string }> {
+    return client.delete<any, { message: string }>(`/settings/users/${userId}`)
   }
+}
+
+export interface CreateUserDto {
+  email: string
+  full_name: string
+  department?: string
+  role: 'ADMIN' | 'MANAGER' | 'USER'
+  password?: string
+}
+
+export interface UpdateUserDto {
+  full_name?: string
+  department?: string
+  role?: 'ADMIN' | 'MANAGER' | 'USER'
 }

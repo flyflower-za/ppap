@@ -177,7 +177,12 @@ export const settingsApi = {
 
   // ==================== Multi-Model Profiles ====================
 
-  /** List all model profiles */
+  /** List enabled model profiles for all users */
+  listPublicModelProfiles(): Promise<PublicModelProfile[]> {
+    return client.get<any, PublicModelProfile[]>('/settings/ai-models/public')
+  },
+
+  /** List all model profiles (admin only) */
   listModelProfiles(): Promise<ModelProfile[]> {
     return client.get<any, ModelProfile[]>('/settings/ai-models')
   },
@@ -206,6 +211,13 @@ export const settingsApi = {
   setDefaultModelProfile(id: string, forType: 'text' | 'vision'): Promise<{ message: string }> {
     return client.post<any, { message: string }>(`/settings/ai-models/${id}/set-default`, { for_type: forType })
   }
+}
+
+export interface PublicModelProfile {
+  id: string
+  name: string
+  model_name: string
+  model_type: 'text' | 'vision' | 'both'
 }
 
 export interface ModelProfile {

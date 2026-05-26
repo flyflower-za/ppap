@@ -888,18 +888,33 @@
         <!-- User Management Section -->
         <el-card v-if="activeMenu === 'users'" shadow="never" v-loading="loadingUsers">
           <template #header>
-            <span>用户管理</span>
+            <div class="flex-between">
+              <span>用户管理</span>
+              <el-button type="primary" :icon="Plus" size="small" @click="handleCreateUser">新增用户</el-button>
+            </div>
           </template>
 
-          <el-table :data="users" style="width: 100%">
-            <el-table-column prop="email" label="邮箱" width="250" />
-            <el-table-column prop="full_name" label="姓名" width="150" />
-            <el-table-column prop="department" label="部门" />
+          <div class="user-search-bar">
+            <el-input
+              v-model="userSearchQuery"
+              placeholder="搜索邮箱、姓名或部门"
+              :prefix-icon="Search"
+              clearable
+              style="width: 300px"
+              @input="filterUsers"
+            />
+          </div>
+
+          <el-table :data="filteredUsers" style="width: 100%">
+            <el-table-column prop="email" label="邮箱" width="220" />
+            <el-table-column prop="full_name" label="姓名" width="130" />
+            <el-table-column prop="department" label="部门" width="150" />
             <el-table-column label="角色" width="120">
               <template #default="scope">
                 <el-select
                   v-model="scope.row.role"
                   size="small"
+                  :disabled="scope.row.id === authStore.user?.id"
                   @change="handleRoleChange(scope.row)"
                 >
                   <el-option label="管理员" value="ADMIN" />
@@ -910,18 +925,99 @@
             </el-table-column>
             <el-table-column label="状态" width="100">
               <template #default="scope">
-                <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
-                  {{ scope.row.is_active ? '激活' : '禁用' }}
-                </el-tag>
+                <el-switch
+                  v-model="scope.row.is_active"
+                  :disabled="scope.row.id === authStore.user?.id"
+                  @change="handleToggleUserStatus(scope.row)"
+                />
               </template>
             </el-table-column>
-            <el-table-column label="最后登录" width="180">
+            <el-table-column label="最后登录" width="150">
               <template #default="scope">
                 {{ scope.row.last_login_at ? new Date(scope.row.last_login_at).toLocaleString() : '-' }}
               </template>
             </el-table-column>
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="scope">
+                <el-button
+                  link
+                  type="primary"
+                  :icon="Edit"
+                  size="small"
+                  @click="handleEditUser(scope.row)"
+                >
+                  编辑
+                </el-button>
+                <el-popconfirm
+                  v-if="scope.row.id !== authStore.user?.id"
+                  title="确定要删除此用户吗？"
+                  @confirm="handleDeleteUser(scope.row)"
+                >
+                  <template #reference>
+                    <el-button link type="danger" :icon="Delete" size="small">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
           </el-table>
         </el-card>
+
+        <!-- User Edit/Create Dialog -->
+        <el-dialog
+          v-model="userDialogVisible"
+          :title="editingUser?.id ? '编辑用户' : '新增用户'"
+          width="500px"
+          :close-on-click-modal="false"
+        >
+          <el-form
+            ref="userFormRef"
+            :model="userForm"
+            :rules="userRules"
+            label-width="80px"
+          >
+            <el-form-item label="邮箱" prop="email">
+              <el-input
+                v-model="userForm.email"
+                placeholder="请输入邮箱"
+                :disabled="!!editingUser?.id"
+                clearable
+              />
+            </el-form-item>
+            <el-form-item label="姓名" prop="full_name">
+              <el-input
+                v-model="userForm.full_name"
+                placeholder="请输入姓名"
+                clearable
+              />
+            </el-form-item>
+            <el-form-item label="部门" prop="department">
+              <el-input
+                v-model="userForm.department"
+                placeholder="请输入部门"
+                clearable
+              />
+            </el-form-item>
+            <el-form-item label="角色" prop="role">
+              <el-select v-model="userForm.role" placeholder="请选择角色">
+                <el-option label="管理员" value="ADMIN" />
+                <el-option label="经理" value="MANAGER" />
+                <el-option label="普通用户" value="USER" />
+              </el-select>
+            </el-form-item>
+          </el-form>
+
+          <template #footer>
+            <el-button @click="userDialogVisible = false">取消</el-button>
+            <el-button
+              type="primary"
+              :icon="Check"
+              :loading="savingUser"
+              @click="handleSaveUser"
+            >
+              保存
+            </el-button>
+          </template>
+        </el-dialog>
       </el-col>
     </el-row>
   </div>
@@ -931,7 +1027,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete, Cpu, Connection } from '@element-plus/icons-vue'
+import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete, Cpu, Connection, Search } from '@element-plus/icons-vue'
 import type { EmailTemplate, FileRetentionSettings, AiModelConfig, ModelProfile } from '@/api/settings'
 import type { LDAPConfig, UserInfo } from '@/api/ldap'
 
@@ -1132,7 +1228,33 @@ const ldapConfig = reactive<LDAPConfig>({
 
 // User Management
 const users = ref<UserInfo[]>([])
+const filteredUsers = ref<UserInfo[]>([])
 const loadingUsers = ref(false)
+const userSearchQuery = ref('')
+const userDialogVisible = ref(false)
+const savingUser = ref(false)
+const userFormRef = ref<FormInstance>()
+const editingUser = ref<UserInfo | null>(null)
+
+const userForm = reactive({
+  email: '',
+  full_name: '',
+  department: '',
+  role: 'USER' as 'ADMIN' | 'MANAGER' | 'USER'
+})
+
+const userRules: FormRules = {
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+  ],
+  full_name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' }
+  ],
+  role: [
+    { required: true, message: '请选择角色', trigger: 'change' }
+  ]
+}
 
 const templateForm = reactive({
   id: '',
@@ -1455,12 +1577,26 @@ async function loadUsers() {
   try {
     const { ldapApi } = await import('@/api/ldap')
     users.value = await ldapApi.getAllUsers()
+    filterUsers()
   } catch (error) {
     console.error('Failed to load users:', error)
     ElMessage.error('加载用户列表失败')
   } finally {
     loadingUsers.value = false
   }
+}
+
+function filterUsers() {
+  const query = userSearchQuery.value.toLowerCase().trim()
+  if (!query) {
+    filteredUsers.value = users.value
+    return
+  }
+  filteredUsers.value = users.value.filter(user =>
+    user.email.toLowerCase().includes(query) ||
+    user.full_name.toLowerCase().includes(query) ||
+    (user.department && user.department.toLowerCase().includes(query))
+  )
 }
 
 async function handleRoleChange(user: UserInfo) {
@@ -1472,6 +1608,92 @@ async function handleRoleChange(user: UserInfo) {
     ElMessage.error(error.message || '更新角色失败')
     // Revert the change
     await loadUsers()
+  }
+}
+
+async function handleToggleUserStatus(user: UserInfo) {
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.toggleUserStatus(user.id)
+    const status = user.is_active ? '启用' : '禁用'
+    ElMessage.success(`用户 ${user.full_name} 已${status}`)
+  } catch (error: any) {
+    ElMessage.error(error.message || '操作失败')
+    // Revert the change
+    await loadUsers()
+  }
+}
+
+function handleCreateUser() {
+  editingUser.value = null
+  Object.assign(userForm, {
+    email: '',
+    full_name: '',
+    department: '',
+    role: 'USER'
+  })
+  userDialogVisible.value = true
+}
+
+function handleEditUser(user: UserInfo) {
+  editingUser.value = user
+  Object.assign(userForm, {
+    email: user.email,
+    full_name: user.full_name,
+    department: user.department || '',
+    role: user.role as 'ADMIN' | 'MANAGER' | 'USER'
+  })
+  userDialogVisible.value = true
+}
+
+async function handleSaveUser() {
+  if (!userFormRef.value) return
+
+  await userFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    savingUser.value = true
+
+    try {
+      const { ldapApi } = await import('@/api/ldap')
+
+      if (editingUser.value?.id) {
+        // Update existing user
+        await ldapApi.updateUser(editingUser.value.id, {
+          full_name: userForm.full_name,
+          department: userForm.department || undefined,
+          role: userForm.role
+        })
+        ElMessage.success('用户信息已更新')
+      } else {
+        // Create new user
+        await ldapApi.createUser({
+          email: userForm.email,
+          full_name: userForm.full_name,
+          department: userForm.department || undefined,
+          role: userForm.role
+        })
+        ElMessage.success('用户创建成功')
+      }
+
+      userDialogVisible.value = false
+      await loadUsers()
+    } catch (error: any) {
+      ElMessage.error(error.message || '保存失败')
+    } finally {
+      savingUser.value = false
+    }
+  })
+}
+
+async function handleDeleteUser(user: UserInfo) {
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.deleteUser(user.id)
+    ElMessage.success('用户已删除')
+    await loadUsers()
+  } catch (error: any) {
+    ElMessage.error(error.message || '删除失败')
   }
 }
 
@@ -1728,6 +1950,10 @@ onMounted(() => {
 }
 
 .mb-4 {
+  margin-bottom: 16px;
+}
+
+.user-search-bar {
   margin-bottom: 16px;
 }
 </style>
