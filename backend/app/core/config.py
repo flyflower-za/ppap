@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     API_PREFIX: str = "/api/v1"
+    APP_BASE_URL: str = "http://localhost"  # 应用对外访问的根 URL，生产环境改为实际域名/IP
 
     # Server
     HOST: str = "0.0.0.0"
@@ -29,6 +30,8 @@ class Settings(BaseSettings):
     SSO_ENABLED: bool = False
     SSO_PROVIDER: Optional[str] = None
     LDAP_URL: Optional[str] = None
+    OIDC_REDIRECT_URI: str = ""  # 为空时自动拼接为 APP_BASE_URL + /auth/callback
+    OIDC_ISSUER_BASE_URL: str = ""  # 手动配置的 OIDC Issuer 地址，例如 http://keycloak:34321/realms/my-sso
 
     # File Storage
     MINIO_ENDPOINT: str = "localhost:9000"
@@ -61,7 +64,7 @@ class Settings(BaseSettings):
     FILE_RETENTION_DAYS: int = 30
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://47.114.107.127", "http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost", "http://localhost:5173", "http://localhost:3000"]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

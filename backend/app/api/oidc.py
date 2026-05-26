@@ -19,9 +19,19 @@ from app.models.user import User, UserRole
 from app.schemas.user import Token, UserResponse
 from app.api.deps import get_current_user
 from app.core.audit_logger import log_audit_event
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/oidc", tags=["OpenID Connect SSO"])
+
+
+def get_redirect_uri() -> str:
+    """Get effective OIDC redirect URI.
+    Falls back to APP_BASE_URL + /auth/callback when OIDC_REDIRECT_URI is not set."""
+    if settings.OIDC_REDIRECT_URI:
+        return settings.OIDC_REDIRECT_URI
+    base = settings.APP_BASE_URL.rstrip("/")
+    return f"{base}/auth/callback"
 
 
 class OIDCConfig(BaseModel):
@@ -31,7 +41,11 @@ class OIDCConfig(BaseModel):
     discovery_url: str = ""  # Must be provided: https://provider.com/.well-known/openid-configuration
     client_id: str = ""
     client_secret: str = ""
-    redirect_uri: str = "http://47.114.107.127/auth/callback"
+    redirect_uri: str = ""  # 留空则自动使用 get_redirect_uri()
+
+    @property
+    def effective_redirect_uri(self) -> str:
+        return self.redirect_uri or get_redirect_uri()
 
     # Scope configuration (default: openid email profile)
     scope: str = "openid email profile"
@@ -83,7 +97,7 @@ async def get_oidc_config(db: AsyncSession) -> dict:
             "discovery_url": result.sso_idp_sso_url or "",
             "client_id": result.sso_entity_id or "",
             "client_secret": result.sso_sp_key or "",
-            "redirect_uri": result.sso_acs_url or "http://47.114.107.127/auth/callback",
+            "redirect_uri": result.sso_acs_url or get_redirect_uri(),
             "scope": "openid email profile",
             "admin_roles": [],
             "manager_roles": [],
@@ -100,7 +114,7 @@ async def get_oidc_config(db: AsyncSession) -> dict:
         "discovery_url": "",
         "client_id": "",
         "client_secret": "",
-        "redirect_uri": "http://47.114.107.127/auth/callback",
+        "redirect_uri": get_redirect_uri(),
         "scope": "openid email profile",
         "admin_roles": [],
         "manager_roles": [],
