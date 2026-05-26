@@ -6,6 +6,9 @@ import uuid
 import enum
 from app.core.database import Base
 
+# Import UserGroup at the end to avoid circular import
+# Will be imported after UserGroup definition
+
 
 class UserRole(str, enum.Enum):
     """User role enumeration"""
@@ -52,3 +55,4 @@ class User(Base):
     # Relationships
     files = relationship("File", back_populates="uploaded_by_user", cascade="all, delete-orphan")
     notes = relationship("Note", back_populates="author", cascade="all, delete-orphan")
+    groups = relationship("UserGroup", secondary="user_group_members", back_populates="members")

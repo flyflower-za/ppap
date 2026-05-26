@@ -8,6 +8,7 @@ from app.models.setting import Setting
 from app.models.email_template import EmailTemplate
 from app.models.ldap_config import LDAPConfig
 from app.models.rule import DocumentCategory, VerificationRule
+from app.models.user_group import UserGroup, user_group_association
 
 __all__ = [
     "User",
@@ -25,4 +26,6 @@ __all__ = [
     "LDAPConfig",
     "DocumentCategory",
     "VerificationRule",
+    "UserGroup",
+    "user_group_association",
 ]

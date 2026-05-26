@@ -41,6 +41,22 @@ export interface UserInfo {
   is_active: boolean
   created_at: string | null
   last_login_at: string | null
+  groups?: UserGroupBasic[]
+}
+
+export interface UserGroupBasic {
+  id: string
+  name: string
+  role: string
+}
+
+export interface UserGroup {
+  id: string
+  name: string
+  description: string | null
+  ldap_group_dn: string | null
+  role: 'ADMIN' | 'MANAGER' | 'USER'
+  member_count?: number
 }
 
 export const ldapApi = {
@@ -107,6 +123,43 @@ export const ldapApi = {
    */
   deleteUser(userId: string): Promise<{ message: string }> {
     return client.delete<any, { message: string }>(`/settings/users/${userId}`)
+  },
+
+  // ==================== User Groups ====================
+
+  /**
+   * Get all user groups
+   */
+  getUserGroups(): Promise<UserGroup[]> {
+    return client.get<any, UserGroup[]>('/settings/user-groups')
+  },
+
+  /**
+   * Create a new user group
+   */
+  createUserGroup(data: CreateUserGroupDto): Promise<{ message: string; group: UserGroup }> {
+    return client.post<any, { message: string; group: UserGroup }>('/settings/user-groups', data)
+  },
+
+  /**
+   * Update a user group
+   */
+  updateUserGroup(groupId: string, data: UpdateUserGroupDto): Promise<{ message: string; group: UserGroup }> {
+    return client.put<any, { message: string; group: UserGroup }>(`/settings/user-groups/${groupId}`, data)
+  },
+
+  /**
+   * Delete a user group
+   */
+  deleteUserGroup(groupId: string): Promise<{ message: string }> {
+    return client.delete<any, { message: string }>(`/settings/user-groups/${groupId}`)
+  },
+
+  /**
+   * Set user groups
+   */
+  setUserGroups(userId: string, groupIds: string[]): Promise<{ message: string }> {
+    return client.put<any, { message: string }>(`/settings/users/${userId}/groups`, { group_ids: groupIds })
   }
 }
 
@@ -121,5 +174,19 @@ export interface CreateUserDto {
 export interface UpdateUserDto {
   full_name?: string
   department?: string
+  role?: 'ADMIN' | 'MANAGER' | 'USER'
+}
+
+export interface CreateUserGroupDto {
+  name: string
+  description?: string
+  ldap_group_dn?: string
+  role: 'ADMIN' | 'MANAGER' | 'USER'
+}
+
+export interface UpdateUserGroupDto {
+  name?: string
+  description?: string
+  ldap_group_dn?: string
   role?: 'ADMIN' | 'MANAGER' | 'USER'
 }

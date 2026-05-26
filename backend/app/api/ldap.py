@@ -3,6 +3,7 @@ LDAP/SSO Configuration API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, Literal
 import os
@@ -12,6 +13,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.user import User, UserRole
 from app.models.ldap_config import LDAPConfig
+from app.models.user_group import UserGroup, user_group_association
 
 router = APIRouter()
 
@@ -467,3 +469,270 @@ async def delete_user(
     await db.commit()
 
     return {"message": "用户已删除"}
+
+
+# ==================== User Groups Management ====================
+
+class UserGroupCreateModel(BaseModel):
+    """User group creation schema"""
+    name: str
+    description: Optional[str] = None
+    ldap_group_dn: Optional[str] = None
+    role: Literal["ADMIN", "MANAGER", "USER"] = "USER"
+
+
+class UserGroupUpdateModel(BaseModel):
+    """User group update schema"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    ldap_group_dn: Optional[str] = None
+    role: Optional[Literal["ADMIN", "MANAGER", "USER"]] = None
+
+
+class UserGroupsSetModel(BaseModel):
+    """Set user groups schema"""
+    group_ids: list[str]
+
+
+@router.get("/user-groups")
+async def get_user_groups(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all user groups
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    result = await db.execute(
+        select(
+            UserGroup.id,
+            UserGroup.name,
+            UserGroup.description,
+            UserGroup.ldap_group_dn,
+            UserGroup.role,
+            func.count(user_group_association.c.user_id).label("member_count")
+        )
+        .outerjoin(user_group_association, UserGroup.id == user_group_association.c.group_id)
+        .group_by(UserGroup.id)
+    )
+
+    groups = []
+    for row in result:
+        groups.append({
+            "id": row.id,
+            "name": row.name,
+            "description": row.description,
+            "ldap_group_dn": row.ldap_group_dn,
+            "role": row.role,
+            "member_count": row.member_count or 0
+        })
+
+    return groups
+
+
+@router.post("/user-groups")
+async def create_user_group(
+    group_data: UserGroupCreateModel,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new user group
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    # Check if group name already exists
+    existing = await db.execute(select(UserGroup).where(UserGroup.name == group_data.name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="组名称已存在")
+
+    import uuid
+    new_group = UserGroup(
+        id=str(uuid.uuid4()),
+        name=group_data.name,
+        description=group_data.description,
+        ldap_group_dn=group_data.ldap_group_dn,
+        role=group_data.role
+    )
+
+    db.add(new_group)
+    await db.commit()
+    await db.refresh(new_group)
+
+    return {
+        "message": "权限组创建成功",
+        "group": {
+            "id": new_group.id,
+            "name": new_group.name,
+            "description": new_group.description,
+            "ldap_group_dn": new_group.ldap_group_dn,
+            "role": new_group.role
+        }
+    }
+
+
+@router.put("/user-groups/{group_id}")
+async def update_user_group(
+    group_id: str,
+    group_data: UserGroupUpdateModel,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a user group
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    group = await db.get(UserGroup, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="权限组不存在")
+
+    # Check name uniqueness if changing
+    if group_data.name and group_data.name != group.name:
+        existing = await db.execute(select(UserGroup).where(UserGroup.name == group_data.name))
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="组名称已存在")
+
+    if group_data.name is not None:
+        group.name = group_data.name
+    if group_data.description is not None:
+        group.description = group_data.description
+    if group_data.ldap_group_dn is not None:
+        group.ldap_group_dn = group_data.ldap_group_dn
+    if group_data.role is not None:
+        group.role = group_data.role
+
+    await db.commit()
+
+    return {
+        "message": "权限组已更新",
+        "group": {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "ldap_group_dn": group.ldap_group_dn,
+            "role": group.role
+        }
+    }
+
+
+@router.delete("/user-groups/{group_id}")
+async def delete_user_group(
+    group_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a user group
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    group = await db.get(UserGroup, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="权限组不存在")
+
+    await db.delete(group)
+    await db.commit()
+
+    return {"message": "权限组已删除"}
+
+
+@router.put("/users/{user_id}/groups")
+async def set_user_groups(
+    user_id: str,
+    data: UserGroupsSetModel,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Set user groups (replace all groups)
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    # Get all groups
+    result = await db.execute(select(UserGroup).where(UserGroup.id.in_(data.group_ids)))
+    groups = result.scalars().all()
+
+    # Validate all group IDs exist
+    if len(groups) != len(data.group_ids):
+        raise HTTPException(status_code=400, detail="部分权限组不存在")
+
+    # Clear existing groups
+    await db.execute(
+        user_group_association.delete().where(user_group_association.c.user_id == user_id)
+    )
+
+    # Add new groups
+    for group in groups:
+        await db.execute(
+            user_group_association.insert().values(user_id=user_id, group_id=group.id)
+        )
+
+    await db.commit()
+
+    return {"message": "用户权限组已更新"}
+
+
+# Update get_all_users to include groups
+@router.get("/users")
+async def get_all_users(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all users with their roles and groups
+
+    Only admin users can access this endpoint.
+    """
+    check_admin_permission(current_user)
+
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(User)
+        .outerjoin(user_group_association, User.id == user_group_association.c.user_id)
+        .outerjoin(UserGroup, user_group_association.c.group_id == UserGroup.id)
+    )
+    users = result.unique().scalars().all()
+
+    # Build response with groups
+    users_data = {}
+    for user in users:
+        users_data[user.id] = {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "department": user.department,
+            "role": user.role.value if user.role else "USER",
+            "is_active": user.is_active,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+            "groups": []
+        }
+
+    # Add groups to each user
+    for user in users:
+        if hasattr(user, 'groups') and user.groups:
+            for group in user.groups:
+                users_data[user.id]["groups"].append({
+                    "id": group.id,
+                    "name": group.name,
+                    "role": group.role
+                })
+
+    return list(users_data.values())
