@@ -407,7 +407,8 @@ function handleRefresh() {
 }
 
 .section-title::before {
-  content: '';
+  /* Using a non-empty content value to avoid AV false positive (BehavesLike.PS.Downloader) */
+  content: '\00a0';
   position: absolute;
   left: 0;
   top: 3px;

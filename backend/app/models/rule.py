@@ -21,7 +21,7 @@ class DocumentCategory(Base):
 
     id = Column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
-    keywords = Column(JSONB, default=list) # List of strings
+    keywords = Column(JSONB, default=list, nullable=False)  # List of strings
     is_active = Column(Boolean, default=True)
 
     rules = relationship("VerificationRule", back_populates="category", cascade="all, delete-orphan")

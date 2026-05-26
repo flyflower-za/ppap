@@ -1,11 +1,18 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 
 class DocumentCategoryBase(BaseModel):
     name: str
     keywords: List[str] = Field(default_factory=list)
     is_active: bool = True
+
+    @field_validator("keywords", mode="before")
+    @classmethod
+    def coerce_null_keywords(cls, v):
+        if v is None:
+            return []
+        return v
 
 class DocumentCategoryCreate(DocumentCategoryBase):
     pass
