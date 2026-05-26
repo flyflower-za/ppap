@@ -2,6 +2,7 @@ from typing import Dict, Any, List, Optional
 from app.models.file import File, FileType
 from app.schemas.file import VerificationResult
 import json
+import logging
 
 
 class AliyunVerificationService:
@@ -138,19 +139,100 @@ class AliyunVerificationService:
         Call Aliyun Qwen LLM asynchronously.
         If credentials are not set, falls back to a smart mock response.
         """
+        from app.core.config import settings
+
+        # If real Aliyun credentials are configured, use them
+        if settings.ALIYUN_ACCESS_KEY_ID and settings.ALIYUN_ACCESS_KEY_SECRET and settings.ALIYUN_AGENT_ENDPOINT:
+            try:
+                # TODO: Implement real Aliyun API call
+                # For now, still fall through to improved mock
+                pass
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"Aliyun API call failed: {e}, falling back to mock")
+
+        # Improved fallback algorithm with institution detection patterns
         doc_content = prompt
         if "文档内容" in prompt:
             parts = prompt.rsplit("文档内容", 1)
             if len(parts) > 1:
                 doc_content = parts[1]
 
+        # Comprehensive institution detection patterns
+        institution_patterns = {
+            "CTI": ["华测", "华测检测", "CTI", "centre testing international"],
+            "SGS": ["SGS", "sgs", "通标标准", "通标"],
+            "TUV": ["TUV", "tuv", "莱茵", "TÜV"],
+            "INTERTEK": ["INTERTEK", "Intertek", "天祥"],
+            "BV": ["BV", "bureau veritas", "必维", "必维国际检验"],
+            "UL": ["UL", "underwriters laboratories", "保险商实验室"],
+            "CSA": ["CSA", "加拿大标准协会"],
+            "PONY": ["PONY", "谱尼测试", "谱尼"],
+            "CTI": ["中检", "中国检验认证", "CCIC"],  # Adding CCIC patterns
+        }
+
         doc_content_lower = doc_content.lower()
-        if "华测" in doc_content_lower or "cti" in doc_content_lower:
-            return json.dumps({"institution": "CTI", "confidence": 0.98})
-        elif "sgs" in doc_content_lower:
-            return json.dumps({"institution": "SGS", "confidence": 0.95})
-        else:
-            return json.dumps({"institution": "UNKNOWN", "confidence": 0.5})
+
+        # Score-based detection with confidence calculation
+        best_match = {"institution": "UNKNOWN", "confidence": 0.0, "matches": 0}
+
+        for institution, patterns in institution_patterns.items():
+            match_count = 0
+            for pattern in patterns:
+                if pattern.lower() in doc_content_lower:
+                    match_count += 1
+
+            if match_count > 0:
+                # Calculate confidence based on number of matches and content richness
+                base_confidence = 0.6 + (match_count * 0.15)  # Base 0.6, +0.15 per match
+
+                # Boost confidence if document has substantial content
+                if len(doc_content) > 500:
+                    base_confidence += 0.1
+
+                # Cap at 0.95 (leave room for LLM to be more confident)
+                confidence = min(base_confidence, 0.95)
+
+                if match_count > best_match["matches"] or \
+                   (match_count == best_match["matches"] and confidence > best_match["confidence"]):
+                    best_match = {
+                        "institution": institution,
+                        "confidence": confidence,
+                        "matches": match_count
+                    }
+
+        # If no clear pattern found, try to extract from header/footer
+        if best_match["institution"] == "UNKNOWN":
+            # Look for company indicators
+            company_indicators = ["公司", "有限公司", "厂", "企业", "集团"]
+            for indicator in company_indicators:
+                if indicator in doc_content:
+                    # Try to extract company name from context
+                    lines = doc_content.split('\n')
+                    for i, line in enumerate(lines):
+                        if indicator in line:
+                            # Extract surrounding context as company name
+                            start = max(0, i-1)
+                            end = min(len(lines), i+2)
+                            company_context = ''.join(lines[start:end])
+                            # Clean up and use as institution
+                            company_name = company_context.strip()[:20]  # Limit length
+                            best_match = {
+                                "institution": f"检测机构({company_name})",
+                                "confidence": 0.4,  # Lower confidence for extracted names
+                                "matches": 1
+                            }
+                            break
+                    if best_match["institution"] != "UNKNOWN":
+                        break
+
+        # If still unknown, return with low confidence
+        if best_match["institution"] == "UNKNOWN":
+            best_match["confidence"] = 0.3
+
+        return json.dumps({
+            "institution": best_match["institution"],
+            "confidence": best_match["confidence"]
+        })
 
 
 
