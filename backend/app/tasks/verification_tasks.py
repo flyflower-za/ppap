@@ -250,6 +250,38 @@ def queue_verification_task(self, file_id: str):
             )
             db.add(notification)
 
+            # ─── 运行日志审计闭环 ───
+            try:
+                from app.core.audit_logger import log_audit_event
+                from app.models.user import User
+                
+                # 获取真正的上传文件操作用户
+                uploader_user = await db.get(User, file_record.uploaded_by)
+                
+                # 获取本次执行的所有算子名称
+                operators_run = list(engine_result.get("operator_logs", {}).keys())
+                
+                await log_audit_event(
+                    db=db,
+                    action="RUN_VERIFICATION",
+                    user=uploader_user, # 绑定真正的发起用户
+                    resource_type="DOCUMENT",
+                    resource_id=file_id,
+                    details={
+                        "filename": file_record.original_filename,
+                        "status": final_status.value,
+                        "pass_rate": pass_rate,
+                        "pass_count": pass_count,
+                        "warning_count": warning_count,
+                        "fail_count": fail_count,
+                        "duration_seconds": duration,
+                        "operators_run": operators_run
+                    },
+                    request=None # 后台异步无请求
+                )
+            except Exception as audit_err:
+                logger.warning(f"Failed to write RUN_VERIFICATION audit log: {audit_err}")
+
             await db.commit()
             await publish_progress(100, final_status.value, "PDF 标准合规校验完成，报告已归档。")
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
@@ -258,6 +290,39 @@ def queue_verification_task(self, file_id: str):
     async def _run_all():
         try:
             await _async_verification()
+        except Exception as global_err:
+            logger.error(f"Global verification task crash: {global_err}")
+            # 异常时也尝试查出用户并绑定审计
+            try:
+                async with async_session_maker() as db:
+                    from app.core.audit_logger import log_audit_event
+                    from app.models.file import File
+                    from app.models.user import User
+                    
+                    file_record = await db.get(File, file_id)
+                    uploader_user = None
+                    filename = "Unknown"
+                    if file_record:
+                        filename = file_record.original_filename
+                        uploader_user = await db.get(User, file_record.uploaded_by)
+                        
+                    await log_audit_event(
+                        db=db,
+                        action="RUN_VERIFICATION",
+                        user=uploader_user,
+                        resource_type="DOCUMENT",
+                        resource_id=file_id,
+                        details={
+                            "filename": filename,
+                            "status": "error",
+                            "error_msg": str(global_err)
+                        },
+                        request=None
+                    )
+                    await db.commit()
+            except Exception as inner_err:
+                logger.warning(f"Failed to log crashed RUN_VERIFICATION: {inner_err}")
+            raise global_err
         finally:
             from app.core.database import engine
             try:

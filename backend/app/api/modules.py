@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from typing import List, Dict, Any, Optional
 import os
 import shutil
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.engine.core import VerificationEngine
 from app.engine.base import DocumentContext
 from app.services.file_service import FileService
+from app.core.audit_logger import log_audit_event
 
 router = APIRouter()
 engine = VerificationEngine()
@@ -98,6 +99,7 @@ async def list_modules(current_user: User = Depends(get_current_user)):
 
 @router.post("/test")
 async def test_module(
+    request: Request,
     operator_name: str = Form(...),
     params: str = Form("{}"),
     file_id: Optional[str] = Form(None),
@@ -116,11 +118,15 @@ async def test_module(
         raise HTTPException(status_code=404, detail=f"Operator {operator_name} not found")
 
     temp_file_path = None
+    filename = "UploadedFile"
+    if file_id:
+        filename = f"DBFile:{file_id}"
+    elif file:
+        filename = file.filename
     
     try:
         # Determine the file path
         if operator_name == "URLFetchOperator":
-            # For URLFetchOperator, we don't need a file upfront
             temp_file_path = ""
         elif file_id:
             from app.services.file_service import FileService
@@ -128,11 +134,11 @@ async def test_module(
             db_file = await file_service.get_file(file_id)
             if not db_file:
                 raise HTTPException(status_code=404, detail="File not found in database")
+            filename = db_file.original_filename
             
             from app.core.minio_client import minio_client
             pdf_bytes = minio_client.download_file(db_file.file_path)
             
-            # Download file from MinIO to temp location
             import tempfile
             _, temp_ext = os.path.splitext(db_file.original_filename)
             fd, temp_file_path = tempfile.mkstemp(suffix=temp_ext)
@@ -156,7 +162,6 @@ async def test_module(
             with open(temp_file_path, "rb") as f:
                 context.shared_state["pdf_bytes"] = f.read()
         
-        # If the operator needs PDFInfo (most do, for page parsing), we run PDFInfoExtractor first, unless we are testing it
         if operator_name != "PDFInfoExtractor":
             pdf_op = engine._available_operators.get("PDFInfoExtractor")
             if pdf_op:
@@ -165,17 +170,49 @@ async def test_module(
         # Run the specific operator
         result = await operator.execute(context, **parsed_params)
         
+        await log_audit_event(
+            db=db,
+            action="SANDBOX_TEST_MODULE",
+            user=current_user,
+            resource_type="VERIFICATION",
+            resource_id=file_id or "UPLOADED_TEMP",
+            details={
+                "operator_name": operator_name,
+                "filename": filename,
+                "pass_status": result.pass_status,
+                "message": result.message,
+                "status": "success"
+            },
+            request=request
+        )
+
         return {
             "status": "success",
             "operator": operator_name,
             "pass_status": result.pass_status,
             "message": result.message,
             "extracted_data": result.extracted_data,
-            "shared_state": {k: v for k, v in context.shared_state.items() if k not in ["full_text", "pdf_bytes"]} # Exclude large text and binary data for clarity
+            "shared_state": {k: v for k, v in context.shared_state.items() if k not in ["full_text", "pdf_bytes"]}
         }
         
     except Exception as e:
         import traceback
+        
+        await log_audit_event(
+            db=db,
+            action="SANDBOX_TEST_MODULE",
+            user=current_user,
+            resource_type="VERIFICATION",
+            resource_id=file_id or "UPLOADED_TEMP",
+            details={
+                "operator_name": operator_name,
+                "filename": filename,
+                "status": "error",
+                "error_msg": str(e)
+            },
+            request=request
+        )
+
         return {
             "status": "error",
             "operator": operator_name,

@@ -16,11 +16,16 @@
         <el-form-item label="操作类型">
           <el-select v-model="filters.action" placeholder="全部类型" clearable class="w-200">
             <el-option label="系统登录 (LOGIN)" value="LOGIN" />
+            <el-option label="自动查验运行 (RUN_VERIFICATION)" value="RUN_VERIFICATION" />
+            <el-option label="沙盒查验测试 (SANDBOX_TEST_MODULE)" value="SANDBOX_TEST_MODULE" />
+            <el-option label="上传文件 (UPLOAD_DOCUMENT)" value="UPLOAD_DOCUMENT" />
+            <el-option label="查看报告 (VIEW_VERIFICATION)" value="VIEW_VERIFICATION_REPORT" />
+            <el-option label="下载文件 (DOWNLOAD_DOCUMENT)" value="DOWNLOAD_DOCUMENT" />
+            <el-option label="人工审核 (RESOLVE_REVIEW)" value="RESOLVE_REVIEW" />
+            <el-option label="删除文件 (DELETE_DOCUMENT)" value="DELETE_DOCUMENT" />
             <el-option label="新增规则 (CREATE_RULE)" value="CREATE_RULE" />
             <el-option label="修改规则 (UPDATE_RULE)" value="UPDATE_RULE" />
             <el-option label="删除规则 (DELETE_RULE)" value="DELETE_RULE" />
-            <el-option label="上传文件 (UPLOAD_DOCUMENT)" value="UPLOAD_DOCUMENT" />
-            <el-option label="人工审核 (RESOLVE_REVIEW)" value="RESOLVE_REVIEW" />
           </el-select>
         </el-form-item>
         <el-form-item label="资源类别">
@@ -28,6 +33,7 @@
             <el-option label="用户系统 (SYSTEM)" value="SYSTEM" />
             <el-option label="校验规则 (RULE)" value="RULE" />
             <el-option label="业务文档 (DOCUMENT)" value="DOCUMENT" />
+            <el-option label="查验测试 (VERIFICATION)" value="VERIFICATION" />
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
@@ -54,12 +60,12 @@
         height="calc(100vh - 280px)"
         class="modern-table"
       >
-        <el-table-column prop="created_at" label="时间" width="180">
+        <el-table-column prop="created_at" label="时间" width="160">
           <template #default="{ row }">
             <span class="mono-text">{{ formatTime(row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="user_email" label="操作人" min-width="150">
+        <el-table-column prop="user_email" label="操作人" min-width="180">
           <template #default="{ row }">
             <div class="user-cell">
               <el-avatar :size="24" :src="`https://api.dicebear.com/7.x/identicon/svg?seed=${row.user_email || 'anonymous'}`" />
@@ -67,24 +73,24 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="action" label="动作" width="160">
+        <el-table-column prop="action" label="动作" min-width="150">
           <template #default="{ row }">
             <el-tag :type="getActionTagType(row.action)" effect="light" class="mono-tag">
               {{ row.action }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="resource_type" label="资源类型" width="120">
+        <el-table-column prop="resource_type" label="资源类型" width="110">
           <template #default="{ row }">
             <span class="resource-text">{{ row.resource_type || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="resource_id" label="资源 ID" width="220" show-overflow-tooltip>
+        <el-table-column prop="resource_id" label="资源 ID" min-width="320" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="mono-text sm-text text-gray">{{ row.resource_id || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="ip_address" label="IP 地址" width="140">
+        <el-table-column prop="ip_address" label="IP 地址" min-width="140">
           <template #default="{ row }">
             <span class="mono-text sm-text">{{ row.ip_address || '内部/未知' }}</span>
           </template>

@@ -112,6 +112,7 @@ async def list_files(
 
 @router.get("/{file_id}", response_model=FileDetailResponse)
 async def get_file_detail(
+    request: Request,
     file_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -126,11 +127,22 @@ async def get_file_detail(
             detail="File not found",
         )
 
+    await log_audit_event(
+        db=db,
+        action="VIEW_VERIFICATION_REPORT",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=file_id,
+        details={"filename": file.filename, "status": file.status.value},
+        request=request
+    )
+
     return file
 
 
 @router.get("/{file_id}/download")
 async def download_file(
+    request: Request,
     file_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -145,17 +157,37 @@ async def download_file(
             detail="File not found",
         )
 
+    # 获取文件基本信息用于日志详情
+    db_file = await file_service.get_file(file_id)
+    filename = db_file.filename if db_file else "Unknown"
+
+    await log_audit_event(
+        db=db,
+        action="DOWNLOAD_DOCUMENT",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=file_id,
+        details={"filename": filename},
+        request=request
+    )
+
     return {"download_url": url}
 
 
 @router.delete("/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_file(
+    request: Request,
     file_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a file (soft delete)."""
     file_service = FileService(db)
+    
+    # 提前获取文件名用于审计日志
+    db_file = await file_service.get_file(file_id)
+    filename = db_file.filename if db_file else "Unknown"
+    
     success = await file_service.delete_file(file_id)
 
     if not success:
@@ -164,16 +196,37 @@ async def delete_file(
             detail="File not found",
         )
 
+    await log_audit_event(
+        db=db,
+        action="DELETE_DOCUMENT",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=file_id,
+        details={"filename": filename},
+        request=request
+    )
+
 
 @router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
 async def batch_delete_files(
-    request: BatchDeleteRequest,
+    request: Request,
+    batch_req: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Batch delete files."""
     file_service = FileService(db)
-    await file_service.batch_delete(request.file_ids)
+    await file_service.batch_delete(batch_req.file_ids)
+
+    await log_audit_event(
+        db=db,
+        action="BATCH_DELETE_DOCUMENTS",
+        user=current_user,
+        resource_type="DOCUMENT",
+        resource_id=None,
+        details={"file_ids": batch_req.file_ids, "count": len(batch_req.file_ids)},
+        request=request
+    )
 
 
 @router.post("/{file_id}/reverify", response_model=FileResponse)
