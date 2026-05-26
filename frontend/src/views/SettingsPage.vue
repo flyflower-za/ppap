@@ -655,42 +655,72 @@
               <span class="form-tip">该组成员将被分配普通用户权限</span>
             </el-form-item>
 
-            <el-divider content-position="left">SSO 配置（SAML）</el-divider>
+            <el-divider content-position="left">SSO 配置（OIDC/SAML）</el-divider>
 
             <el-form-item label="启用 SSO" prop="sso_enabled">
               <el-switch v-model="ldapConfig.sso_enabled" />
+              <span class="form-tip">启用后用户可使用第三方SSO登录</span>
             </el-form-item>
 
             <el-form-item label="SSO 提供商" v-if="ldapConfig.sso_enabled" prop="sso_provider">
               <el-input
                 v-model="ldapConfig.sso_provider"
-                placeholder="例如: AzureAD, Okta"
+                placeholder="例如: keycloak, azure, okta"
                 clearable
               />
+              <span class="form-tip">OIDC提供商名称</span>
             </el-form-item>
 
-            <el-form-item label="实体 ID" v-if="ldapConfig.sso_enabled" prop="sso_entity_id">
-              <el-input
-                v-model="ldapConfig.sso_entity_id"
-                placeholder="例如: https://ppap.example.com"
-                clearable
-              />
-            </el-form-item>
-
-            <el-form-item label="ACS URL" v-if="ldapConfig.sso_enabled" prop="sso_acs_url">
-              <el-input
-                v-model="ldapConfig.sso_acs_url"
-                placeholder="断言消费服务 URL"
-                clearable
-              />
-            </el-form-item>
-
-            <el-form-item label="IdP SSO URL" v-if="ldapConfig.sso_enabled" prop="sso_idp_sso_url">
+            <el-form-item label="发现端点URL" v-if="ldapConfig.sso_enabled" prop="sso_idp_sso_url">
               <el-input
                 v-model="ldapConfig.sso_idp_sso_url"
-                placeholder="身份提供者登录 URL"
+                placeholder="OIDC发现端点: /.well-known/openid-configuration"
                 clearable
               />
+              <span class="form-tip">OpenID Connect发现文档URL</span>
+            </el-form-item>
+
+            <el-form-item label="客户端ID" v-if="ldapConfig.sso_enabled" prop="sso_entity_id">
+              <el-input
+                v-model="ldapConfig.sso_entity_id"
+                placeholder="OIDC客户端ID"
+                clearable
+              />
+              <span class="form-tip">SSO提供商分配的客户端ID</span>
+            </el-form-item>
+
+            <el-form-item label="客户端密钥" v-if="ldapConfig.sso_enabled" prop="sso_sp_key">
+              <el-input
+                v-model="ldapConfig.sso_sp_key"
+                type="password"
+                placeholder="OIDC客户端密钥"
+                clearable
+                show-password
+              />
+              <span class="form-tip">SSO提供商分配的客户端密钥</span>
+            </el-form-item>
+
+            <el-form-item label="回调地址" v-if="ldapConfig.sso_enabled" prop="sso_acs_url">
+              <el-input
+                v-model="ldapConfig.sso_acs_url"
+                placeholder="前端回调地址"
+                clearable
+              />
+              <span class="form-tip">SSO认证成功后的回调地址</span>
+            </el-form-item>
+
+            <el-form-item label="自动创建用户" v-if="ldapConfig.sso_enabled" prop="auto_create_users">
+              <el-switch v-model="ldapConfig.auto_create_users" />
+              <span class="form-tip">首次SSO登录时自动创建用户</span>
+            </el-form-item>
+
+            <el-form-item label="默认角色" v-if="ldapConfig.sso_enabled" prop="default_role">
+              <el-select v-model="ldapConfig.default_role" placeholder="选择默认角色">
+                <el-option label="普通用户" value="USER" />
+                <el-option label="管理者" value="MANAGER" />
+                <el-option label="管理员" value="ADMIN" />
+              </el-select>
+              <span class="form-tip">新创建SSO用户的默认角色</span>
             </el-form-item>
 
             <el-form-item>

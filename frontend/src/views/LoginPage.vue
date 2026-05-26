@@ -30,6 +30,27 @@
             <p>登录您的账户以继续</p>
           </div>
 
+          <!-- SSO Login Button -->
+          <div v-if="ssoConfig.enabled" class="sso-section">
+            <el-button
+              type="success"
+              :loading="ssoLoading"
+              size="large"
+              class="sso-button"
+              @click="handleSSOLogin"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="sso-icon">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+              </svg>
+              {{ ssoLoading ? 'SSO登录中...' : `${ssoConfig.provider === 'generic' ? 'SSO登录' : ssoConfig.provider.toUpperCase() + ' 登录'} (${ssoConfig.environment === 'test' ? '测试环境' : '正式环境'})` }}
+            </el-button>
+            <div class="divider-section">
+              <div class="divider-line"></div>
+              <span class="divider-text">或使用账号密码登录</span>
+              <div class="divider-line"></div>
+            </div>
+          </div>
+
           <el-form
             ref="formRef"
             :model="form"
@@ -87,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
@@ -100,25 +121,134 @@ const authStore = useAuthStore()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+const ssoLoading = ref(false)
+const rememberMe = ref(false)
 
-const form = reactive({
-  email: 'admin@example.com',
-  password: '',
+// SSO Configuration
+const ssoConfig = ref({
+  enabled: false,
+  environment: 'test',
+  provider: 'generic'  // keycloak, auth0, okta, azure, google, etc.
 })
 
-const rememberMe = ref(true)
+const form = reactive({
+  email: '',
+  password: ''
+})
 
 const rules: FormRules = {
   email: [
-    { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
+    { required: true, message: '请输入账号', trigger: 'blur' },
+    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
-  ],
+    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+  ]
 }
 
+// Check for SSO configuration and callback
+onMounted(async () => {
+  await checkSSOConfig()
+
+  // Check if this is a callback from OIDC provider
+  const code = route.query.code as string
+  const state = route.query.state as string
+
+  if (code) {
+    await handleSSOCallback(code, state)
+  }
+})
+
+async function checkSSOConfig() {
+  try {
+    // Check if SSO is enabled using public endpoint (no auth required)
+    const response = await fetch('/api/v1/oidc/config/public')
+    if (response.ok) {
+      const config = await response.json()
+      ssoConfig.value = {
+        enabled: config.enabled || false,
+        environment: config.environment || 'test',
+        provider: config.provider_name || 'generic'
+      }
+    }
+  } catch (error) {
+    console.error('Failed to check SSO config:', error)
+    // Silent fail - just use local login
+  }
+}
+
+async function handleSSOLogin() {
+  ssoLoading.value = true
+  try {
+    // Get authorization URL from backend
+    const response = await fetch('/api/v1/oidc/auth-url')
+    if (!response.ok) {
+      throw new Error('获取SSO授权URL失败')
+    }
+
+    const data = await response.json()
+
+    // Store state for CSRF protection
+    sessionStorage.setItem('sso_state', data.state)
+
+    // Redirect to OIDC provider login page
+    window.location.href = data.auth_url
+
+  } catch (error: any) {
+    ElMessage.error(error.message || 'SSO登录失败')
+    ssoLoading.value = false
+  }
+}
+
+async function handleSSOCallback(code: string, state: string) {
+  ssoLoading.value = true
+  try {
+    // Verify state to prevent CSRF attacks
+    const storedState = sessionStorage.getItem('sso_state')
+    if (state !== storedState) {
+      throw new Error('安全验证失败，请重新登录')
+    }
+
+    // Exchange code for token with backend
+    const response = await fetch('/api/v1/oidc/callback', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code: code,
+        state: state
+      })
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || 'SSO认证失败')
+    }
+
+    const data = await response.json()
+
+    // Store token and user info
+    await authStore.setToken(data.access_token)
+    await authStore.setUser(data.user)
+
+    ElMessage.success('SSO登录成功')
+
+    // Clear state
+    sessionStorage.removeItem('sso_state')
+
+    // Redirect to dashboard or originally requested page
+    const redirect = route.query.redirect as string || '/'
+    router.push(redirect)
+
+  } catch (error: any) {
+    ElMessage.error(error.message || 'SSO认证失败')
+    router.push('/login')
+  } finally {
+    ssoLoading.value = false
+  }
+}
 
 async function handleLogin() {
   if (!formRef.value) return
@@ -130,15 +260,17 @@ async function handleLogin() {
     try {
       await authStore.login({
         email: form.email,
-        password: form.password,
+        password: form.password
       })
 
       ElMessage.success('登录成功')
 
-      const redirect = (route.query.redirect as string) || '/tasks'
+      // Redirect to dashboard or originally requested page
+      const redirect = route.query.redirect as string || '/'
       router.push(redirect)
+
     } catch (error: any) {
-      ElMessage.error(error.message || '登录失败，请检查邮箱和密码')
+      ElMessage.error(error.message || '登录失败')
     } finally {
       loading.value = false
     }
@@ -148,222 +280,146 @@ async function handleLogin() {
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
   display: flex;
-  background-color: #f8fafc;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
 .login-left {
   flex: 1;
-  background: linear-gradient(135deg, #667eea 0%, #4285f4 100%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  overflow: hidden;
-  min-width: 550px;
   padding: 40px;
 }
 
 .left-content {
-  text-align: center;
-  color: white;
-  z-index: 2;
-  width: 100%;
   max-width: 500px;
-  position: relative;
 }
 
 .brand-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: transform 0.3s ease;
-}
-
-.brand-info:hover {
-  transform: translateY(-2px);
+  color: white;
 }
 
 .brand-icon {
-  width: 88px;
-  height: 88px;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.brand-info:hover .brand-icon {
-  transform: scale(1.08) rotate(8deg);
-  background: rgba(255, 255, 255, 0.22);
+  margin-bottom: 24px;
 }
 
 .brand-info h1 {
-  font-size: 38px;
-  font-weight: 800;
-  margin: 0 0 12px 0;
-  letter-spacing: -0.03em;
-  background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 48px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: white;
 }
 
 .brand-desc {
-  font-size: 16px;
-  opacity: 0.8;
-  margin: 0 0 28px 0;
-  font-weight: 300;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 18px;
+  opacity: 0.9;
+  margin-bottom: 16px;
+  color: white;
 }
 
 .brand-feature {
-  font-size: 15px;
-  opacity: 0.9;
-  font-weight: 400;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 16px;
+  opacity: 0.8;
+  color: white;
 }
 
-/* ==================== 右侧登录区域 (高阶悬浮卡片) ==================== */
 .login-right {
-  flex: 0 0 520px;
-  background: #ffffff;
-  margin: 32px 48px 32px 0; /* Keep distance from top, bottom, and right edge of the page! */
-  border-radius: 28px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  position: relative;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  overflow-y: auto;
-  animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background-color: #f8f9fa;
 }
 
 .top-logo {
-  padding: 32px 40px 0;
-  display: flex;
-  justify-content: flex-end;
+  position: absolute;
+  top: 20px;
+  right: 20px;
 }
 
 .logo-img {
-  height: 44px;
+  height: 40px;
   width: auto;
-  object-fit: contain;
 }
 
 .login-card-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 40px;
+  width: 100%;
+  max-width: 450px;
 }
 
 .login-container {
-  width: 100%;
-  max-width: 440px;
-  background: transparent;
-  padding: 0;
-  box-shadow: none;
-  border: none;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .login-header {
-  margin-bottom: 36px;
-  text-align: left;
+  text-align: center;
+  margin-bottom: 32px;
 }
 
 .login-header h2 {
   font-size: 28px;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0 0 8px 0;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
 }
 
 .login-header p {
+  color: #6b7280;
   font-size: 14px;
-  color: #64748b;
-  margin: 0;
 }
 
-.login-form {
+/* SSO Styles */
+.sso-section {
   margin-bottom: 24px;
 }
 
-:deep(.el-form-item) {
-  margin-bottom: 20px;
-}
-
-:deep(.el-form-item__label) {
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-  padding-bottom: 6px;
-  line-height: 1.5;
-}
-
-/* ==================== Element Plus 输入框深度定制 ==================== */
-:deep(.el-input__wrapper) {
+.sso-button {
+  width: 100%;
   height: 48px;
-  border-radius: 12px;
-  padding: 10px 16px;
-  border: 1.5px solid #e2e8f0;
-  background-color: #ffffff;
-  box-shadow: none !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-:deep(.el-input__wrapper:hover) {
-  border-color: #cbd5e1;
+.sso-icon {
+  width: 20px;
+  height: 20px;
 }
 
-:deep(.el-input__wrapper.is-focus) {
-  border-color: #4285f4 !important;
-  box-shadow: 0 0 0 4px rgba(66, 133, 244, 0.12) !important;
+.divider-section {
+  display: flex;
+  align-items: center;
+  margin: 24px 0;
 }
 
-:deep(.el-input__inner) {
+.divider-line {
+  flex: 1;
+  height: 1px;
+  background-color: #e5e7eb;
+}
+
+.divider-text {
+  padding: 0 16px;
+  color: #6b7280;
   font-size: 14px;
-  color: #0f172a;
-  font-weight: 400;
 }
 
-:deep(.el-input__prefix) {
-  color: #94a3b8;
-  transition: color 0.2s;
-  margin-right: 8px;
-}
-
-:deep(.el-input__wrapper.is-focus) .el-input__prefix {
-  color: #4285f4;
-}
-
-/* Chrome 自动填充背景覆盖 */
-:deep(input:-webkit-autofill) {
-  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
-  -webkit-text-fill-color: #0f172a !important;
-  transition: background-color 5000s ease-in-out 0s;
+/* Form Styles */
+.login-form {
+  margin-top: 24px;
 }
 
 .form-options {
@@ -373,135 +429,54 @@ async function handleLogin() {
   margin-bottom: 24px;
 }
 
-:deep(.el-checkbox) {
-  height: auto;
-}
-
-:deep(.el-checkbox__label) {
-  font-size: 13px;
-  color: #64748b;
-  font-weight: 500;
-}
-
-:deep(.el-checkbox__inner) {
-  border-radius: 4px;
-  border-color: #cbd5e1;
-}
-
-:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-  background-color: #4285f4;
-  border-color: #4285f4;
-}
-
 .forgot-link {
-  font-size: 13px;
-  color: #4285f4;
+  color: #6366f1;
   text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
+  font-size: 14px;
 }
 
 .forgot-link:hover {
-  color: #2563eb;
-}
-
-/* ==================== 登录按钮高阶视觉 ==================== */
-.login-button {
-  width: 100%;
-  height: 48px;
-  font-size: 15px;
-  font-weight: 600;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%) !important;
-  border: none !important;
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  color: white;
-}
-
-.login-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.45) !important;
-  background: linear-gradient(135deg, #4338ca 0%, #2563eb 100%) !important;
-}
-
-.login-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2) !important;
-}
-
-:deep(.el-button.is-loading) {
-  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%) !important;
-  opacity: 0.8;
-}
-
-
-/* ==================== 页脚 ==================== */
-.login-footer {
-  text-align: center;
-  padding-top: 20px;
-  margin-top: 24px;
-  border-top: 1px solid #f1f5f9;
-}
-
-.login-footer p {
-  font-size: 13px;
-  color: #64748b;
-  margin: 0;
-}
-
-.register-link {
-  color: #4285f4;
-  text-decoration: none;
-  font-weight: 600;
-  transition: color 0.2s;
-}
-
-.register-link:hover {
-  color: #2563eb;
   text-decoration: underline;
 }
 
-/* ==================== 响应式设计 ==================== */
-@media (max-width: 1100px) {
-  .login-left {
-    min-width: 450px;
-  }
-
-  .login-right {
-    flex: 0 0 500px;
-  }
+.login-button {
+  width: 100%;
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 8px;
+  margin-top: 16px;
 }
 
-@media (max-width: 900px) {
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.register-link {
+  color: #6366f1;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.register-link:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
   .login-left {
     display: none;
   }
 
   .login-right {
     flex: 1;
-    background-color: #ffffff;
-    margin: 24px;
-    border-radius: 24px;
-    box-shadow: 0 15px 35px rgba(15, 23, 42, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.8);
-    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
-  }
-
-  .login-card-wrapper {
-    padding: 12px 24px 32px 24px;
   }
 
   .login-container {
-    background: transparent;
-    box-shadow: none;
-    border: none;
-    padding: 0;
-  }
-
-  .top-logo {
-    justify-content: center;
-    padding: 32px 0 0 0;
+    padding: 24px;
   }
 }
 </style>
