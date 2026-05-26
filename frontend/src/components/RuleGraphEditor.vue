@@ -72,7 +72,20 @@
     </main>
 
     <!-- RIGHT: Node Inspector Panel -->
-    <aside class="inspector-sidebar" :class="{ open: !!selectedNode }">
+    <aside class="inspector-sidebar" :class="{ open: !!selectedNode }" :style="{ width: inspectorWidth + 'px' }">
+      <!-- Inspector Resize Handle -->
+      <div
+        class="inspector-resize-handle"
+        @mousedown="startInspectorResize"
+        :class="{ 'is-resizing': isInspectorResizing }"
+      >
+        <div class="inspector-resize-bar">
+          <span class="resize-dot"></span>
+          <span class="resize-dot"></span>
+          <span class="resize-dot"></span>
+        </div>
+      </div>
+
       <template v-if="selectedNode">
         <div class="inspector-header">
           <div class="inspector-title-row">
@@ -91,7 +104,7 @@
           <!-- Basic: Node Label -->
           <div class="field-group">
             <label class="field-label" for="node-display-name">显示名称</label>
-            <input id="node-display-name" v-model="selectedNode.label" type="text" class="field-input" />
+            <input id="node-display-name" v-model="selectedNode.label" type="text" class="field-input" @focus="trackFocusedInput" />
           </div>
 
           <!-- === Type-Specific Fields === -->
@@ -103,7 +116,7 @@
                 Prompt 指令
                 <span class="field-hint">告诉大模型要检查什么</span>
               </label>
-              <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="4" placeholder="请检查该文档是否包含..."></textarea>
+              <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="4" placeholder="请检查该文档是否包含..." @focus="trackFocusedInput"></textarea>
             </div>
 
             <!-- LLM Operation Mode -->
@@ -136,7 +149,7 @@
               关键词列表
               <span class="field-hint">逗号分隔，命中任一即通过</span>
             </label>
-            <input id="node-keywords" v-model="selectedNode.data.keywords" type="text" class="field-input" placeholder="华测,CTI,CNAS" />
+            <input id="node-keywords" v-model="selectedNode.data.keywords" type="text" class="field-input" placeholder="华测,CTI,CNAS" @focus="trackFocusedInput" />
           </div>
 
           <!-- Regex -->
@@ -145,7 +158,7 @@
               正则表达式
               <span class="field-hint">匹配内容将写入上下文</span>
             </label>
-            <input id="node-pattern" v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" />
+            <input id="node-pattern" v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" @focus="trackFocusedInput" />
           </div>
 
           <!-- Signature -->
@@ -154,7 +167,7 @@
               预期签发者
               <span class="field-hint">留空则仅检查签名存在性</span>
             </label>
-            <input id="node-expected-issuer" v-model="selectedNode.data.expected_issuer" type="text" class="field-input" placeholder="Centre Testing International" />
+            <input id="node-expected-issuer" v-model="selectedNode.data.expected_issuer" type="text" class="field-input" placeholder="Centre Testing International" @focus="trackFocusedInput" />
           </div>
 
           <!-- Revision Check -->
@@ -164,7 +177,7 @@
                 允许最大修订次数
                 <span class="field-hint">0 = 使用默认逻辑</span>
               </label>
-              <el-input-number id="node-max-revisions" v-model="selectedNode.data.maxRevisions" :min="0" :max="100" :step="1" size="small" style="width: 140px;" />
+              <el-input-number id="node-max-revisions" v-model="selectedNode.data.maxRevisions" :min="0" :max="100" :step="1" size="small" style="width: 140px;" @focus="trackFocusedInput" />
             </div>
             <div class="field-group">
               <label class="field-label">
@@ -195,7 +208,7 @@
                 条件表达式
                 <span class="field-hint">满足条件走 ✅ 分支</span>
               </label>
-              <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" />
+              <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" @focus="trackFocusedInput" />
             </div>
             <div class="field-hint-card">
               <p>💡 可用变量：<code>institution</code>, <code>has_signature</code>, <code>qr_count</code>, <code>page_count</code>, <code>revision_count</code>, <code>is_tampered</code></p>
@@ -206,7 +219,7 @@
           <div v-if="selectedNode.data?.nodeType === 'http-call'">
             <div class="field-group">
               <label class="field-label" for="node-url-template">请求 URL <span class="required-mark">*</span></label>
-              <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" />
+              <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" @focus="trackFocusedInput" />
               <span class="field-hint">支持变量插值，如 qr_content, extracted_report_id</span>
             </div>
             <div class="field-group">
@@ -236,8 +249,8 @@
                   <label class="field-label">请求 Headers (可选)</label>
                   <div class="key-value-list">
                     <div v-for="(header, idx) in (selectedNode.data?.headers || [])" :key="header._id || idx" class="key-value-row">
-                      <input v-model="header.key" type="text" class="field-input mono key-input" placeholder="Header 名称 (如: Authorization)" />
-                      <input v-model="header.value" type="text" class="field-input mono value-input" placeholder="Header 值 (如: Bearer {{token}})" />
+                      <input v-model="header.key" type="text" class="field-input mono key-input" placeholder="Header 名称 (如: Authorization)" @focus="trackFocusedInput" />
+                      <input v-model="header.value" type="text" class="field-input mono value-input" placeholder="Header 值 (如: Bearer {{token}})" @focus="trackFocusedInput" />
                       <button @click.prevent="removeHttpHeader(idx)" class="remove-btn" :disabled="header.key === 'Content-Type' && header.value === 'application/json'">×</button>
                     </div>
                     <button @click.prevent="addHttpHeader" class="add-btn">+ 添加 Header</button>
@@ -247,28 +260,28 @@
                 <!-- Body (for POST/PUT) -->
                 <div class="sub-field-group" v-if="selectedNode.data?.http_method === 'POST' || selectedNode.data?.http_method === 'PUT'">
                   <label class="field-label">请求 Body (可选)</label>
-                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "xxx", "code": "xxx"}'></textarea>
+                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "xxx", "code": "xxx"}' @focus="trackFocusedInput"></textarea>
                   <span class="field-hint">JSON 格式，支持变量插值</span>
                 </div>
 
                 <!-- Timeout -->
                 <div class="sub-field-group">
                   <label class="field-label">超时时间 (秒)</label>
-                  <input v-model.number="selectedNode.data.timeout" type="number" class="field-input" style="width: 100px;" min="1" max="120" placeholder="30" />
+                  <input v-model.number="selectedNode.data.timeout" type="number" class="field-input" style="width: 100px;" min="1" max="120" placeholder="30" @focus="trackFocusedInput" />
                 </div>
 
                 <!-- Success Criteria -->
                 <div class="sub-field-group">
                   <label class="field-label">验证通过条件</label>
-                  <select v-model="selectedNode.data.success_type" class="field-input">
+                  <select v-model="selectedNode.data.success_type" class="field-input" @focus="trackFocusedInput">
                     <option value="status_code">状态码等于 200</option>
                     <option value="status_2xx">状态码为 2xx (成功)</option>
                     <option value="json_path">JSON Path 匹配</option>
                     <option value="text_contains">响应文本包含</option>
                   </select>
-                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_path" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="$.valid" />
-                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_expected" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="true" />
-                  <input v-if="selectedNode.data?.success_type === 'text_contains'" v-model="selectedNode.data.text_contains" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="OK" />
+                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_path" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="$.valid" @focus="trackFocusedInput" />
+                  <input v-if="selectedNode.data?.success_type === 'json_path'" v-model="selectedNode.data.json_expected" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="true" @focus="trackFocusedInput" />
+                  <input v-if="selectedNode.data?.success_type === 'text_contains'" v-model="selectedNode.data.text_contains" type="text" class="field-input mono" style="margin-top: 6px;" placeholder="OK" @focus="trackFocusedInput" />
                 </div>
               </div>
             </div>
@@ -278,12 +291,12 @@
           <div v-if="selectedNode.data?.nodeType === 'data-compare'">
             <div class="field-group">
               <label class="field-label" for="node-source-a">比较源 A</label>
-              <input id="node-source-a" v-model="selectedNode.data.source_a" type="text" class="field-input mono" placeholder="qr_report_id" />
+              <input id="node-source-a" v-model="selectedNode.data.source_a" type="text" class="field-input mono" placeholder="qr_report_id" @focus="trackFocusedInput" />
             </div>
             <div class="compare-arrow">⇅</div>
             <div class="field-group">
               <label class="field-label" for="node-source-b">比较源 B</label>
-              <input id="node-source-b" v-model="selectedNode.data.source_b" type="text" class="field-input mono" placeholder="text_report_id" />
+              <input id="node-source-b" v-model="selectedNode.data.source_b" type="text" class="field-input mono" placeholder="text_report_id" @focus="trackFocusedInput" />
             </div>
           </div>
 
@@ -293,7 +306,7 @@
               最低通过数 (N/M)
               <span class="field-hint">上游连入节点中，至少 N 个通过</span>
             </label>
-            <input id="node-min-pass" v-model.number="selectedNode.data.min_pass" type="number" min="1" class="field-input" style="width: 80px;" />
+            <input id="node-min-pass" v-model.number="selectedNode.data.min_pass" type="number" min="1" class="field-input" style="width: 80px;" @focus="trackFocusedInput" />
           </div>
 
           <!-- Human Review -->
@@ -302,7 +315,7 @@
               审核提示语
               <span class="field-hint">展示给审核人员的说明</span>
             </label>
-            <textarea id="node-review-hint" v-model="selectedNode.data.review_hint" class="field-textarea" rows="3" placeholder="请人工核查签名信息..."></textarea>
+            <textarea id="node-review-hint" v-model="selectedNode.data.review_hint" class="field-textarea" rows="3" placeholder="请人工核查签名信息..." @focus="trackFocusedInput"></textarea>
           </div>
 
           <!-- === Common: Severity === -->
@@ -338,9 +351,9 @@
                     :key="variable.name"
                     class="variable-item"
                     @click="insertVariable(variable.name)"
-                    :title="`点击插入 {{ variable.name }}`"
+                    :title="'点击插入 {{' + variable.name + '}}'"
                   >
-                    <span class="variable-syntax">{{ `{{${variable.name}}}` }}</span>
+                    <span class="variable-syntax">{{ getVariableSyntax(variable.name) }}</span>
                     <span class="variable-desc">{{ variable.desc }}</span>
                     <span class="variable-insert-hint">→</span>
                   </div>
@@ -551,30 +564,45 @@ function getTotalVariablesCount() {
   return availableVariables.reduce((sum, group) => sum + group.variables.length, 0)
 }
 
+function getVariableSyntax(varName: string) {
+  return `{{${varName}}}`
+}
+
 function insertVariable(varName: string) {
-  // Insert variable at cursor position or append to focused input
-  const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement
-  if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+  // Use tracked last focused input, or fall back to active element
+  const targetInput = lastFocusedInput.value || document.activeElement as HTMLInputElement | HTMLTextAreaElement
+
+  if (targetInput && (targetInput.tagName === 'INPUT' || targetInput.tagName === 'TEXTAREA')) {
     const variableSyntax = `{{${varName}}}`
-    const start = activeElement.selectionStart ?? 0
-    const end = activeElement.selectionEnd ?? 0
-    const value = activeElement.value || ''
+    const start = targetInput.selectionStart ?? 0
+    const end = targetInput.selectionEnd ?? 0
+    const value = targetInput.value || ''
 
     const newValue = value.substring(0, start) + variableSyntax + value.substring(end)
-    activeElement.value = newValue
+    targetInput.value = newValue
 
     // Set cursor position after inserted variable
     const newCursorPos = start + variableSyntax.length
-    activeElement.setSelectionRange(newCursorPos, newCursorPos)
+    targetInput.setSelectionRange(newCursorPos, newCursorPos)
 
     // Trigger input event to update v-model
-    activeElement.dispatchEvent(new Event('input', { bubbles: true }))
+    targetInput.dispatchEvent(new Event('input', { bubbles: true }))
 
     // Flash effect on the input to show insertion happened
-    activeElement.classList.add('variable-inserted-flash')
+    targetInput.classList.add('variable-inserted-flash')
     setTimeout(() => {
-      activeElement.classList.remove('variable-inserted-flash')
+      targetInput.classList.remove('variable-inserted-flash')
     }, 300)
+
+    // Refocus the input to allow further editing
+    targetInput.focus()
+  }
+}
+
+function trackFocusedInput(event: FocusEvent) {
+  const target = event.target as HTMLInputElement | HTMLTextAreaElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+    lastFocusedInput.value = target
   }
 }
 
@@ -593,6 +621,9 @@ const selectedNode = ref<any | null>(null)
 const isInitialized = ref(false)
 const httpAdvancedExpanded = ref(false)
 const variablesExpanded = ref(true)
+const lastFocusedInput = ref<HTMLInputElement | HTMLTextAreaElement | null>(null)
+const inspectorWidth = ref(300)
+const isInspectorResizing = ref(false)
 
 const defaultNodes = [
   {
@@ -761,8 +792,13 @@ const onNodeClick = (event: any) => {
   if (event.node?.data?.nodeType !== 'http-call') {
     httpAdvancedExpanded.value = false
   }
+  // Reset focused input when switching nodes
+  lastFocusedInput.value = null
 }
-const onPaneClick = () => { selectedNode.value = null }
+const onPaneClick = () => {
+  selectedNode.value = null
+  lastFocusedInput.value = null
+}
 const onPaneReady = (vueFlowInstance: any) => {
   // Ensure the view is fitted properly once the canvas is fully ready
   setTimeout(() => {
@@ -809,6 +845,29 @@ function startResize(e: MouseEvent) {
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
+
+// Inspector width resizing logic
+function startInspectorResize(e: MouseEvent) {
+  e.preventDefault()
+  isInspectorResizing.value = true
+  const startX = e.clientX
+  const startWidth = inspectorWidth.value
+
+  const onMouseMove = (moveEvent: MouseEvent) => {
+    if (!isInspectorResizing.value) return
+    const deltaX = startX - moveEvent.clientX  // Invert because we drag left to increase
+    inspectorWidth.value = Math.max(250, Math.min(600, startWidth + deltaX))
+  }
+
+  const onMouseUp = () => {
+    isInspectorResizing.value = false
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+  }
+
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 </script>
 
 <style scoped>
@@ -822,6 +881,7 @@ function startResize(e: MouseEvent) {
   overflow: hidden;
   background: #f8fafc;
   transition: height 0.1s ease;
+  position: relative;
 }
 
 :global(.el-dialog.is-fullscreen) .graph-editor-workspace {
@@ -1080,15 +1140,66 @@ function startResize(e: MouseEvent) {
   min-width: 0;
   background: #ffffff;
   border-left: 1px solid #e5e7eb;
-  transition: width 0.25s ease, min-width 0.25s ease;
-  overflow: hidden;
+  transition: width 0.1s ease, min-width 0.1s ease;
+  overflow: visible;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .inspector-sidebar.open {
-  width: 300px;
-  min-width: 300px;
+  min-width: 250px;
+  max-width: 600px;
+}
+
+/* ─── Inspector Resize Handle ─── */
+.inspector-resize-handle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  margin-left: -4px;
+  cursor: ew-resize;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.inspector-resize-handle:hover {
+  background: rgba(64, 158, 255, 0.1);
+}
+
+.inspector-resize-handle.is-resizing {
+  background: rgba(64, 158, 255, 0.2);
+}
+
+.inspector-resize-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-items: center;
+  background: #3b82f6;
+  padding: 3px 2px;
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.inspector-resize-handle:hover .inspector-resize-bar,
+.inspector-resize-handle.is-resizing .inspector-resize-bar {
+  opacity: 1;
+}
+
+.resize-dot {
+  width: 3px;
+  height: 3px;
+  background: white;
+  border-radius: 50%;
 }
 
 .inspector-header {
