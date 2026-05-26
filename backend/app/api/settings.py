@@ -473,6 +473,25 @@ class AiModelConfig(BaseModel):
     max_tokens: int = 2048
     temperature: float = 0.1
 
+    @field_validator('base_url')
+    @classmethod
+    def normalize_base_url(cls, v: str) -> str:
+        """Normalize and validate base URL."""
+        if not v:
+            return v
+
+        # Strip whitespace
+        v = v.strip()
+
+        # Remove trailing slashes to avoid double slashes
+        v = v.rstrip('/')
+
+        # Ensure URL starts with http:// or https://
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('Base URL must start with http:// or https://')
+
+        return v
+
 
 class ModelProfile(BaseModel):
     """A named OpenAI-compatible model profile."""
@@ -487,6 +506,25 @@ class ModelProfile(BaseModel):
     enabled: bool = True
     is_default_text: bool = False
     is_default_vision: bool = False
+
+    @field_validator('base_url')
+    @classmethod
+    def normalize_base_url(cls, v: str) -> str:
+        """Normalize and validate base URL."""
+        if not v:
+            return v
+
+        # Strip whitespace
+        v = v.strip()
+
+        # Remove trailing slashes to avoid double slashes
+        v = v.rstrip('/')
+
+        # Ensure URL starts with http:// or https://
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('Base URL must start with http:// or https://')
+
+        return v
 
 
 class SetDefaultRequest(BaseModel):
