@@ -258,6 +258,7 @@
                 <div class="diagnostic-check-icon" :class="check.status">
                   <el-icon v-if="check.status === 'pass'"><Check /></el-icon>
                   <el-icon v-else-if="check.status === 'warning'"><Warning /></el-icon>
+                  <el-icon v-else-if="check.status === 'info'"><InfoFilled /></el-icon>
                   <el-icon v-else><Close /></el-icon>
                 </div>
                 <div class="diagnostic-check-body" style="width: 100%;">
@@ -620,7 +621,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position, Tickets, Right } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, Delete, Key, ArrowDown, ArrowUp, Position, Tickets, Right, InfoFilled } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
@@ -913,6 +914,7 @@ function checkStatusLabel(status: string): string {
     pass: '通过',
     warning: '预警',
     fail: '不合规',
+    info: '参考',
   }
   return map[status] || status
 }
@@ -1725,6 +1727,7 @@ onUnmounted(() => {
 .check-left-indicator.pass { background-color: #4caf50; }
 .check-left-indicator.warning { background-color: #ff9800; }
 .check-left-indicator.fail { background-color: #f44336; }
+.check-left-indicator.info { background-color: #64b5f6; }
 
 .diagnostic-check-icon {
   width: 28px;
@@ -1746,6 +1749,10 @@ onUnmounted(() => {
 .diagnostic-check-icon.fail {
   background: rgba(244, 67, 54, 0.1);
   color: #f44336;
+}
+.diagnostic-check-icon.info {
+  background: rgba(33, 150, 243, 0.1);
+  color: #1976d2;
 }
 
 .diagnostic-check-body {
@@ -1770,6 +1777,7 @@ onUnmounted(() => {
 .check-status-tag.pass { background: rgba(76, 175, 80, 0.1); color: #4caf50; }
 .check-status-tag.warning { background: rgba(255, 152, 0, 0.1); color: #ff9800; }
 .check-status-tag.fail { background: rgba(244, 67, 54, 0.1); color: #f44336; }
+.check-status-tag.info { background: rgba(33, 150, 243, 0.08); color: #1976d2; letter-spacing: 0; }
 
 .check-message {
   font-size: 13px;

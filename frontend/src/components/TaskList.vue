@@ -16,7 +16,7 @@
           @click="goToDetail(file.id)"
         >
           <div class="task-card-header flex-between">
-            <div class="header-left flex-align-center">
+            <div class="header-left">
               <span class="file-name" :title="file.original_filename">{{ file.original_filename }}</span>
               <!-- Status tag shown in 'all' view to differentiate records -->
               <el-tag 
@@ -52,6 +52,7 @@
                 <span class="metric pass"><el-icon><Check /></el-icon> {{ file.pass_count }} 通过</span>
                 <span class="metric warn" v-if="file.warning_count > 0"><el-icon><Warning /></el-icon> {{ file.warning_count }} 警告</span>
                 <span class="metric fail" v-if="file.fail_count > 0"><el-icon><Close /></el-icon> {{ file.fail_count }} 异常</span>
+                <span class="metric ref" v-if="getRefCount(file) > 0"><el-icon><InfoFilled /></el-icon> {{ getRefCount(file) }} 参考</span>
               </div>
               <div class="pass-rate" v-if="file.pass_rate !== undefined">
                 <span class="label">通过率</span>
@@ -84,7 +85,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { filesApi } from '@/api/files'
 import type { File } from '@/types'
-import { Check, Warning, Close, ArrowRight } from '@element-plus/icons-vue'
+import { Check, Warning, Close, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
 const props = defineProps<{
@@ -146,6 +147,11 @@ function passRateClass(rate?: number): string {
   if (rate >= 90) return 'high'
   if (rate >= 60) return 'mid'
   return 'low'
+}
+
+// Extract reference count from the summary stored in verification_result_json
+function getRefCount(file: any): number {
+  return file.verification_result_json?.summary?.reference ?? 0
 }
 
 async function fetchTasks(silent = false) {
@@ -242,7 +248,7 @@ defineExpose({
 
 .tasks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
   padding: 8px 0;
 }
@@ -256,7 +262,7 @@ defineExpose({
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -272,8 +278,19 @@ defineExpose({
 
 .task-card-header {
   margin-bottom: 8px;
-  gap: 12px;
+  gap: 6px;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* Left section (file name + optional status tag) */
+.header-left {
+  display: flex;
   align-items: center;
+  min-width: 0; /* Allows flex truncation */
+  overflow: hidden;
+  flex: 1;
 }
 
 .file-name {
@@ -283,8 +300,8 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
   flex: 1;
-  max-width: 140px; /* Constrain width slightly to prevent squishing badges */
 }
 
 /* Beautiful Type Badges */
@@ -296,6 +313,7 @@ defineExpose({
   background: rgba(0, 0, 0, 0.04);
   color: #4f5b66;
   white-space: nowrap;
+  flex-shrink: 0; /* Never shrink or wrap — always visible */
 }
 
 .file-type-badge.production_plan { background: rgba(76, 175, 80, 0.1); color: #4caf50; }
@@ -392,6 +410,7 @@ defineExpose({
 .metric.pass { color: #4caf50; }
 .metric.warn { color: #ff9800; }
 .metric.fail { color: #f44336; }
+.metric.ref { color: #1976d2; }
 
 .pass-rate {
   display: flex;

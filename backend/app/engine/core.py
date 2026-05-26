@@ -223,7 +223,7 @@ class VerificationEngine:
 
         # Phase 2: Evaluate Rules
         rule_evaluations = []
-        pass_count = warning_count = fail_count = 0
+        pass_count = warning_count = fail_count = reference_count = 0
         needs_review = False
 
         for rule in rules:
@@ -729,8 +729,10 @@ class VerificationEngine:
                 rule_msg = f"引擎尚未适配该规则类型 ({rule.rule_type})"
                 rule_pass = False
 
-            # Tally stats
-            if rule_pass:
+            # Tally stats — reference severity is excluded from scoring
+            if rule.severity.value == "reference":
+                reference_count += 1
+            elif rule_pass:
                 pass_count += 1
             else:
                 if rule.severity == "warning":
@@ -742,7 +744,11 @@ class VerificationEngine:
             if confidence < 0.85:
                 needs_review = True
 
-            status_val = "pass" if rule_pass else ("warning" if rule.severity.value == "warning" else "fail")
+            # For reference rules: status is always 'info' regardless of pass/fail
+            if rule.severity.value == "reference":
+                status_val = "info"
+            else:
+                status_val = "pass" if rule_pass else ("warning" if rule.severity.value == "warning" else "fail")
             rule_evaluations.append({
                 "name": rule.rule_name,
                 "status": status_val,
@@ -754,7 +760,7 @@ class VerificationEngine:
                 "confidence": confidence
             })
 
-        logger.info(f"[Engine] Verification complete. Pass:{pass_count}, Fail:{fail_count}")
+        logger.info(f"[Engine] Verification complete. Pass:{pass_count}, Fail:{fail_count}, Reference:{reference_count}")
 
         return {
             "checks": rule_evaluations,
@@ -762,5 +768,6 @@ class VerificationEngine:
             "pass_count": pass_count,
             "warning_count": warning_count,
             "fail_count": fail_count,
+            "reference_count": reference_count,
             "needs_review": needs_review
         }

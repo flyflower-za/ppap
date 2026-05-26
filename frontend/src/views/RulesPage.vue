@@ -90,8 +90,12 @@
             </el-table-column>
             <el-table-column prop="severity" label="级别" width="90">
               <template #default="scope">
-                <el-tag v-if="!isExtractionMode(scope.row)" :type="scope.row.severity === 'fail' ? 'danger' : 'warning'" size="small">
-                  {{ scope.row.severity === 'fail' ? '拦截' : '警告' }}
+                <el-tag 
+                  v-if="!isExtractionMode(scope.row)" 
+                  :type="scope.row.severity === 'fail' ? 'danger' : scope.row.severity === 'warning' ? 'warning' : 'info'" 
+                  size="small"
+                >
+                  {{ scope.row.severity === 'fail' ? '拦截' : scope.row.severity === 'warning' ? '警告' : '参考' }}
                 </el-tag>
                 <span v-else class="text-placeholder">—</span>
               </template>
@@ -210,7 +214,12 @@
           <el-radio-group v-model="ruleForm.severity">
             <el-radio value="fail">失败 (直接拦截)</el-radio>
             <el-radio value="warning">警告 (提示风险)</el-radio>
+            <el-radio value="reference">参考 (额外检测，不计入评分)</el-radio>
           </el-radio-group>
+          <div v-if="ruleForm.severity === 'reference'" class="reference-hint">
+            <el-icon><InfoFilled /></el-icon>
+            参考项会完整执行检测并出现在诊断报告中，但结果不影响通过率和最终合规状态。
+          </div>
         </el-form-item>
         
         <!-- Condition Configuration -->
@@ -249,7 +258,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, MoreFilled, Refresh } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Refresh, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import { 
@@ -725,5 +734,20 @@ const isExtractionMode = (rule: any) => {
 .mode-card.active .mode-badge {
   color: var(--el-color-primary);
   opacity: 0.3;
+}
+
+/* Reference Severity Hint */
+.reference-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #1976d2;
+  background: rgba(33, 150, 243, 0.06);
+  border: 1px solid rgba(33, 150, 243, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  line-height: 1.5;
 }
 </style>

@@ -15,6 +15,7 @@ class RuleType(str, enum.Enum):
 class Severity(str, enum.Enum):
     warning = "warning"
     fail = "fail"
+    reference = "reference"  # Advisory check: runs and reports, but does NOT count toward the score
 
 class DocumentCategory(Base):
     __tablename__ = "document_categories"
