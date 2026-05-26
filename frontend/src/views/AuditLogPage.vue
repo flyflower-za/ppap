@@ -60,9 +60,9 @@
         height="calc(100vh - 280px)"
         class="modern-table"
       >
-        <el-table-column prop="created_at" label="时间" width="160">
+        <el-table-column prop="created_at" label="时间" width="170">
           <template #default="{ row }">
-            <span class="mono-text">{{ formatTime(row.created_at) }}</span>
+            <span class="mono-text nowrap-text">{{ formatTime(row.created_at) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="user_email" label="操作人" min-width="180">
@@ -357,6 +357,10 @@ const getAvatarStyle = (email: string | null) => {
 
 .mono-text {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.nowrap-text {
+  white-space: nowrap;
 }
 
 .mono-tag {
