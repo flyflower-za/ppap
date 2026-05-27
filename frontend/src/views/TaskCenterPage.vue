@@ -129,20 +129,32 @@
             <span class="section-hint">仅展示最近 15 条任务记录，更多请前往历史记录查看</span>
           </div>
 
-          <el-tabs v-model="activeTab" class="custom-tabs">
-            <el-tab-pane label="全部" name="all">
-              <TaskList ref="allTaskListRef" :status="'all'" />
-            </el-tab-pane>
-            <el-tab-pane label="进行中" name="processing">
-              <TaskList ref="processingTaskListRef" :status="'processing'" @task-finished="handleTaskFinished" />
-            </el-tab-pane>
-            <el-tab-pane label="已完成" name="completed">
-              <TaskList ref="completedTaskListRef" :status="'completed'" />
-            </el-tab-pane>
-            <el-tab-pane label="诊断异常" name="failed">
-              <TaskList ref="failedTaskListRef" :status="'failed'" />
-            </el-tab-pane>
-          </el-tabs>
+          <div class="tabs-container">
+            <el-tabs v-model="activeTab" class="custom-tabs">
+              <el-tab-pane label="全部" name="all">
+                <TaskList ref="allTaskListRef" :status="'all'" :viewMode="viewMode" />
+              </el-tab-pane>
+              <el-tab-pane label="进行中" name="processing">
+                <TaskList ref="processingTaskListRef" :status="'processing'" :viewMode="viewMode" @task-finished="handleTaskFinished" />
+              </el-tab-pane>
+              <el-tab-pane label="已完成" name="completed">
+                <TaskList ref="completedTaskListRef" :status="'completed'" :viewMode="viewMode" />
+              </el-tab-pane>
+              <el-tab-pane label="诊断异常" name="failed">
+                <TaskList ref="failedTaskListRef" :status="'failed'" :viewMode="viewMode" />
+              </el-tab-pane>
+            </el-tabs>
+
+            <!-- View Toggle -->
+            <div class="view-toggle-group">
+              <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="卡片视图">
+                <el-icon><Grid /></el-icon>
+              </button>
+              <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表视图">
+                <el-icon><List /></el-icon>
+              </button>
+            </div>
+          </div>
         </div>
       </el-col>
     </el-row>
@@ -152,12 +164,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Refresh, UploadFilled, Document, Loading, Check, Close, Delete } from '@element-plus/icons-vue'
+import { Refresh, UploadFilled, Document, Loading, Check, Close, Delete, Grid, List } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import TaskList from '@/components/TaskList.vue'
 
 const batchMode = ref(true) // Default to batch confirmation mode
 const activeTab = ref('all')
+const viewMode = ref<'grid' | 'list'>('grid')
 const uploading = ref(false)
 const fileList = ref<any[]>([])
 const concurrencyLimit = ref(3) // Max concurrent uploads
@@ -640,6 +653,54 @@ function handleRefresh() {
 
 .ml-3 {
   margin-left: 12px;
+}
+
+/* Tabs container */
+.tabs-container {
+  position: relative;
+}
+
+/* View Toggle */
+.view-toggle-group {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 3px;
+  z-index: 10;
+}
+
+.custom-tabs :deep(.el-tabs__header) {
+  margin-right: 80px;
+}
+
+.view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8792a2;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 15px;
+}
+
+.view-btn:hover {
+  color: #4285f4;
+  background: rgba(66, 133, 244, 0.08);
+}
+
+.view-btn.active {
+  background: #fff;
+  color: #4285f4;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Custom tabs styling */

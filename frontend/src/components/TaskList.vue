@@ -1,18 +1,5 @@
 <template>
   <div class="task-list-container">
-
-    <!-- View Toggle -->
-    <div class="view-bar">
-      <div class="view-toggle-group">
-        <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="卡片视图">
-          <el-icon><Grid /></el-icon>
-        </button>
-        <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表视图">
-          <el-icon><List /></el-icon>
-        </button>
-      </div>
-    </div>
-
     <div v-loading="loading && files.length === 0" class="list-wrapper" element-loading-background="rgba(255, 255, 255, 0.5)">
 
       <!-- Empty State -->
@@ -21,7 +8,7 @@
       </div>
 
       <!-- ═══════════════ GRID VIEW ═══════════════ -->
-      <div v-else-if="viewMode === 'grid'" class="tasks-grid">
+      <div v-else-if="props.viewMode === 'grid'" class="tasks-grid">
         <div
           v-for="file in files"
           :key="file.id"
@@ -160,11 +147,12 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { filesApi } from '@/api/files'
 import type { File } from '@/types'
-import { Check, Warning, Close, ArrowRight, InfoFilled, Grid, List } from '@element-plus/icons-vue'
+import { Check, Warning, Close, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 
 const props = defineProps<{
   status: 'all' | 'processing' | 'completed' | 'failed'
+  viewMode: 'grid' | 'list'
 }>()
 
 const emit = defineEmits(['task-finished'])
@@ -172,7 +160,6 @@ const emit = defineEmits(['task-finished'])
 const router = useRouter()
 const files = ref<File[]>([])
 const loading = ref(false)
-const viewMode = ref<'grid' | 'list'>('grid')
 let pollTimer: any = null
 
 const emptyText = computed(() => {
@@ -299,47 +286,6 @@ defineExpose({
 <style scoped>
 .task-list-container {
   min-height: 200px;
-}
-
-/* ── View Toggle ── */
-.view-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 0 10px 0;
-}
-
-.view-toggle-group {
-  display: flex;
-  gap: 2px;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 8px;
-  padding: 3px;
-}
-
-.view-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #8792a2;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 15px;
-}
-
-.view-btn:hover {
-  color: #4285f4;
-  background: rgba(66, 133, 244, 0.08);
-}
-
-.view-btn.active {
-  background: #fff;
-  color: #4285f4;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* ── Common ── */
