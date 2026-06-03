@@ -54,15 +54,23 @@ services:
       timeout: 20s
       retries: 3
 
-  # Database Migration (run once on startup, then exits)
-  migration:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    container_name: ppap-migration
-    command: python -m alembic upgrade head
-    environment:
-      DATABASE_URL: postgresql+asyncpg://ppap:ppap123@postgres:5432/ppap
+  # Database Initialization (run once on startup, then exits)
+  db-init:
+    image: postgres:15-alpine
+    container_name: ppap-db-init
+    command: >
+      sh -c "
+      sleep 5 &&
+      if ! PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap -c 'SELECT 1 FROM users' > /dev/null 2>&1; then
+        echo 'Initializing database schema...' &&
+        PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap < /docker-entrypoint-initdb.d/init-db.sql &&
+        echo 'Database initialization completed';
+      else
+        echo 'Database already initialized';
+      fi
+      "
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,7 +101,7 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
-      migration:
+      db-init:
         condition: service_completed_successfully
     volumes:
       - ../backend/app:/app/app

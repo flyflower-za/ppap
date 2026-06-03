@@ -2,6 +2,253 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-03] - 数据库自动化初始化
+
+### 功能描述
+- 实现了完全自动化的数据库初始化流程
+- 首次部署时无需手动运行初始化脚本
+- 支持幂等性操作，可安全重复执行
+
+### 详细修改记录
+
+#### 1. 数据库初始化脚本优化
+**文件路径**: `c:\Projects\git\ppap\deploy\init-db.sql`
+**修改时间**: 2026-06-03
+
+**新增功能**:
+- 在表结构创建前添加枚举类型定义
+- 更新 users 表结构，新增 role 和 ad_groups 列
+- 统一使用枚举类型替代 VARCHAR 类型
+
+**新增的枚举类型**:
+```sql
+CREATE TYPE userrole AS ENUM ('ADMIN', 'MANAGER', 'USER');
+CREATE TYPE filetype AS ENUM ('PRODUCTION_PLAN', 'QUALITY_REPORT', 'PURCHASE_ORDER', 'SUPPLIER_QUALIFICATION', 'PRODUCT_SPECIFICATION', 'OTHER');
+CREATE TYPE filestatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'WARNING');
+CREATE TYPE taskstatus AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED');
+CREATE TYPE notificationtype AS ENUM ('SUCCESS', 'ERROR', 'WARNING', 'INFO');
+```
+
+**修改的表结构**:
+- `users` 表: 新增 `role` 和 `ad_groups` 列
+- `files` 表: 使用 `filetype` 和 `filestatus` 枚举
+- `tasks` 表: 使用 `taskstatus` 枚举
+- `notifications` 表: 使用 `notificationtype` 枚举
+
+**默认管理员账户更新**:
+```sql
+INSERT INTO users (id, email, full_name, is_active, is_admin, role)
+VALUES (
+    '01234567-0123-0123-0123-0123456789ab',
+    'admin@example.com',
+    'System Administrator',
+    true,
+    true,
+    'ADMIN'
+) ON CONFLICT (email) DO NOTHING;
+```
+
+---
+
+#### 2. Docker Compose 配置优化
+**文件路径**: `c:\Projects\git\ppap\deploy\docker-compose.yml`
+**修改时间**: 2026-06-03
+
+**新增数据库初始化服务**:
+```yaml
+db-init:
+  image: postgres:15-alpine
+  container_name: ppap-db-init
+  command: >
+    sh -c "
+    sleep 5 &&
+    if ! PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap -c 'SELECT 1 FROM users' > /dev/null 2>&1; then
+      echo 'Initializing database schema...' &&
+      PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap < /docker-entrypoint-initdb.d/init-db.sql &&
+      echo 'Database initialization completed';
+    else
+      echo 'Database already initialized';
+    fi
+    "
+  volumes:
+    - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: "no"
+```
+
+**移除 Alembic 迁移服务**:
+- 删除了 `migration` 服务配置
+- 后端服务现在直接依赖 `db-init` 服务完成
+- 简化了部署流程，减少了潜在的错误点
+
+**服务依赖关系更新**:
+```yaml
+backend:
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    minio:
+      condition: service_healthy
+    db-init:
+      condition: service_completed_successfully
+```
+
+---
+
+#### 3. Alembic 迁移脚本优化
+**文件路径**: `c:\Projects\git\ppap\backend\migrations\versions\`
+**修改时间**: 2026-06-03
+
+**修改的迁移文件**:
+- `455ad299810f_initial_schema.py`: 添加智能检查，跳过已存在的表
+- `156287492b65_add_dynamic_rule_tables.py`: 添加表存在性检查
+- `a9bf6820e18c_add_logic_config_and_needs_review_status.py`: 添加列存在性检查
+- `664c02f918be_add_audit_logs_table.py`: 添加表存在性检查
+- `add_user_groups_table.py`: 添加表存在性检查
+
+**智能迁移逻辑**:
+```python
+def upgrade() -> None:
+    """Smart migration that checks if database is already initialized."""
+    conn = op.get_bind()
+    try:
+        inspector = inspect(conn)
+        if 'users' in inspector.get_table_names():
+            print("Database already initialized via init-db.sql, skipping migration...")
+            return
+        # Migration logic here
+    except Exception as e:
+        print(f"Migration check completed: {e}")
+```
+
+---
+
+### 部署说明
+
+#### 首次部署（自动初始化）
+```powershell
+# 一键启动，自动完成数据库初始化
+cd c:\Projects\git\ppap\deploy
+docker compose up -d --build
+```
+
+#### 部署流程
+1. **启动基础服务**: PostgreSQL, Redis, MinIO
+2. **数据库初始化**: `db-init` 服务自动运行 `init-db.sql`
+3. **启动应用服务**: 等待初始化完成后启动后端和前端
+4. **完成部署**: 所有服务正常运行
+
+#### 服务启动顺序
+```
+postgres → redis → minio → db-init → backend & frontend & celery-worker
+```
+
+---
+
+### 验证步骤
+
+#### 1. 检查数据库初始化状态
+```powershell
+docker compose logs db-init
+```
+
+#### 2. 检查后端服务状态
+```powershell
+docker compose ps backend
+```
+
+#### 3. 验证数据库表结构
+```powershell
+docker compose exec postgres psql -U ppap -d ppap -c "\dt"
+```
+
+#### 4. 测试管理员账户
+- 邮箱: `admin@example.com`
+- 密码: `admin123`
+- 验证是否能正常登录
+
+---
+
+### 问题解决
+
+#### 原有问题
+1. ❌ 需要手动运行数据库初始化脚本
+2. ❌ Alembic 迁移与初始化脚本冲突
+3. ❌ 首次部署步骤复杂，容易出错
+4. ❌ 枚举类型缺失导致迁移失败
+5. ❌ 服务依赖关系不明确
+
+#### 解决方案
+1. ✅ 实现完全自动化的初始化流程
+2. ✅ 移除 Alembic 迁移依赖，使用 init-db.sql
+3. ✅ 一键部署，零配置启动
+4. ✅ 在初始化脚本中创建所有枚举类型
+5. ✅ 明确的服务依赖关系和健康检查
+
+---
+
+### 技术亮点
+
+#### 1. 幂等性设计
+```bash
+# 可安全重复执行，不会重复初始化
+docker compose up -d
+```
+
+#### 2. 智能检测机制
+- 自动检测数据库是否已初始化
+- 跳过已存在的表和列
+- 优雅的错误处理和日志输出
+
+#### 3. 服务依赖管理
+- 使用 Docker Compose 健康检查
+- 确保服务按正确顺序启动
+- 前置服务失败时自动停止
+
+---
+
+### 影响范围
+- ✅ 数据库初始化流程
+- ✅ Docker 容器编排配置
+- ✅ 首次部署体验
+- ✅ 服务启动顺序
+- ❌ 无业务逻辑变更
+- ❌ 无API接口变更
+
+---
+
+### 后续优化建议
+
+#### 1. 数据库迁移管理
+- 考虑重新设计 Alembic 迁移策略
+- 统一数据库变更管理方式
+- 建立规范的迁移版本控制
+
+#### 2. 初始化脚本增强
+- 添加更多示例数据
+- 支持开发/生产环境配置
+- 集成种子数据管理
+
+#### 3. 监控和日志
+- 添加初始化进度监控
+- 优化日志输出格式
+- 集成告警机制
+
+---
+
+## 版本历史
+
+| 日期 | 版本 | 描述 |
+|------|------|------|
+| 2026-06-03 | 1.0.3 | 数据库自动化初始化，实现一键部署 |
+| 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
+| 2026-05-25 | 1.0.1 | 端口配置优化，解决8000端口冲突 |
+| 2026-05-24 | 1.0.0 | PPAP项目初始版本 |
+
 ## [2026-05-27] - 变量面板功能
 
 ### 功能描述

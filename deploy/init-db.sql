@@ -4,6 +4,13 @@
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Create enum types first
+CREATE TYPE userrole AS ENUM ('ADMIN', 'MANAGER', 'USER');
+CREATE TYPE filetype AS ENUM ('PRODUCTION_PLAN', 'QUALITY_REPORT', 'PURCHASE_ORDER', 'SUPPLIER_QUALIFICATION', 'PRODUCT_SPECIFICATION', 'OTHER');
+CREATE TYPE filestatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'WARNING');
+CREATE TYPE taskstatus AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED');
+CREATE TYPE notificationtype AS ENUM ('SUCCESS', 'ERROR', 'WARNING', 'INFO');
+
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -20,6 +27,8 @@ CREATE TABLE IF NOT EXISTS users (
     notification_on_complete BOOLEAN DEFAULT true,
     notification_on_failure BOOLEAN DEFAULT true,
     daily_summary_enabled BOOLEAN DEFAULT false,
+    role userrole NOT NULL DEFAULT 'USER',
+    ad_groups VARCHAR(1000),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP
@@ -35,9 +44,9 @@ CREATE TABLE IF NOT EXISTS files (
     original_filename VARCHAR(255) NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     file_size BIGINT NOT NULL,
-    file_type VARCHAR(50) DEFAULT 'other',
+    file_type filetype DEFAULT 'OTHER',
     page_count INTEGER,
-    status VARCHAR(20) DEFAULT 'pending',
+    status filestatus DEFAULT 'PENDING',
     verification_progress INTEGER DEFAULT 0,
     verification_model VARCHAR(100),
     verification_result TEXT,
@@ -64,7 +73,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
     task_type VARCHAR(50) DEFAULT 'verify',
-    status VARCHAR(20) DEFAULT 'pending',
+    status taskstatus DEFAULT 'PENDING',
     progress INTEGER DEFAULT 0,
     current_step VARCHAR(255),
     error_message TEXT,
@@ -83,7 +92,7 @@ CREATE INDEX idx_tasks_celery_task_id ON tasks(celery_task_id);
 CREATE TABLE IF NOT EXISTS notifications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(20) DEFAULT 'info',
+    type notificationtype DEFAULT 'INFO',
     title VARCHAR(255) NOT NULL,
     message TEXT,
     link VARCHAR(500),
@@ -111,13 +120,14 @@ CREATE INDEX idx_notes_author_id ON notes(author_id);
 
 -- Insert default admin user (password: admin123)
 -- Password hash is bcrypt hash of 'admin123'
-INSERT INTO users (id, email, full_name, is_active, is_admin)
+INSERT INTO users (id, email, full_name, is_active, is_admin, role)
 VALUES (
     '01234567-0123-0123-0123-0123456789ab',
     'admin@example.com',
     'System Administrator',
     true,
-    true
+    true,
+    'ADMIN'
 ) ON CONFLICT (email) DO NOTHING;
 
 -- Function to update updated_at timestamp
