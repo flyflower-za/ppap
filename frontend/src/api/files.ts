@@ -39,4 +39,20 @@ export const filesApi = {
 
   resolveReview: (id: string, data: { action: 'approve' | 'reject'; comment?: string }) =>
     client.post<any, FileDetail>(`/files/${id}/resolve_review`, data),
+
+  getStatistics: () =>
+    client.get<any, {
+      overview: {
+        total: number
+        completed: number
+        warning: number
+        failed: number
+        needs_review: number
+        pending: number
+        processing: number
+        pass_rate: number
+      }
+      trend: { date: string; total: number; passed: number }[]
+      top_failing_rules: { rule_name: string; count: number }[]
+    }>('/files/statistics'),
 }

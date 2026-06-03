@@ -28,7 +28,10 @@
         </transition>
       </div>
 
-      <div class="palette-footer">
+      <div class="palette-footer" style="display: flex; flex-direction: column; gap: 8px;">
+        <button class="dry-run-btn" @click="triggerDryRun">
+          <span>⚡</span> 模拟测试 (Dry Run)
+        </button>
         <button class="reset-btn" @click="resetGraph">
           <span>🗑️</span> 清空画布
         </button>
@@ -396,11 +399,85 @@
       <span class="handle-line"></span>
     </div>
   </div>
+
+  <!-- Dry Run Simulation Dialog -->
+  <el-dialog
+    title="规则沙盒模拟测试 (Dry Run)"
+    v-model="dryRunDialogVisible"
+    width="650px"
+    append-to-body
+    destroy-on-close
+  >
+    <div class="dry-run-workspace" v-loading="dryRunning" element-loading-background="rgba(255, 255, 255, 0.8)">
+      <el-form label-width="100px">
+        <el-form-item label="样例文件" required>
+          <el-select
+            v-model="selectedSampleFileId"
+            placeholder="选择已上传的文件作为测试样例"
+            style="width: 100%"
+            filterable
+            @focus="loadSampleFiles"
+          >
+            <el-option
+              v-for="file in files"
+              :key="file.id"
+              :label="file.original_filename"
+              :value="file.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+
+      <!-- Console Logging Box -->
+      <div class="dry-run-console mt-4" v-if="dryRunLogs.length > 0 || dryRunResult">
+        <div class="console-header flex-between" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; font-size: 14px;">
+          <span>💻 引擎执行日志</span>
+          <el-tag v-if="dryRunResult" :type="dryRunResult.passed ? 'success' : 'danger'" size="small">
+            {{ dryRunResult.passed ? '测试通过' : '测试拦截' }}
+          </el-tag>
+        </div>
+        <div class="console-log-box" ref="consoleBoxRef" style="max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          <div v-for="(log, idx) in dryRunLogs" :key="idx" class="console-line">
+            <span class="log-time text-muted" style="margin-right: 8px; color: #75715e;">[{{ formatTime(log.timestamp) }}]</span>
+            <span class="log-message">{{ log.message }}</span>
+          </div>
+          
+          <!-- Final Results Block -->
+          <div v-if="dryRunResult" class="console-result-block" :class="{ passed: dryRunResult.passed }" style="border-top: 1px dashed #444; padding-top: 12px; margin-top: 12px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="font-bold" style="font-size: 14px; font-weight: 700;">判决报告:</div>
+            <div class="result-message" style="font-size: 13px; line-height: 1.5;">{{ dryRunResult.message }}</div>
+            
+            <div class="result-checks mt-2" v-if="dryRunResult.checks && dryRunResult.checks.length > 0" style="display: flex; flex-direction: column; gap: 6px;">
+              <div v-for="(chk, idx) in dryRunResult.checks" :key="idx" class="check-item" style="background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 6px; font-size: 12px;">
+                <span class="chk-status" :class="chk.status" style="font-weight: 700; margin-right: 6px;">
+                  [{{ chk.status === 'pass' ? '通过' : (chk.status === 'warning' ? '警告' : '拦截') }}]
+                </span>
+                <span class="chk-name font-bold" style="margin-right: 6px; font-weight: 600;">{{ chk.name }}:</span>
+                <span class="chk-msg">{{ chk.message }}</span>
+                <span v-if="chk.confidence !== undefined" class="chk-conf" style="margin-left: 6px; color: #75715e;">(置信度: {{ (chk.confidence * 100).toFixed(0) }}%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="dryRunDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="runSimulation" :loading="dryRunning" :disabled="!selectedSampleFileId">
+          ⚡ 开始测试
+        </el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, nextTick } from 'vue'
 import { VueFlow } from '@vue-flow/core'
+import { filesApi } from '@/api/files'
+import { dryRunRule } from '@/api/rules'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -867,6 +944,94 @@ function startInspectorResize(e: MouseEvent) {
 
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
+}
+
+// Dry Run simulation states and handlers
+const dryRunDialogVisible = ref(false)
+const selectedSampleFileId = ref<string>('')
+const dryRunning = ref(false)
+const dryRunLogs = ref<{ timestamp: string; message: string }[]>([])
+const dryRunResult = ref<any>(null)
+const files = ref<any[]>([])
+const loadingFiles = ref(false)
+const consoleBoxRef = ref<HTMLElement | null>(null)
+
+const loadSampleFiles = async () => {
+  loadingFiles.value = true
+  try {
+    const res = await filesApi.list({ page: 1, page_size: 50 })
+    files.value = res.items || []
+  } catch (e) {
+    console.error('Failed to load sample files:', e)
+  } finally {
+    loadingFiles.value = false
+  }
+}
+
+const triggerDryRun = () => {
+  dryRunDialogVisible.value = true
+  selectedSampleFileId.value = ''
+  dryRunLogs.value = []
+  dryRunResult.value = null
+  loadSampleFiles()
+}
+
+const runSimulation = async () => {
+  if (!selectedSampleFileId.value) return
+  
+  dryRunning.value = true
+  dryRunLogs.value = []
+  dryRunResult.value = null
+  
+  try {
+    const logicConfig = {
+      nodes: safeCloneNodes(nodes.value),
+      edges: safeCloneEdges(edges.value)
+    }
+    
+    const res = await dryRunRule({
+      file_id: selectedSampleFileId.value,
+      rule_name: '可视化流程沙盒测试',
+      rule_type: 'logic_graph',
+      rule_content: '',
+      severity: 'fail',
+      logic_config: logicConfig
+    })
+    
+    dryRunLogs.value = res.logs || []
+    dryRunResult.value = res.result || null
+    
+    nextTick(() => {
+      if (consoleBoxRef.value) {
+        consoleBoxRef.value.scrollTop = consoleBoxRef.value.scrollHeight
+      }
+    })
+  } catch (e: any) {
+    const errorMsg = e.response?.data?.detail || '模拟测试运行失败'
+    ElMessage.error(errorMsg)
+  } finally {
+    dryRunning.value = false
+  }
+}
+
+const formatTime = (isoStr: string) => {
+  if (!isoStr) return ''
+  try {
+    const d = new Date(isoStr)
+    return d.toLocaleTimeString('zh-CN', { hour12: false })
+  } catch (e) {
+    return isoStr
+  }
+}
+
+const formatDate = (dateStr?: string): string => {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('zh-CN')
+  } catch (e) {
+    return dateStr
+  }
 }
 </script>
 
@@ -1831,4 +1996,67 @@ function startInspectorResize(e: MouseEvent) {
   max-height: 0;
   opacity: 0;
 }
+
+/* ─── Dry Run Button & Console Styles ─── */
+.dry-run-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border: 1px solid #7dd3fc;
+  border-radius: 8px;
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(3, 105, 161, 0.1);
+}
+.dry-run-btn:hover {
+  background: linear-gradient(135deg, #bae6fd 0%, #7dd3fc 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(3, 105, 161, 0.15);
+}
+.dry-run-console {
+  background: #181818;
+  border-radius: 12px;
+  padding: 16px;
+  color: #f8f8f2;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px;
+  box-shadow: inset 0 3px 10px rgba(0,0,0,0.6);
+  border: 1px solid #282828;
+}
+.console-log-box::-webkit-scrollbar {
+  width: 5px;
+}
+.console-log-box::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+}
+.console-log-box::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.15);
+  border-radius: 3px;
+}
+.console-line {
+  line-height: 1.6;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.console-result-block {
+  border-top: 1px solid #333;
+  padding-top: 12px;
+}
+.console-result-block.passed {
+  color: #a6e22e;
+}
+.console-result-block:not(.passed) {
+  color: #f92672;
+}
+.chk-status.pass { color: #a6e22e; }
+.chk-status.warning { color: #fd971f; }
+.chk-status.fail { color: #f92672; }
+.chk-status.info { color: #66d9ef; }
 </style>

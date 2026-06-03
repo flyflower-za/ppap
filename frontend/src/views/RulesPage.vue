@@ -106,9 +106,10 @@
                 <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" size="small" />
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="120" fixed="right" align="center">
+            <el-table-column label="操作" width="160" fixed="right" align="center">
               <template #default="scope">
                 <el-button link type="primary" @click="openRuleDialog(scope.row)">编辑</el-button>
+                <el-button link type="info" @click="showVersionsHistory(scope.row)">历史</el-button>
                 <el-button 
                   link 
                   type="danger" 
@@ -252,6 +253,50 @@
         </span>
       </template>
     </el-dialog>
+    
+    <!-- 规则版本历史抽屉 -->
+    <el-drawer
+      v-model="versionsDrawerVisible"
+      title="规则配置版本历史"
+      size="40%"
+      destroy-on-close
+    >
+      <div class="version-history-container" v-loading="loadingVersions">
+        <el-timeline v-if="versions.length > 0">
+          <el-timeline-item
+            v-for="ver in versions"
+            :key="ver.id"
+            :timestamp="formatDate(ver.created_at)"
+            placement="top"
+            type="primary"
+          >
+            <el-card shadow="hover" class="version-card">
+              <div class="version-card-header flex-between mb-2">
+                <span class="version-tag-number font-bold">版本 #{{ ver.version_number }}</span>
+                <span class="version-author text-muted">编辑者: {{ ver.created_by || '系统' }}</span>
+              </div>
+              <div class="version-details text-sm mb-3">
+                <div class="version-field"><span class="label">名称:</span> {{ ver.rule_name }}</div>
+                <div class="version-field"><span class="label">类型:</span> {{ getRuleTypeName(ver.rule_type) }}</div>
+                <div class="version-field"><span class="label">级别:</span> {{ ver.severity === 'fail' ? '拦截' : ver.severity === 'warning' ? '警告' : '参考' }}</div>
+                <div class="version-field" v-if="ver.rule_type !== 'logic_graph'"><span class="label">内容:</span> <code class="text-monospace">{{ ver.rule_content }}</code></div>
+              </div>
+              <div class="version-actions" style="display: flex; justify-content: flex-end;">
+                <el-button 
+                  type="warning" 
+                  size="small" 
+                  @click="handleRollback(ver)"
+                  :loading="rollingBack"
+                >
+                  回滚至此版本
+                </el-button>
+              </div>
+            </el-card>
+          </el-timeline-item>
+        </el-timeline>
+        <el-empty v-else description="暂无历史版本记录" />
+      </div>
+    </el-drawer>
 
   </div>
 </template>
@@ -264,7 +309,8 @@ import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import { 
   getCategories, createCategory, updateCategory, deleteCategory,
   getRules, createRule, updateRule, deleteRule, restoreDefaultRules,
-  type Category, type Rule
+  getRuleVersions, rollbackRule,
+  type Category, type Rule, type RuleVersion
 } from '../api/rules'
 
 const categories = ref<Category[]>([])
@@ -581,6 +627,65 @@ const getOperationModeType = (mode: string) => {
 const isExtractionMode = (rule: any) => {
   return rule.rule_type === 'llm_prompt' && rule.logic_config?.llm_operation_mode === 'extraction'
 }
+
+// Version History & Rollback States
+const versionsDrawerVisible = ref(false)
+const loadingVersions = ref(false)
+const rollingBack = ref(false)
+const versions = ref<RuleVersion[]>([])
+const selectedRuleForVersions = ref<Rule | null>(null)
+
+const showVersionsHistory = async (rule: Rule) => {
+  selectedRuleForVersions.value = rule
+  versionsDrawerVisible.value = true
+  loadingVersions.value = true
+  try {
+    versions.value = await getRuleVersions(rule.id)
+  } catch (e) {
+    ElMessage.error('加载版本历史失败')
+  } finally {
+    loadingVersions.value = false
+  }
+}
+
+const handleRollback = async (ver: RuleVersion) => {
+  try {
+    await ElMessageBox.confirm(`确定要将规则【${ver.rule_name}】回滚至版本 #${ver.version_number} 吗？这会产生一条新的回滚版本记录。`, '版本回滚确认', {
+      type: 'warning',
+      confirmButtonText: '确定回滚',
+      cancelButtonText: '取消'
+    })
+    rollingBack.value = true
+    await rollbackRule(ver.rule_id, ver.version_number)
+    ElMessage.success('规则回滚成功')
+    versionsDrawerVisible.value = false
+    await fetchRules()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('规则回滚失败')
+    }
+  } finally {
+    rollingBack.value = false
+  }
+}
+
+const formatDate = (dateStr?: string): string => {
+  if (!dateStr) return '-'
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+  } catch (e) {
+    return dateStr
+  }
+}
 </script>
 
 <style scoped>
@@ -749,5 +854,40 @@ const isExtractionMode = (rule: any) => {
   border-radius: 8px;
   padding: 8px 12px;
   line-height: 1.5;
+}
+
+/* Version History Styles */
+.version-history-container {
+  padding: 10px 4px;
+}
+.version-card {
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+.version-card-header {
+  font-size: 13px;
+}
+.version-tag-number {
+  color: var(--el-color-primary);
+}
+.version-author {
+  color: var(--el-text-color-secondary);
+}
+.version-field {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+.version-field .label {
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+  margin-right: 4px;
+}
+.text-monospace {
+  font-family: SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  background: var(--el-fill-color-light);
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 </style>

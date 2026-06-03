@@ -2,6 +2,51 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-03] - 平台核心功能升级与响应式文件列表优化
+
+### 功能描述
+- **AI置信度与人机协同审核（HITL）**：当智能校验引擎的大模型置信度偏低（< 85%）或触发高风险拦截时，系统自动将文件状态挂起为“需人工仲裁”。在文件详情页提供显眼的警告 Banner、置信度徽章，并允许管理员一键“人工放行”或“确认驳回”，同时在执行流水中记录带有决策人和备注的完整仲裁审计链。
+- **可视化文档差异比对高亮**：对 `DocumentDiffOperator` 算子输出的文本变化，提供类似 GitHub 的红绿差异高亮卡片。清晰显示文本的删除线（红色背景）与新增项（绿色背景），并支持差异位置一键定位及折叠。
+- **规则版本控制与沙盒模拟测试**：
+  - 规则保存与编辑时自动快照版本历史，在规则配置页新增“版本历史”抽屉，支持将规则一键回滚至任意历史版本。
+  - 在可视化流程图编辑器中集成“沙盒模拟测试（Dry Run）”，允许选择已上传的 PDF 样例文件并在内存中触发临时校验，在底部的虚拟控制台中实时打印算子执行日志与拦截判定结果，而不对数据库产生实质修改。
+- **合规分析仪表盘（业务大屏）**：新增“业务大屏（Dashboard）”，集成合规概览、待办工单、趋势图表及高频失败规则统计。通过流畅 of SVG 仪表盘和极简的玻璃微动特效，直观呈现平台处理性能与通过率。
+- **文件列表与附件响应式截断优化**：针对任务中心、历史审计中心、沙盒页面的超长 PDF 文件名，移除硬编码的限宽限制，采用弹性 Flex 挤压配合 `text-overflow: ellipsis` 方式进行自适应截断，保障大屏下的美观与文字完整性。
+
+### 详细修改记录
+
+#### 1. 前端 - 核心功能页面与组件开发
+- **文件详情页** ([FileDetailPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/FileDetailPage.vue)):
+  - 引入了人工仲裁（HITL）看板，支持直接触发 `approve` 或 `reject` 手工审计逻辑。
+  - 对低置信度（< 85%）的规则卡片在右侧置信度徽章处进行高亮预警并关联警告图标。
+  - 增加了基于红绿背景和删除/新增标识的文档文本差异比对（Diff）可视化渲染面板，支持折叠与自适应换行。
+- **规则图编辑器** ([RuleGraphEditor.vue](file:///c:/Projects/git/ppap/frontend/src/components/RuleGraphEditor.vue)):
+  - 增加了“沙盒模拟测试（Dry Run）”按钮与对话框，支持从历史上传中选择样例文件并触发内存级沙盒模拟。
+  - 增加了仿终端控制台，配合微动画实时输出节点执行轨迹、置信度以及最终判定日志。
+- **规则列表与分类** ([RulesPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/RulesPage.vue)):
+  - 添加了“历史”版本按钮，点击可唤出规则版本轨迹抽屉。
+  - 渲染了时间线列表，支持选择任一快照将当前规则一键回滚。
+- **合规大屏** ([DashboardPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/DashboardPage.vue)):
+  - 新增合规分析页面，包含总文件数、平均通过率、待审核人工工单及规则拦截 Top 排行榜。
+  - 使用自适应 SVG 渲染通过率环形图、周校验趋势折线图以及异常排行柱状图，添加极简科技感卡片阴影。
+- **响应式文件列表样式优化**:
+  - [TaskCenterPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/TaskCenterPage.vue)：修改 `.item-name-info` 为自适应宽度，完美支持任意超长文件名，并移除硬编码的 200px 限制。
+  - [HistoryPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/HistoryPage.vue)：为 `.file-name-cell` 增加弹性缩放限制，并允许 `.file-title-text` 进行 ellipsis 截断。
+  - [ModuleSandboxPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/ModuleSandboxPage.vue)：修改 `el-upload-list__item-name` 的 `max-width` 为 `100%`，防止长文件名溢出。
+
+#### 2. 后端 - API 接口与版本回滚引擎
+- **规则版本控制系统** ([rule_version.py](file:///c:/Projects/git/ppap/backend/app/models/rule_version.py)):
+  - 建立了 `RuleVersion` 的 SQLAlchemy 映射模型，对名称、类型、严重性、逻辑图配置及内容进行多版本归档。
+  - 编写并执行了 Alembic 迁移脚本 `10dd2dcf16f5`，安全在 PostgreSQL 中创建版本数据表。
+- **规则相关 API 路由** ([rules.py](file:///c:/Projects/git/ppap/backend/app/api/rules.py)):
+  - 实现了 `GET /api/v1/rules/{id}/versions` 路由获取特定规则的版本树。
+  - 实现了 `POST /api/v1/rules/{id}/rollback` 进行指定的历史版本回滚。
+  - 实现了 `POST /api/v1/rules/dry-run` 内存沙盒计算接口，执行无痕化模拟校验并按日志节点形式向前端返回运行堆栈。
+- **合规统计 API 路由** ([files.py](file:///c:/Projects/git/ppap/backend/app/api/files.py)):
+  - 实现了 `GET /api/v1/files/statistics`，提供全局统计和各指标曲线的基础数据。
+
+---
+
 ## [2026-06-03] - 统一设置页面样式与按钮布局优化
 
 ### 功能描述

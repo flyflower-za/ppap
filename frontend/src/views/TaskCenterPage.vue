@@ -569,10 +569,19 @@ function handleRefresh() {
   margin-right: 12px;
 }
 
+.item-left {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
+}
+
 .item-name-info {
   display: flex;
   flex-direction: column;
-  max-width: 200px;
+  flex: 1;
+  min-width: 0;
 }
 
 .file-name {

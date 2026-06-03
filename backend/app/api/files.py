@@ -110,6 +110,119 @@ async def list_files(
     )
 
 
+@router.get("/statistics")
+async def get_statistics(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retrieve macro-level compliance statistics for the dashboard."""
+    from app.models.file import File, FileStatus
+    from sqlalchemy import select, func, case, Date
+    from datetime import datetime, timedelta
+    import json
+    from collections import Counter
+
+    # 1. Overview counts
+    total_stmt = select(func.count(File.id))
+    total_res = await db.execute(total_stmt)
+    total_count = total_res.scalar() or 0
+
+    status_stmt = select(File.status, func.count(File.id)).group_by(File.status)
+    status_res = await db.execute(status_stmt)
+    status_counts = {}
+    for row in status_res.all():
+        if row[0] is not None:
+            status_counts[row[0].value] = row[1]
+        else:
+            status_counts["unknown"] = row[1]
+
+    completed_count = status_counts.get(FileStatus.COMPLETED.value, 0)
+    warning_count = status_counts.get(FileStatus.WARNING.value, 0)
+    failed_count = status_counts.get(FileStatus.FAILED.value, 0)
+    needs_review_count = status_counts.get(FileStatus.NEEDS_REVIEW.value, 0)
+    pending_count = status_counts.get(FileStatus.PENDING.value, 0)
+    processing_count = status_counts.get(FileStatus.PROCESSING.value, 0)
+
+    decided_total = completed_count + warning_count + failed_count
+    pass_rate = int(((completed_count + warning_count) / max(1, decided_total)) * 100)
+
+    # 2. Trend statistics (Last 14 days)
+    end_date = datetime.utcnow()
+    start_date = end_date - timedelta(days=14)
+    
+    trend_stmt = (
+        select(
+            func.cast(File.uploaded_at, Date).label("date"),
+            func.count(File.id).label("total"),
+            func.sum(case((File.status.in_([FileStatus.COMPLETED, FileStatus.WARNING]), 1), else_=0)).label("passed")
+        )
+        .where(File.uploaded_at >= start_date)
+        .group_by(func.cast(File.uploaded_at, Date))
+        .order_by("date")
+    )
+    
+    trend_res = await db.execute(trend_stmt)
+    trend_data = []
+    
+    # Fill in potential date gaps with 0
+    date_map = {}
+    for row in trend_res.all():
+        if row.date:
+            date_str = row.date.strftime("%Y-%m-%d")
+            date_map[date_str] = {
+                "date": date_str,
+                "total": row.total,
+                "passed": int(row.passed or 0)
+            }
+        
+    for i in range(15):
+        d = (start_date + timedelta(days=i)).strftime("%Y-%m-%d")
+        if d not in date_map:
+            trend_data.append({
+                "date": d,
+                "total": 0,
+                "passed": 0
+            })
+        else:
+            trend_data.append(date_map[d])
+
+    # 3. Top Failing Rules Counter
+    # Parse last 1000 files results
+    files_stmt = select(File.verification_result).where(File.verification_result.isnot(None)).order_by(File.uploaded_at.desc()).limit(1000)
+    files_res = await db.execute(files_stmt)
+    failing_rules = Counter()
+    
+    for row in files_res.scalars().all():
+        try:
+            data = json.loads(row) if isinstance(row, str) else row
+            if data and "checks" in data:
+                for check in data["checks"]:
+                    if check.get("status") == "fail":
+                        failing_rules[check.get("name")] += 1
+        except Exception:
+            continue
+            
+    top_failing = [
+        {"rule_name": name, "count": count} 
+        for name, count in failing_rules.most_common(5)
+    ]
+
+    return {
+        "overview": {
+            "total": total_count,
+            "completed": completed_count,
+            "warning": warning_count,
+            "failed": failed_count,
+            "needs_review": needs_review_count,
+            "pending": pending_count,
+            "processing": processing_count,
+            "pass_rate": pass_rate
+        },
+        "trend": trend_data,
+        "top_failing_rules": top_failing
+    }
+
+
 @router.get("/{file_id}", response_model=FileDetailResponse)
 async def get_file_detail(
     request: Request,

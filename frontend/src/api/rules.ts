@@ -57,3 +57,38 @@ export const deleteRule = async (id: string) => {
 export const restoreDefaultRules = async () => {
   return await apiClient.post('/rule-engine/restore-defaults')
 }
+
+export interface RuleVersion {
+  id: string
+  rule_id: string
+  version_number: number
+  rule_name: string
+  rule_type: string
+  rule_content: string
+  severity: string
+  is_active: boolean
+  logic_config: any
+  created_at: string
+  created_by?: string
+}
+
+export const getRuleVersions = async (ruleId: string) => {
+  return await apiClient.get<any, RuleVersion[]>(`/rule-engine/rules/${ruleId}/versions`)
+}
+
+export const rollbackRule = async (ruleId: string, versionNumber: number) => {
+  return await apiClient.post<any, Rule>(`/rule-engine/rules/${ruleId}/rollback`, null, {
+    params: { version_number: versionNumber }
+  })
+}
+
+export const dryRunRule = async (data: {
+  file_id: string
+  rule_name: string
+  rule_type: string
+  rule_content: string
+  severity: string
+  logic_config: any
+}) => {
+  return await apiClient.post<any, { logs: { timestamp: string; message: string }[]; result: any }>('/rule-engine/rules/dry-run', data)
+}

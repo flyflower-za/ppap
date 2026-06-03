@@ -269,7 +269,13 @@
                         第 {{ check.page }} 页 <el-icon class="ml-1"><Position /></el-icon>
                       </el-tag>
                     </h4>
-                    <span class="check-status-tag" :class="check.status">{{ checkStatusLabel(check.status) }}</span>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <span v-if="check.confidence !== undefined && check.confidence !== null" class="check-confidence-badge" :class="{ 'low-confidence': check.confidence < 0.85 }">
+                        置信度: {{ (check.confidence * 100).toFixed(0) }}%
+                        <el-icon v-if="check.confidence < 0.85" class="ml-1"><WarningFilled /></el-icon>
+                      </span>
+                      <span class="check-status-tag" :class="check.status">{{ checkStatusLabel(check.status) }}</span>
+                    </div>
                   </div>
                   <p class="check-message">{{ check.message }}</p>
                   
@@ -283,6 +289,58 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- Visual PDF Diff Card -->
+          <div
+            v-if="diffResults && diffResults.changes && diffResults.changes.length > 0"
+            class="glass-card section-panel mb-4 diff-panel"
+          >
+            <div class="section-title flex-between cursor-pointer" @click="diffDetailsCollapsed = !diffDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
+              <h3 class="flex-align-center">
+                <el-icon class="mr-2"><Tickets /></el-icon> 文本版本差异比对 (相似度: {{ diffResults.similarity }}%)
+              </h3>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <el-tag type="danger" size="small">{{ diffResults.changes_count }} 处差异</el-tag>
+                <el-button link type="primary" style="font-size: 13px;">
+                  {{ diffDetailsCollapsed ? '展开' : '收起' }}
+                  <el-icon class="ml-1"><component :is="diffDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
+                </el-button>
+              </div>
+            </div>
+            
+            <el-collapse-transition>
+              <div v-show="!diffDetailsCollapsed" class="mt-4">
+                <div class="diff-changes-list">
+                  <div
+                    v-for="(change, idx) in diffResults.changes"
+                    :key="idx"
+                    class="diff-change-item"
+                  >
+                    <div class="diff-change-header flex-between mb-2">
+                      <span class="diff-change-index font-bold">差异位置 #{{ idx + 1 }}</span>
+                      <el-tag :type="change.type === 'delete' || change.type === 'replace' ? 'danger' : 'success'" size="small" effect="dark">
+                        {{ change.type === 'delete' ? '已删除' : (change.type === 'replace' ? '修改' : '新增') }}
+                      </el-tag>
+                    </div>
+                    
+                    <div class="diff-comparison-box">
+                      <!-- Removed/Original Fragment -->
+                      <div v-if="change.type === 'delete' || change.type === 'replace'" class="diff-line removed">
+                        <span class="line-marker">-</span>
+                        <div class="line-content" v-html="formatDiffFragment(change.original_fragment, 'removed')"></div>
+                      </div>
+                      
+                      <!-- Added/Current Fragment -->
+                      <div v-if="change.type === 'insert' || change.type === 'replace'" class="diff-line added">
+                        <span class="line-marker">+</span>
+                        <div class="line-content" v-html="formatDiffFragment(change.current_fragment, 'added')"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-collapse-transition>
           </div>
 
           <!-- General Details Card -->
@@ -518,6 +576,7 @@
                   v-for="note in notes" 
                   :key="note.id" 
                   class="timeline-note-bubble"
+                  :class="getNoteBubbleClass(note.content)"
                 >
                   <div class="note-meta flex-between">
                     <div class="author-avatar-info">
@@ -644,12 +703,41 @@ const submittingNote = ref(false)
 const pdfContainerRef = ref<HTMLElement | null>(null)
 const pdfLoading = ref(false)
 const expandedSigs = ref<Record<number, boolean>>({})
+const diffDetailsCollapsed = ref(true)
 
 const trajectoryDrawerVisible = ref(false)
 const liveExecutionLogs = ref<any[]>([])
 
 // ─── 诊断指标微型过滤器 ───
 const activeFilter = ref<'all' | 'pass' | 'warning' | 'fail'>('all')
+
+function getNoteBubbleClass(content: string): string {
+  if (content.startsWith('已通过仲裁：')) {
+    return 'note-arbitration-approved'
+  }
+  if (content.startsWith('已驳回仲裁：')) {
+    return 'note-arbitration-rejected'
+  }
+  return ''
+}
+
+function formatDiffFragment(text: string, type: 'removed' | 'added') {
+  if (!text) return ''
+  // Escape HTML entities to prevent XSS
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  
+  const escapedStart = '&gt;&gt;&gt;'
+  const escapedEnd = '&lt;&lt;&lt;'
+  
+  const spanClass = type === 'removed' ? 'diff-text-removed' : 'diff-text-added'
+  
+  return escaped
+    .replace(escapedStart, `<span class="${spanClass}">`)
+    .replace(escapedEnd, `</span>`)
+}
 
 // ─── 右侧卡片折叠状态管理 ───
 const generalDetailsCollapsed = ref(true)
@@ -2222,5 +2310,131 @@ onUnmounted(() => {
 /* Timeline log cards */
 .log-card {
   border-radius: 8px;
+}
+
+/* Check confidence styles */
+.check-confidence-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #67C23A;
+  background: rgba(103, 194, 58, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.check-confidence-badge.low-confidence {
+  color: #E6A23C;
+  background: rgba(230, 162, 60, 0.1);
+}
+
+/* Timeline arbitration notes custom styles */
+.timeline-note-bubble.note-arbitration-approved {
+  background: rgba(103, 194, 58, 0.05);
+  border-left: 4px solid #67C23A;
+  border-color: rgba(103, 194, 58, 0.15) rgba(103, 194, 58, 0.15) rgba(103, 194, 58, 0.15) #67C23A;
+}
+.timeline-note-bubble.note-arbitration-rejected {
+  background: rgba(245, 108, 108, 0.05);
+  border-left: 4px solid #F56C6C;
+  border-color: rgba(245, 108, 108, 0.15) rgba(245, 108, 108, 0.15) rgba(245, 108, 108, 0.15) #F56C6C;
+}
+
+/* Document Diff Panel Styles */
+.diff-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.diff-changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.diff-changes-list::-webkit-scrollbar {
+  width: 5px;
+}
+.diff-changes-list::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.02);
+}
+.diff-changes-list::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.1);
+  border-radius: 3px;
+}
+
+.diff-change-item {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.diff-change-header {
+  font-size: 13px;
+}
+
+.diff-comparison-box {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  overflow: hidden;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.diff-line {
+  display: flex;
+  padding: 8px 12px;
+  line-height: 1.5;
+}
+
+.diff-line.removed {
+  background-color: rgba(244, 67, 54, 0.02);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.diff-line.added {
+  background-color: rgba(76, 175, 80, 0.02);
+}
+
+.diff-line .line-marker {
+  width: 20px;
+  user-select: none;
+  font-weight: bold;
+}
+
+.diff-line.removed .line-marker {
+  color: #F56C6C;
+}
+
+.diff-line.added .line-marker {
+  color: #67C23A;
+}
+
+.diff-line .line-content {
+  flex: 1;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Format diff fragments highlighted inside spans */
+:deep(.diff-text-removed) {
+  background-color: rgba(245, 108, 108, 0.2);
+  color: #c45656;
+  text-decoration: line-through;
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+:deep(.diff-text-added) {
+  background-color: rgba(103, 194, 58, 0.2);
+  color: #5daf34;
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-weight: 600;
 }
 </style>

@@ -946,10 +946,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  width: 100%;
 }
 
 .pdf-icon {
   font-size: 16px;
+  flex-shrink: 0;
 }
 
 .file-title-text {
@@ -957,6 +960,11 @@ onMounted(() => {
   color: #1e293b;
   cursor: pointer;
   transition: color 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .file-title-text:hover {

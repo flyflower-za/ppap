@@ -377,7 +377,7 @@ async function runTest() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 280px;
+  max-width: 100%;
 }
 
 /* 拖拽上传区域宽度优化 */

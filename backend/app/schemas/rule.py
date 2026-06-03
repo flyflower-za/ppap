@@ -60,3 +60,29 @@ class VerificationRuleResponse(VerificationRuleBase):
 
 class DocumentCategoryWithRules(DocumentCategoryResponse):
     rules: List[VerificationRuleResponse] = Field(default_factory=list)
+
+from datetime import datetime
+
+class RuleVersionResponse(BaseModel):
+    id: UUID
+    rule_id: UUID
+    version_number: int
+    rule_name: str
+    rule_type: str
+    rule_content: str
+    severity: str
+    is_active: bool
+    logic_config: Dict[str, Any]
+    created_at: datetime
+    created_by: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+class RuleDryRunRequest(BaseModel):
+    file_id: UUID
+    rule_name: str
+    rule_type: str
+    rule_content: str
+    severity: str
+    logic_config: Dict[str, Any] = Field(default_factory=dict)
