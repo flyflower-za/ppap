@@ -474,10 +474,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, nextTick } from 'vue'
+import { ref, reactive, watch, onMounted, nextTick, computed } from 'vue'
 import { VueFlow } from '@vue-flow/core'
 import { filesApi } from '@/api/files'
 import { dryRunRule } from '@/api/rules'
+import { getOperators, type OperatorRegistry } from '@/api/operators'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -497,7 +498,8 @@ interface NodeMeta {
   defaultData: Record<string, any>
 }
 
-const NODE_REGISTRY: Record<string, NodeMeta> = {
+// 硬编码的默认算子注册表（作为 fallback）
+const DEFAULT_NODE_REGISTRY: Record<string, NodeMeta> = {
   'text-llm':            { label: '文本大模型',     icon: '🧠', color: '#dbeafe', borderColor: '#3b82f6', group: 'ai',     defaultData: { prompt: '', operation_mode: 'verification', severity: 'fail', hasSeverity: true } },
   'vision-llm':          { label: '视觉大模型',     icon: '👁️', color: '#ede9fe', borderColor: '#8b5cf6', group: 'ai',     defaultData: { prompt: '', operation_mode: 'verification', severity: 'fail', hasSeverity: true } },
   'institution-sniffer': { label: '机构嗅探',       icon: '🏢', color: '#fef3c7', borderColor: '#f59e0b', group: 'ai',     defaultData: {} },
@@ -514,6 +516,51 @@ const NODE_REGISTRY: Record<string, NodeMeta> = {
   'vote':                { label: '聚合投票',       icon: '🗳️', color: '#faf5ff', borderColor: '#7c3aed', group: 'flow',   defaultData: { min_pass: 2 } },
 }
 
+// 动态加载的算子注册表
+const loadedOperators = ref<OperatorRegistry[]>([])
+const NODE_REGISTRY = computed<Record<string, NodeMeta>>(() => {
+  const registry: Record<string, NodeMeta> = {}
+
+  // 优先使用从后端加载的算子
+  for (const op of loadedOperators.value) {
+    registry[op.operator_key] = {
+      label: op.display_name,
+      icon: op.icon || DEFAULT_NODE_REGISTRY[op.operator_key]?.icon || '⚙️',
+      color: op.color || DEFAULT_NODE_REGISTRY[op.operator_key]?.color || '#f3f4f6',
+      borderColor: op.border_color || DEFAULT_NODE_REGISTRY[op.operator_key]?.borderColor || '#d1d5db',
+      group: (op.group as 'ai' | 'detect' | 'flow') || DEFAULT_NODE_REGISTRY[op.operator_key]?.group || 'flow',
+      defaultData: {
+        severity: op.default_severity || 'fail',
+        hasSeverity: op.supports_severity !== false,
+        ...getDefaultDataForOperator(op.operator_key)
+      }
+    }
+  }
+
+  // 补充硬编码的算子（后端没有的）
+  for (const [key, value] of Object.entries(DEFAULT_NODE_REGISTRY)) {
+    if (!registry[key]) {
+      registry[key] = value
+    }
+  }
+
+  return registry
+})
+
+// 根据算子类型获取默认数据
+function getDefaultDataForOperator(operatorKey: string): Record<string, any> {
+  const defaults: Record<string, any> = {
+    'text-llm': { prompt: '', operation_mode: 'verification' },
+    'vision-llm': { prompt: '', operation_mode: 'verification' },
+    'revision-check': { maxRevisions: 1, allowIncrementalUpdates: false },
+    'signature': { expected_issuer: '' },
+    'http-call': { url_template: '', http_method: 'GET', headers: [{ key: 'Content-Type', value: 'application/json', _id: 1 }], timeout: 30, success_type: 'status_2xx' },
+    'data-compare': { source_a: '', source_b: '' },
+    'vote': { min_pass: 2 },
+  }
+  return defaults[operatorKey] || {}
+}
+
 const severityOptions = [
   { value: 'fail', label: '拦截', icon: '🚫' },
   { value: 'warning', label: '警告', icon: '⚠️' },
@@ -521,24 +568,26 @@ const severityOptions = [
 ]
 
 // Build palette groups from registry
-const paletteGroups = [
-  {
-    key: 'ai', icon: '🤖', label: 'AI 算子',
-    items: Object.entries(NODE_REGISTRY).filter(([, m]) => m.group === 'ai').map(([type, m]) => ({ type, ...m })),
-  },
-  {
-    key: 'detect', icon: '🔍', label: '检测算子',
-    items: Object.entries(NODE_REGISTRY).filter(([, m]) => m.group === 'detect').map(([type, m]) => ({ type, ...m })),
-  },
-  {
-    key: 'flow', icon: '🔀', label: '流程控制',
-    items: Object.entries(NODE_REGISTRY).filter(([, m]) => m.group === 'flow').map(([type, m]) => ({ type, ...m })),
-  },
-]
+const paletteGroups = computed(() => {
+  return [
+    {
+      key: 'ai', icon: '🤖', label: 'AI 算子',
+      items: Object.entries(NODE_REGISTRY.value).filter(([, m]) => m.group === 'ai').map(([type, m]) => ({ type, ...m })),
+    },
+    {
+      key: 'detect', icon: '🔍', label: '检测算子',
+      items: Object.entries(NODE_REGISTRY.value).filter(([, m]) => m.group === 'detect').map(([type, m]) => ({ type, ...m })),
+    },
+    {
+      key: 'flow', icon: '🔀', label: '流程控制',
+      items: Object.entries(NODE_REGISTRY.value).filter(([, m]) => m.group === 'flow').map(([type, m]) => ({ type, ...m })),
+    },
+  ]
+})
 
 const openGroups = reactive<Record<string, boolean>>({ ai: true, detect: true, flow: true })
 function toggleGroup(key: string) { openGroups[key] = !openGroups[key] }
-function getNodeMeta(nodeType?: string): NodeMeta | undefined { return nodeType ? NODE_REGISTRY[nodeType] : undefined }
+function getNodeMeta(nodeType?: string): NodeMeta | undefined { return nodeType ? NODE_REGISTRY.value[nodeType] : undefined }
 
 function isLLMExtractionMode(nodeData: any): boolean {
   return (nodeData?.nodeType === 'text-llm' || nodeData?.nodeType === 'vision-llm') &&
@@ -766,7 +815,17 @@ function safeCloneEdges(edgesArray: any[]) {
   })
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Load operators from backend first
+  try {
+    const operators = await getOperators()
+    loadedOperators.value = operators
+    console.log('[RuleGraphEditor] Loaded operators from backend:', operators.length)
+  } catch (error) {
+    console.warn('[RuleGraphEditor] Failed to load operators from backend, using defaults:', error)
+    // Continue with default operators
+  }
+
   try {
     if (props.modelValue?.nodes?.length > 0) {
       // Load existing graph data with safe cloning
@@ -832,7 +891,7 @@ const onConnect = (connection: any) => {
 let nodeCounter = 0
 const addNode = (type: string) => {
   nodeCounter++
-  const meta = NODE_REGISTRY[type]
+  const meta = NODE_REGISTRY.value[type]
   if (!meta) return
 
   const existingCount = nodes.value.filter(n => n.data?.nodeType === type).length

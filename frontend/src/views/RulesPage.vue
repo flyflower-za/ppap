@@ -58,9 +58,14 @@
           <template #header>
             <div class="card-header">
               <span>{{ activeCategoryName }} - 校验规则</span>
-              <el-button type="primary" @click="openRuleDialog()">
-                <el-icon><Plus /></el-icon> 添加规则
-              </el-button>
+              <div class="header-actions">
+                <el-button type="success" plain @click="openTemplateMarket()">
+                  <el-icon><Collection /></el-icon> 从模板创建
+                </el-button>
+                <el-button type="primary" @click="openRuleDialog()">
+                  <el-icon><Plus /></el-icon> 添加规则
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -298,20 +303,116 @@
       </div>
     </el-drawer>
 
+    <!-- 规则模板市场对话框 -->
+    <el-dialog
+      v-model="templateMarketVisible"
+      title="规则模板市场"
+      width="900px"
+      destroy-on-close
+    >
+      <div class="template-market" v-loading="loadingTemplates">
+        <!-- 筛选栏 -->
+        <div class="template-filters">
+          <el-input
+            v-model="templateSearchKeyword"
+            placeholder="搜索模板名称..."
+            prefix-icon="Search"
+            style="width: 250px;"
+            clearable
+          />
+          <el-select v-model="templateCategoryFilter" placeholder="按分类筛选" style="width: 150px;" clearable>
+            <el-option label="全部" value="" />
+            <el-option label="生产计划" value="生产计划" />
+            <el-option label="采购订单" value="采购订单" />
+            <el-option label="质检报告" value="质检报告" />
+          </el-select>
+        </div>
+
+        <!-- 模板列表 -->
+        <div class="template-list">
+          <div
+            v-for="template in filteredTemplates"
+            :key="template.id"
+            class="template-card"
+            :class="{ 'system-template': template.is_system }"
+          >
+            <div class="template-header">
+              <div class="template-title">
+                <span class="template-icon">📦</span>
+                <span class="template-name">{{ template.name }}</span>
+                <el-tag v-if="template.is_system" size="small" type="success" effect="plain">系统</el-tag>
+                <el-tag v-if="template.is_public && !template.is_system" size="small" type="info" effect="plain">公开</el-tag>
+              </div>
+              <div class="template-actions">
+                <el-button type="primary" size="small" @click="applyTemplate(template)">
+                  <el-icon><Check /></el-icon> 应用
+                </el-button>
+              </div>
+            </div>
+            <div class="template-description">{{ template.description }}</div>
+            <div class="template-meta">
+              <div class="template-tags">
+                <el-tag
+                  v-for="tag in template.tags"
+                  :key="tag"
+                  size="small"
+                  type="info"
+                  effect="plain"
+                >
+                  {{ tag }}
+                </el-tag>
+              </div>
+              <div class="template-stats">
+                <span class="template-rules-count">{{ template.template_rules?.length || 0 }} 条规则</span>
+                <span v-if="template.usage_count" class="template-usage">使用 {{ template.usage_count }} 次</span>
+              </div>
+            </div>
+            <div class="template-rules-preview">
+              <div class="preview-title">包含规则：</div>
+              <div class="preview-list">
+                <div v-for="(rule, idx) in template.template_rules.slice(0, 3)" :key="idx" class="preview-item">
+                  <el-icon class="item-icon"><Document /></el-icon>
+                  <span class="item-name">{{ rule.rule_name }}</span>
+                  <el-tag :type="rule.severity === 'fail' ? 'danger' : 'warning'" size="small">
+                    {{ rule.severity === 'fail' ? '拦截' : '警告' }}
+                  </el-tag>
+                </div>
+                <div v-if="template.template_rules.length > 3" class="preview-more">
+                  +{{ template.template_rules.length - 3 }} 更多规则
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <el-empty v-if="filteredTemplates.length === 0" description="暂无匹配的模板" />
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="templateMarketVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
+
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, MoreFilled, Refresh, InfoFilled } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
-import { 
+import {
   getCategories, createCategory, updateCategory, deleteCategory,
   getRules, createRule, updateRule, deleteRule, restoreDefaultRules,
   getRuleVersions, rollbackRule,
   type Category, type Rule, type RuleVersion
 } from '../api/rules'
+import {
+  getRuleTemplates, applyRuleTemplate, initializeRuleTemplates,
+  type RuleTemplate
+} from '../api/operators'
 
 const categories = ref<Category[]>([])
 const rules = ref<Rule[]>([])
@@ -324,6 +425,35 @@ const restoringDefaults = ref(false)
 // Dialog states
 const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
+
+// Template Market states
+const templateMarketVisible = ref(false)
+const templates = ref<RuleTemplate[]>([])
+const loadingTemplates = ref(false)
+const templateSearchKeyword = ref('')
+const templateCategoryFilter = ref('')
+
+// Filtered templates
+const filteredTemplates = computed(() => {
+  let result = templates.value
+
+  if (templateSearchKeyword.value) {
+    const keyword = templateSearchKeyword.value.toLowerCase()
+    result = result.filter(t =>
+      t.name.toLowerCase().includes(keyword) ||
+      t.description?.toLowerCase().includes(keyword) ||
+      t.tags?.some(tag => tag.toLowerCase().includes(keyword))
+    )
+  }
+
+  if (templateCategoryFilter.value) {
+    result = result.filter(t =>
+      t.category_suggestions.some(cat => cat.includes(templateCategoryFilter.value))
+    )
+  }
+
+  return result
+})
 
 const categoryForm = ref<Partial<Category>>({ name: '', keywords: [] })
 const ruleForm = ref<Partial<Rule & { condition_institution?: string, llm_model_type?: string, llm_operation_mode?: string }>>({
@@ -648,6 +778,54 @@ const showVersionsHistory = async (rule: Rule) => {
   }
 }
 
+// Template Market Actions
+const openTemplateMarket = async () => {
+  if (!activeCategoryId.value) {
+    ElMessage.warning('请先选择一个文档分类')
+    return
+  }
+
+  templateMarketVisible.value = true
+  loadingTemplates.value = true
+
+  try {
+    templates.value = await getRuleTemplates()
+  } catch (error) {
+    ElMessage.error('加载模板列表失败')
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
+const applyTemplate = async (template: RuleTemplate) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要应用模板「${template.name}」到分类「${activeCategoryName.value}」吗？\n\n这将创建 ${template.template_rules?.length || 0} 条新规则，现有规则不会被替换。`,
+      '应用模板确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确定应用',
+        cancelButtonText: '取消'
+      }
+    )
+
+    const result = await applyRuleTemplate(template.id, activeCategoryId.value)
+
+    ElMessage.success(`模板应用成功！创建了 ${result.rules_created} 条规则`)
+    templateMarketVisible.value = false
+
+    // 刷新规则列表
+    await fetchRules()
+
+    // 记录审计日志
+    console.log('[Template Applied]', result)
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.detail || '应用模板失败')
+    }
+  }
+}
+
 const handleRollback = async (ver: RuleVersion) => {
   try {
     await ElMessageBox.confirm(`确定要将规则【${ver.rule_name}】回滚至版本 #${ver.version_number} 吗？这会产生一条新的回滚版本记录。`, '版本回滚确认', {
@@ -889,5 +1067,151 @@ const formatDate = (dateStr?: string): string => {
   background: var(--el-fill-color-light);
   padding: 2px 4px;
   border-radius: 4px;
+}
+
+/* Header Actions */
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* Template Market Styles */
+.template-market {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.template-filters {
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.template-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 16px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.template-card {
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--el-bg-color);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.template-card:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.template-card.system-template {
+  border-color: var(--el-color-success-light-5);
+  background: linear-gradient(135deg, rgba(103, 194, 58, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.template-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.template-icon {
+  font-size: 20px;
+}
+
+.template-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+
+.template-description {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  min-height: 38px;
+}
+
+.template-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.template-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
+.template-rules-preview {
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 4px;
+}
+
+.preview-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.item-icon {
+  color: var(--el-color-primary);
+  font-size: 14px;
+}
+
+.item-name {
+  flex: 1;
+  color: var(--el-text-color-regular);
+}
+
+.preview-more {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+  text-align: center;
+  padding: 4px 0;
 }
 </style>

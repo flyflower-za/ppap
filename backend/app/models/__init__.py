@@ -10,6 +10,9 @@ from app.models.ldap_config import LDAPConfig
 from app.models.rule import DocumentCategory, VerificationRule
 from app.models.rule_version import RuleVersion
 from app.models.user_group import UserGroup, user_group_association
+from app.models.operator_registry import OperatorRegistry, OperatorTemplate
+from app.models.rule_approval import RuleChangeRequest, ApprovalPolicy, ApprovalStatus
+from app.models.rule_template import RuleTemplate
 
 __all__ = [
     "User",
@@ -30,4 +33,10 @@ __all__ = [
     "RuleVersion",
     "UserGroup",
     "user_group_association",
+    "OperatorRegistry",
+    "OperatorTemplate",
+    "RuleChangeRequest",
+    "ApprovalPolicy",
+    "ApprovalStatus",
+    "RuleTemplate",
 ]

@@ -11,7 +11,7 @@ from app.core.minio_client import minio_client
 from app.models.file import File, FileStatus, FileType
 from app.models.task import Task, TaskStatus
 from app.models.notification import Notification, NotificationType
-from app.models.rule import VerificationRule, RuleType, Severity
+from app.models.rule import VerificationRule, RuleType, Severity, DocumentCategory
 from app.core.redis import redis_client
 import re
 
@@ -121,9 +121,12 @@ def queue_verification_task(self, file_id: str):
                 shared_state={"pdf_bytes": pdf_bytes} if pdf_bytes else {}
             )
 
-            # Fetch active rules
+            # Fetch active rules and categories
             result = await db.execute(select(VerificationRule).where(VerificationRule.is_active == True))
             active_rules = result.scalars().all()
+
+            cat_result = await db.execute(select(DocumentCategory).where(DocumentCategory.is_active == True))
+            active_categories = cat_result.scalars().all()
 
             # Force inclusion of base operators if not explicitly defined in rules
             # We want to keep backward compatibility with the basic checks
@@ -154,7 +157,7 @@ def queue_verification_task(self, file_id: str):
                 await publish_progress(60, FileStatus.PROCESSING.value, msg)
 
             engine = VerificationEngine()
-            engine_result = await engine.run(context, active_rules, progress_callback=engine_progress_cb)
+            engine_result = await engine.run(context, active_rules, progress_callback=engine_progress_cb, categories=active_categories)
 
             # ============================================================
             # Stage 3: Compile Final Report (Progress 100%)
@@ -186,6 +189,8 @@ def queue_verification_task(self, file_id: str):
             else:
                 final_status = FileStatus.COMPLETED
 
+            matched_category = engine_result.get("matched_category", None)
+
             # Build Result Payload
             verification_result = {
                 "status": final_status.value,
@@ -198,7 +203,8 @@ def queue_verification_task(self, file_id: str):
                     "fail": fail_count,
                     "reference": reference_count,
                     "institution": institution,
-                    "needs_review": needs_review
+                    "needs_review": needs_review,
+                    "matched_category": matched_category
                 },
                 "operator_logs": engine_result.get("operator_logs", {}),
                 "execution_trajectory": trajectory_logs

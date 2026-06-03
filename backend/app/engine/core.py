@@ -138,10 +138,11 @@ class VerificationEngine:
                 
         return ops_to_run
 
-    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None) -> Dict[str, any]:
+    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None, categories=None) -> Dict[str, any]:
         """
         Execute the dynamic pipeline with a two-stage architecture.
         Stage 1: Pre-classification (PDF Info & Institution Sniffer)
+        Stage 1.5: Category keyword matching to route rules
         Stage 2: Execute heavy operators only for rules that match the category/institution.
         """
         logger.info(f"[Engine] Starting dynamic verification for {context.file_path}")
@@ -174,11 +175,49 @@ class VerificationEngine:
         self._flatten_shared_state(context)
 
         # ---------------------------------------------------------
-        # FILTER RULES (Based on Institution/Category)
+        # STAGE 1.5: Category Keyword Matching & Rule Routing
         # ---------------------------------------------------------
         sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
-        await emit_log(f"分类嗅探结果: {sniffed_inst}。正在匹配适用规则...")
-        
+        full_text = context.shared_state.get("full_text", "")
+        file_path = context.file_path or ""
+        matched_category_id = None
+        matched_category_name = None
+
+        if categories:
+            await emit_log(f"分类嗅探结果: {sniffed_inst}。正在通过关键字匹配文档分类...")
+            for cat in categories:
+                cat_keywords = cat.keywords if hasattr(cat, 'keywords') else (cat.get('keywords', []) if isinstance(cat, dict) else [])
+                cat_id = cat.id if hasattr(cat, 'id') else (cat.get('id') if isinstance(cat, dict) else None)
+                cat_name = cat.name if hasattr(cat, 'name') else (cat.get('name', '') if isinstance(cat, dict) else '')
+                cat_active = cat.is_active if hasattr(cat, 'is_active') else (cat.get('is_active', True) if isinstance(cat, dict) else True)
+                if not cat_active or not cat_keywords:
+                    continue
+                for kw in cat_keywords:
+                    if kw and (kw.lower() in full_text.lower() or kw.lower() in file_path.lower()):
+                        matched_category_id = str(cat_id) if cat_id else None
+                        matched_category_name = cat_name
+                        break
+                if matched_category_id:
+                    break
+
+        # Determine which rules to apply based on category matching
+        if matched_category_id:
+            # Check if the matched category has dedicated rules
+            category_rules = [r for r in rules if r.category_id and str(r.category_id) == matched_category_id]
+            if category_rules:
+                await emit_log(f"文档匹配分类 [{matched_category_name}]，找到 {len(category_rules)} 条专属规则，将跳过全局默认规则")
+                rules = category_rules
+            else:
+                await emit_log(f"文档匹配分类 [{matched_category_name}]，但该分类暂无专属规则，降级使用全局默认规则")
+        else:
+            if categories:
+                await emit_log(f"分类嗅探结果: {sniffed_inst}。文档未匹配到任何分类关键字，使用全局默认规则")
+            else:
+                await emit_log(f"分类嗅探结果: {sniffed_inst}。无可用分类定义，使用全局默认规则")
+
+        # ---------------------------------------------------------
+        # FILTER RULES (Based on Institution conditions)
+        # ---------------------------------------------------------
         applicable_rules = []
         for rule in rules:
             logic = rule.logic_config or {}
@@ -189,9 +228,6 @@ class VerificationEngine:
             if required_inst and required_inst.lower() != sniffed_inst.lower():
                 logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst}, but sniffed {sniffed_inst})")
                 continue
-                
-            # If the rule has a category_id, we could also check it against a category map here.
-            # For now, if it passes the logic condition, it's applicable.
             applicable_rules.append(rule)
 
         await emit_log(f"匹配到 {len(applicable_rules)} 条适用规则，开始阶段二深度分析")
@@ -402,6 +438,7 @@ class VerificationEngine:
                 
                 active_checks = []
                 failed_checks = []
+                executed_modules = []  # Track per-node verification module results
                 
                 while queue:
                     node_id = queue.pop(0)
@@ -696,10 +733,31 @@ class VerificationEngine:
                     else:
                         node_passed = True
                         node_msg = f"节点 {node_type} 执行完毕"
-                        
+
+                    # Determine node severity from node data config
+                    node_severity = node_data.get("severity", "fail")
+                    # Classify this node as a verification module if it has hasSeverity or is a known check type
+                    is_verification_module = node_data.get("hasSeverity", False) or node_type in [
+                        "digital_signature", "qr_scanner", "qr-code", "revision_check", "revision-check",
+                        "regex_match", "comparison", "data-compare", "keyword",
+                        "text_llm", "vision_llm", "http_call", "http-call",
+                        "stamp_detection", "document_diff", "table_verification"
+                    ]
+
                     active_checks.append(node_msg)
                     if not node_passed:
-                        failed_checks.append((node_msg, node_data.get("severity", "fail")))
+                        failed_checks.append((node_msg, node_severity))
+
+                    # Record per-node module result for fine-grained scoring
+                    if is_verification_module:
+                        executed_modules.append({
+                            "node_id": node_id,
+                            "node_type": node_type,
+                            "label": node.get("label", node_type),
+                            "passed": node_passed,
+                            "message": node_msg,
+                            "severity": node_severity
+                        })
                         
                     # Follow active edges based on node result
                     edges_out = outgoing_edges.get(node_id, [])
@@ -715,28 +773,96 @@ class VerificationEngine:
                             target = edge.get("target")
                             if target:
                                 queue.append(target)
-                                
-                critical_failures = [msg for msg, sev in failed_checks if sev == "fail"]
-                if not critical_failures:
-                    rule_pass = True
-                    rule_msg = "可视化校验通过：" + "；".join(active_checks)
+
+                # --- Node-level scoring for logic_graph ---
+                # Each executed verification module node is scored individually
+                if executed_modules:
+                    for mod in executed_modules:
+                        mod_sev = mod["severity"]
+                        mod_passed = mod["passed"]
+                        mod_label = mod.get("label", mod["node_type"])
+
+                        if mod_sev == "reference":
+                            reference_count += 1
+                            mod_status = "info"
+                        elif mod_passed:
+                            pass_count += 1
+                            mod_status = "pass"
+                        elif mod_sev == "warning":
+                            warning_count += 1
+                            mod_status = "warning"
+                        elif mod_sev == "review":
+                            warning_count += 1
+                            needs_review = True
+                            mod_status = "warning"
+                        else:
+                            fail_count += 1
+                            mod_status = "fail"
+
+                        rule_evaluations.append({
+                            "name": f"{rule.rule_name} > {mod_label}",
+                            "status": mod_status,
+                            "rule_name": rule.rule_name,
+                            "rule_type": rule.rule_type.value,
+                            "passed": mod_passed,
+                            "message": mod["message"],
+                            "severity": mod_sev,
+                            "confidence": confidence
+                        })
                 else:
-                    rule_pass = False
-                    rule_msg = "可视化校验未通过：" + "；".join([msg for msg, _ in failed_checks])
+                    # Fallback: no verification modules found, score rule as a whole
+                    critical_failures = [msg for msg, sev in failed_checks if sev == "fail"]
+                    if not critical_failures:
+                        rule_pass = True
+                        rule_msg = "可视化校验通过：" + "；".join(active_checks)
+                    else:
+                        rule_pass = False
+                        rule_msg = "可视化校验未通过：" + "；".join([msg for msg, _ in failed_checks])
+
+                    if rule.severity.value == "reference":
+                        reference_count += 1
+                        status_val = "info"
+                    elif rule_pass:
+                        pass_count += 1
+                        status_val = "pass"
+                    elif rule.severity.value == "warning":
+                        warning_count += 1
+                        status_val = "warning"
+                    else:
+                        fail_count += 1
+                        status_val = "fail"
+
+                    rule_evaluations.append({
+                        "name": rule.rule_name,
+                        "status": status_val,
+                        "rule_name": rule.rule_name,
+                        "rule_type": rule.rule_type.value,
+                        "passed": rule_pass,
+                        "message": rule_msg,
+                        "severity": rule.severity.value,
+                        "confidence": confidence
+                    })
+
+                # Skip the generic tally below — logic_graph is already tallied per-module
+                continue
+
             else:
                 # Fallback for old rule types (keyword, regex, llm) 
                 # This logic can be moved to dedicated TextOperators later
                 rule_msg = f"引擎尚未适配该规则类型 ({rule.rule_type})"
                 rule_pass = False
 
-            # Tally stats — reference severity is excluded from scoring
+            # Tally stats — reference severity is excluded from scoring (non-logic_graph rules)
             if rule.severity.value == "reference":
                 reference_count += 1
             elif rule_pass:
                 pass_count += 1
             else:
-                if rule.severity == "warning":
+                if rule.severity.value == "warning":
                     warning_count += 1
+                elif rule.severity.value == "review":
+                    warning_count += 1
+                    needs_review = True
                 else:
                     fail_count += 1
 
@@ -770,5 +896,6 @@ class VerificationEngine:
             "fail_count": fail_count,
             "reference_count": reference_count,
             "needs_review": needs_review,
-            "institution": context.shared_state.get("institution", None)
+            "institution": context.shared_state.get("institution", None),
+            "matched_category": matched_category_name
         }
