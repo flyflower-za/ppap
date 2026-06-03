@@ -25,15 +25,15 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ Docker is installed${NC}"
+echo -e "${GREEN}[+] Docker is installed${NC}"
 
 # Check Docker Compose availability
 if docker compose version &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker compose"
-    echo -e "${GREEN}✓ Using 'docker compose' command${NC}"
+    echo -e "${GREEN}[+] Using 'docker compose' command${NC}"
 elif docker-compose version &> /dev/null; then
     DOCKER_COMPOSE_CMD="docker-compose"
-    echo -e "${GREEN}✓ Using 'docker-compose' command${NC}"
+    echo -e "${GREEN}[+] Using 'docker-compose' command${NC}"
 else
     echo -e "${RED}Error: Neither 'docker compose' nor 'docker-compose' is installed.${NC}"
     exit 1
@@ -46,7 +46,7 @@ if ! docker ps &> /dev/null; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ Docker daemon is running${NC}"
+echo -e "${GREEN}[+] Docker daemon is running${NC}"
 echo ""
 
 # 2. Setup Environment Variables
@@ -56,7 +56,7 @@ cd deploy
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         cp .env.example .env
-        echo -e "${GREEN}✓ Created .env from .env.example${NC}"
+        echo -e "${GREEN}[+] Created .env from .env.example${NC}"
         echo -e "${YELLOW}  Please remember to change default secrets for production!${NC}"
     else
         echo -e "${YELLOW}Creating basic .env file...${NC}"
@@ -64,10 +64,10 @@ if [ ! -f .env ]; then
 # PPAP Environment Configuration
 SECRET_KEY=change-this-in-production
 EOF
-        echo -e "${GREEN}✓ Created basic .env file${NC}"
+        echo -e "${GREEN}[+] Created basic .env file${NC}"
     fi
 else
-    echo -e "${GREEN}✓ Found existing .env file${NC}"
+    echo -e "${GREEN}[+] Found existing .env file${NC}"
 fi
 echo ""
 
@@ -83,18 +83,25 @@ RETRIES=30
 
 # Wait for db-init service to complete
 while [ $RETRIES -gt 0 ]; do
-    if ! docker compose ps db-init | grep -q "Exited (0)"; then
+    STATUS=$(docker inspect ppap-db-init --format='{{.State.Status}}' 2>/dev/null || echo "")
+    EXITCODE=$(docker inspect ppap-db-init --format='{{.State.ExitCode}}' 2>/dev/null || echo "")
+    
+    if [ "$STATUS" = "exited" ] && [ "$EXITCODE" = "0" ]; then
+        echo -e "${GREEN}[+] Database initialization completed${NC}"
+        break
+    elif [ "$STATUS" = "exited" ]; then
+        echo -e "${RED}Error: Database initialization failed${NC}"
+        $DOCKER_COMPOSE_CMD logs db-init
+        exit 1
+    else
         echo "Waiting for database initialization... ($((RETRIES--)) retries left)"
         sleep 2
-    else
-        echo -e "${GREEN}✓ Database initialization completed${NC}"
-        break
     fi
 done
 
 if [ $RETRIES -eq 0 ]; then
     echo -e "${YELLOW}Database initialization may still be in progress. Check logs:${NC}"
-    echo "  docker compose logs db-init"
+    echo "  $DOCKER_COMPOSE_CMD logs db-init"
 fi
 
 # 4. Wait for services to be healthy
@@ -104,13 +111,13 @@ echo -e "${YELLOW}Waiting for services to be healthy...${NC}"
 # Wait for PostgreSQL
 echo "Waiting for PostgreSQL..."
 RETRIES=30
-until docker compose exec -T postgres pg_isready -U ppap > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until $DOCKER_COMPOSE_CMD exec -T postgres pg_isready -U ppap > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
     echo "PostgreSQL: ($((RETRIES--)) retries left"
     sleep 2
 done
 
 if [ $RETRIES -gt 0 ]; then
-    echo -e "${GREEN}✓ PostgreSQL is ready${NC}"
+    echo -e "${GREEN}[+] PostgreSQL is ready${NC}"
 else
     echo -e "${RED}PostgreSQL did not start in time${NC}"
     exit 1
@@ -119,13 +126,13 @@ fi
 # Wait for Redis
 echo "Waiting for Redis..."
 RETRIES=30
-until docker compose exec -T redis redis-cli ping > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until $DOCKER_COMPOSE_CMD exec -T redis redis-cli ping > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
     echo "Redis: ($((RETRIES--)) retries left"
     sleep 2
 done
 
 if [ $RETRIES -gt 0 ]; then
-    echo -e "${GREEN}✓ Redis is ready${NC}"
+    echo -e "${GREEN}[+] Redis is ready${NC}"
 else
     echo -e "${YELLOW}Redis may still be starting${NC}"
 fi
@@ -139,7 +146,7 @@ until curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1 || [ $RE
 done
 
 if [ $RETRIES -gt 0 ]; then
-    echo -e "${GREEN}✓ MinIO is ready${NC}"
+    echo -e "${GREEN}[+] MinIO is ready${NC}"
 else
     echo -e "${YELLOW}MinIO may still be starting${NC}"
 fi
@@ -150,20 +157,16 @@ echo -e "${YELLOW}Initializing MinIO bucket...${NC}"
 sleep 3  # Give MinIO a moment to stabilize
 
 RETRIES=5
-until docker run --rm --network host --entrypoint /bin/sh minio/mc -c "
-    mc alias set ppapminio http://localhost:9000 minioadmin minioadmin &&
-    mc mb ppapminio/ppap-files --ignore-existing &&
-    mc anonymous set public ppapminio/ppap-files
-" > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until docker run --rm --network container:ppap-minio --entrypoint /bin/sh minio/mc -c "mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && mc mb ppapminio/ppap-files --ignore-existing && mc anonymous set public ppapminio/ppap-files" > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
     echo "Attempting to create MinIO bucket... ($((RETRIES--)) retries left)"
     sleep 3
 done
 
 if [ $? -eq 0 ] || [ $RETRIES -gt 0 ]; then
-    echo -e "${GREEN}✓ MinIO bucket 'ppap-files' created${NC}"
+    echo -e "${GREEN}[+] MinIO bucket 'ppap-files' created${NC}"
 else
     echo -e "${YELLOW}⚠ MinIO bucket creation failed, may need manual setup${NC}"
-    echo "Run: docker run --rm --network host minio/mc ..."
+    echo "Run: docker run --rm --network container:ppap-minio minio/mc ..."
 fi
 
 # 6. Final status check

@@ -44,6 +44,24 @@ function Test-Docker {
     return $?
 }
 
+function Invoke-DockerCompose {
+    $flatArgs = @()
+    foreach ($arg in $args) {
+        if ($arg -is [array]) {
+            $flatArgs += $arg
+        } else {
+            $flatArgs += $arg
+        }
+    }
+    
+    if (Test-DockerCompose) {
+        $fullArgs = @("compose") + $flatArgs
+        & docker $fullArgs
+    } else {
+        & docker-compose $flatArgs
+    }
+}
+
 Write-ColorOutput "=== PPAP Platform Deployment ===" "Green"
 Write-Host ""
 
@@ -56,15 +74,13 @@ if (-not (Test-Docker)) {
     Write-Host "Please start Docker Desktop and try again." -ForegroundColor Red
     exit 1
 }
-Write-ColorOutput "✓ Docker Desktop is running" "Green"
+Write-ColorOutput "[+] Docker Desktop is running" "Green"
 
 # Determine which Docker Compose command to use
 if (Test-DockerCompose) {
-    $DOCKER_COMPOSE_CMD = "docker compose"
-    Write-ColorOutput "✓ Using 'docker compose' command" "Green"
+    Write-ColorOutput "[+] Using 'docker compose' command" "Green"
 } elseif (Test-DockerComposeLegacy) {
-    $DOCKER_COMPOSE_CMD = "docker-compose"
-    Write-ColorOutput "✓ Using 'docker-compose' command" "Green"
+    Write-ColorOutput "[+] Using 'docker-compose' command" "Green"
 } else {
     Write-ColorOutput "Error: Neither 'docker compose' nor 'docker-compose' is available." "Red"
     exit 1
@@ -87,7 +103,7 @@ $envExample = ".env.example"
 if (-not (Test-Path $envFile)) {
     if (Test-Path $envExample) {
         Copy-Item $envExample $envFile
-        Write-ColorOutput "✓ Created .env from .env.example" "Green"
+        Write-ColorOutput "[+] Created .env from .env.example" "Green"
         Write-ColorOutput "  Please remember to change default secrets for production!" "Yellow"
     } else {
         Write-ColorOutput "⚠ Neither .env nor .env.example found. Creating basic .env..." "Yellow"
@@ -95,11 +111,11 @@ if (-not (Test-Path $envFile)) {
 # PPAP Environment Configuration
 SECRET_KEY=change-this-in-production
 "@ | Out-File -FilePath $envFile
-        Write-ColorOutput "✓ Created basic .env file" "Green"
+        Write-ColorOutput "[+] Created basic .env file" "Green"
         Write-ColorOutput "  Please update SECRET_KEY for production!" "Yellow"
     }
 } else {
-    Write-ColorOutput "✓ Found existing .env file" "Green"
+    Write-ColorOutput "[+] Found existing .env file" "Green"
 }
 
 # 3. Build and start services
@@ -113,12 +129,42 @@ if ($ForceRebuild) {
 }
 
 try {
-    & $DOCKER_COMPOSE_CMD $buildArgs
-    Write-ColorOutput "✓ Services started successfully" "Green"
+    Invoke-DockerCompose $buildArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker Compose command failed"
+    }
+    Write-ColorOutput "[+] Services started successfully" "Green"
 } catch {
     Write-ColorOutput "Error: Failed to start services. Check docker logs for details." "Red"
     Write-Host "Run 'docker compose logs' to see error details." -ForegroundColor Red
     exit 1
+}
+
+# Wait for database initialization to complete
+Write-ColorOutput "Waiting for database initialization to complete..." "Yellow"
+$retries = 30
+$dbInitReady = $false
+
+while ($retries -gt 0 -and -not $dbInitReady) {
+    $status = (docker inspect ppap-db-init --format='{{.State.Status}}' 2>$null)
+    $exitCode = (docker inspect ppap-db-init --format='{{.State.ExitCode}}' 2>$null)
+    
+    if ($status -eq "exited" -and $exitCode -eq "0") {
+        $dbInitReady = $true
+        Write-ColorOutput "[+] Database initialization completed" "Green"
+    } elseif ($status -eq "exited") {
+        Write-ColorOutput "Error: Database initialization failed" "Red"
+        Invoke-DockerCompose logs db-init
+        exit 1
+    } else {
+        Write-Host "Waiting for database initialization... ($retries retries left)" -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+        $retries--
+    }
+}
+
+if (-not $dbInitReady) {
+    Write-ColorOutput "Warning: Database initialization may still be in progress" "Yellow"
 }
 
 # 4. Wait for services to be healthy
@@ -130,11 +176,11 @@ $retries = 30
 $postgresReady = $false
 
 while ($retries -gt 0 -and -not $postgresReady) {
-    try {
-        $null = docker compose exec -T postgres pg_isready -U ppap 2>$null
+    $null = Invoke-DockerCompose exec -T postgres pg_isready -U ppap 2>$null
+    if ($LASTEXITCODE -eq 0) {
         $postgresReady = $true
-        Write-ColorOutput "✓ PostgreSQL is ready" "Green"
-    } catch {
+        Write-ColorOutput "[+] PostgreSQL is ready" "Green"
+    } else {
         Write-Host "Waiting for PostgreSQL... ($retries retries left)" -ForegroundColor Yellow
         Start-Sleep -Seconds 2
         $retries--
@@ -145,6 +191,26 @@ if (-not $postgresReady) {
     Write-ColorOutput "Error: PostgreSQL did not start in time" "Red"
     Write-Host "Run 'docker compose logs postgres' to see error details." -ForegroundColor Red
     exit 1
+}
+
+# Wait for Redis
+$retries = 30
+$redisReady = $false
+
+while ($retries -gt 0 -and -not $redisReady) {
+    $null = Invoke-DockerCompose exec -T redis redis-cli ping 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $redisReady = $true
+        Write-ColorOutput "[+] Redis is ready" "Green"
+    } else {
+        Write-Host "Waiting for Redis... ($retries retries left)" -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+        $retries--
+    }
+}
+
+if (-not $redisReady) {
+    Write-ColorOutput "Warning: Redis may still be starting" "Yellow"
 }
 
 # Wait for MinIO (unless skipped)
@@ -158,7 +224,7 @@ if (-not $SkipMinIO) {
             $response = Invoke-WebRequest -Uri "http://localhost:9000/minio/health/live" -UseBasicParsing -TimeoutSec 5
             if ($response.StatusCode -eq 200) {
                 $minioReady = $true
-                Write-ColorOutput "✓ MinIO is ready" "Green"
+                Write-ColorOutput "[+] MinIO is ready" "Green"
             }
         } catch {
             Write-Host "Waiting for MinIO... ($retries retries left)" -ForegroundColor Yellow
@@ -170,11 +236,8 @@ if (-not $SkipMinIO) {
     if ($minioReady) {
         Write-ColorOutput "Setting up 'ppap-files' bucket..." "Yellow"
         try {
-            docker run --rm --network host --entrypoint /bin/sh minio/mc -c `
-                "mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && `
-                mc mb ppapminio/ppap-files --ignore-existing && `
-                mc anonymous set public ppapminio/ppap-files"
-            Write-ColorOutput "✓ MinIO bucket created" "Green"
+            docker run --rm --network container:ppap-minio --entrypoint /bin/sh minio/mc -c "mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && mc mb ppapminio/ppap-files --ignore-existing && mc anonymous set public ppapminio/ppap-files"
+            Write-ColorOutput "[+] MinIO bucket created" "Green"
         } catch {
             Write-ColorOutput "⚠ Failed to create MinIO bucket, may need manual setup" "Yellow"
         }
