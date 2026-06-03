@@ -2,6 +2,45 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-03] - 统一设置页面样式与按钮布局优化
+
+### 功能描述
+- 统一 LDAP/SSO 配置选项页与 SMTP 配置选项页的视觉风格，将表单对齐方式统一调整为左侧对齐（`label-width="160px"`）。
+- 移除自定义的渐变色嵌套卡片（`config-section`）风格，改用标准的 `<el-divider>` 进行区域分隔，简化表单结构。
+- 修复“默认用户角色”（Default User Role）单选按钮组在垂直方向排列时的边框重叠及挤压遮挡缺陷。
+- 对齐 LDAP/SSO 操作按钮的配色与排列顺序至 SMTP 风格：测试连接（Primary 蓝色，在 LDAP 禁用时置灰）位于最左侧，保存配置（Success 绿色）位于中间，重置位于最右侧。
+- 优化本地前端开发与部署流程，在 `docker-compose.yml` 中新增本地 `frontend/dist` 静态资源目录映射挂载，实现本地秒级构建热部署，并解决 Docker 官方源拉取超时的部署阻碍。
+
+### 详细修改记录
+
+#### 1. 前端 - 页面布局与样式重构
+**文件路径**: [SettingsPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/SettingsPage.vue)
+- 将表单标签属性由 `label-position="top"` 改为 `label-width="160px"`。
+- 将 nested `config-section` card blocks 替换为标准的 `<el-divider>`。
+- 将自定义 `role-selector` 单选卡片重构为带有 `.vertical-radio-group` 的标准 `el-radio-group`。
+- 重排底部按钮顺序及配色：
+  - 测试连接：`type="primary"`，`:disabled="!ldapConfig.ldap_enabled"`
+  - 保存配置：`type="success"`
+  - 重置：普通按钮
+- 清理 CSS 中已废弃的自定义 LDAP 卡片样式、表格栅格等，添加 `.vertical-radio-group` 与 `.radio-tip` 样式。
+
+---
+
+#### 2. 部署 - 本地静态目录挂载优化
+**文件路径**: [docker-compose.yml](file:///c:/Projects/git/ppap/deploy/docker-compose.yml)
+- 在 `frontend` 容器服务中新增挂载卷映射 `- ../frontend/dist:/usr/share/nginx/html:ro`。
+- 允许前端在宿主机使用 `npm run build` 产出静态包后，容器实时挂载更新，从而规避拉取基础镜像可能导致的网络报错。
+
+---
+
+### 影响范围
+- ✅ 前端设置页面
+- ✅ 部署服务（Docker 挂载配置）
+- ❌ 无数据库变更
+- ❌ 无破坏性变更
+
+---
+
 ## [2026-05-27] - 变量面板功能
 
 ### 功能描述
