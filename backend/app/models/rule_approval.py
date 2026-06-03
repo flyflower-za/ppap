@@ -1,8 +1,8 @@
 """
 Rule Change Approval Workflow - 规则变更审批流程
 """
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Enum, JSONB
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Enum, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid

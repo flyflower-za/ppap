@@ -2,8 +2,8 @@
 Rule Templates - 规则模板模型
 提供预置的规则模板，用户可以一键应用到特定分类
 """
-from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, JSONB, Integer
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid

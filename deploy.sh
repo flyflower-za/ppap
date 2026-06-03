@@ -71,11 +71,24 @@ else
 fi
 echo ""
 
+# Parse arguments
+FORCE_REBUILD=0
+for arg in "$@"; do
+    if [ "$arg" == "--clean" ] || [ "$arg" == "--force" ]; then
+        FORCE_REBUILD=1
+    fi
+done
+
 # 3. Start services with automated database initialization
 echo -e "${YELLOW}Starting services with automated database initialization...${NC}"
 echo -e "${BLUE}The db-init service will automatically run init-db.sql${NC}"
 
-$DOCKER_COMPOSE_CMD up -d --build
+if [ $FORCE_REBUILD -eq 1 ]; then
+    echo -e "${YELLOW}Force rebuilding all containers without cache...${NC}"
+    $DOCKER_COMPOSE_CMD build --no-cache
+fi
+
+$DOCKER_COMPOSE_CMD up -d --build --remove-orphans
 
 echo ""
 echo -e "${YELLOW}Waiting for database initialization to complete...${NC}"
@@ -149,6 +162,20 @@ if [ $RETRIES -gt 0 ]; then
     echo -e "${GREEN}[+] MinIO is ready${NC}"
 else
     echo -e "${YELLOW}MinIO may still be starting${NC}"
+fi
+
+# Wait for Backend API
+echo "Waiting for Backend API..."
+RETRIES=30
+until curl -sf http://localhost:31234/docs > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+    echo "Backend API: ($((RETRIES--)) retries left)"
+    sleep 2
+done
+
+if [ $RETRIES -gt 0 ]; then
+    echo -e "${GREEN}[+] Backend API is ready${NC}"
+else
+    echo -e "${YELLOW}Backend API may still be starting${NC}"
 fi
 
 # 5. Initialize MinIO bucket

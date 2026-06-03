@@ -2,8 +2,8 @@
 Operator Registry - 算子注册表模型
 维护系统中所有可用检测算子的元数据、配置参数和使用说明
 """
-from sqlalchemy import Column, String, Boolean, JSONB, ForeignKey, Text, DateTime, Integer
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
