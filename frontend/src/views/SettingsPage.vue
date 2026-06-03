@@ -512,10 +512,13 @@
         </el-dialog>
 
         <!-- LDAP/SSO Configuration Section -->
-        <el-card v-if="activeMenu === 'ldap'" shadow="never" v-loading="loadingLDAP">
+        <el-card v-if="activeMenu === 'ldap'" shadow="never" v-loading="loadingLDAP" class="ldap-config-card">
           <template #header>
             <div class="flex-between">
-              <span>LDAP/SSO 认证配置</span>
+              <div class="card-header-content">
+                <el-icon class="header-icon"><Lock /></el-icon>
+                <span>LDAP/SSO 认证配置</span>
+              </div>
               <el-tag :type="ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? 'success' : 'info'" size="small">
                 {{ ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? '已启用' : '未启用' }}
               </el-tag>
@@ -525,222 +528,494 @@
           <el-form
             ref="ldapFormRef"
             :model="ldapConfig"
-            label-width="200px"
+            :rules="ldapRules"
+            label-position="top"
             class="ldap-form"
           >
-            <el-divider content-position="left">基本设置</el-divider>
+            <!-- LDAP Configuration Block -->
+            <div class="config-section ldap-section">
+              <div class="section-header">
+                <div class="section-title">
+                  <div class="section-icon ldap-icon">
+                    <el-icon><Connection /></el-icon>
+                  </div>
+                  <div>
+                    <h3>LDAP 目录服务配置</h3>
+                    <p>配置企业 LDAP/Active Directory 连接，实现集中用户认证</p>
+                  </div>
+                </div>
+                <el-switch
+                  v-model="ldapConfig.ldap_enabled"
+                  size="large"
+                  @change="handleLDAPToggle"
+                />
+              </div>
 
-            <el-form-item label="保留本地管理员账号" prop="local_admin_enabled">
-              <el-switch v-model="ldapConfig.local_admin_enabled" />
-              <span class="form-tip">保留本地管理员账号，用于紧急访问</span>
-            </el-form-item>
+              <div v-if="ldapConfig.ldap_enabled" class="section-content ldap-content">
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  class="config-tip"
+                >
+                  <template #title>
+                    <span>LDAP 配置说明</span>
+                  </template>
+                  <p>正确配置 LDAP 连接信息后，用户可使用企业账号直接登录系统</p>
+                </el-alert>
 
-            <el-form-item label="自动创建用户" prop="auto_create_users">
-              <el-switch v-model="ldapConfig.auto_create_users" />
-              <span class="form-tip">用户首次登录时自动创建账号</span>
-            </el-form-item>
+                <div class="config-grid">
+                  <!-- Connection Settings -->
+                  <div class="config-subsection">
+                    <h4 class="subsection-title">
+                      <el-icon><Setting /></el-icon>
+                      连接设置
+                    </h4>
 
-            <el-form-item label="默认用户角色" prop="default_role">
-              <el-radio-group v-model="ldapConfig.default_role">
-                <el-radio value="USER">普通用户</el-radio>
-                <el-radio value="MANAGER">经理</el-radio>
-                <el-radio value="ADMIN">管理员</el-radio>
-              </el-radio-group>
-            </el-form-item>
+                    <el-form-item label="服务器地址" prop="ldap_server">
+                      <el-input
+                        v-model="ldapConfig.ldap_server"
+                        placeholder="ldap.example.com"
+                        clearable
+                      >
+                        <template #prepend>
+                          <el-icon><Connection /></el-icon>
+                        </template>
+                      </el-input>
+                      <span class="form-tip">LDAP 服务器域名或 IP 地址</span>
+                    </el-form-item>
 
-            <el-divider content-position="left">LDAP 配置</el-divider>
+                    <el-form-item label="端口" prop="ldap_port">
+                      <el-input
+                        v-model.number="ldapConfig.ldap_port"
+                        type="number"
+                        placeholder="389"
+                        clearable
+                      >
+                        <template #prepend>
+                          <el-icon><Connection /></el-icon>
+                        </template>
+                      </el-input>
+                      <div class="form-tip-group">
+                        <span class="form-tip">常用端口：389 (标准)、636 (SSL)</span>
+                        <el-tag size="small" type="info">TCP</el-tag>
+                      </div>
+                    </el-form-item>
 
-            <el-form-item label="启用 LDAP" prop="ldap_enabled">
-              <el-switch v-model="ldapConfig.ldap_enabled" />
-            </el-form-item>
+                    <el-form-item label="加密方式" prop="ldap_use_ssl">
+                      <div class="encryption-options">
+                        <el-radio-group v-model="ldapConfig.ldap_use_ssl">
+                          <el-radio :value="false">
+                            <div class="radio-content">
+                              <div class="radio-label">不加密</div>
+                              <div class="radio-desc">本地网络测试环境</div>
+                            </div>
+                          </el-radio>
+                          <el-radio :value="true">
+                            <div class="radio-content">
+                              <div class="radio-label">SSL/TLS 加密</div>
+                              <div class="radio-desc">生产环境推荐使用</div>
+                            </div>
+                          </el-radio>
+                        </el-radio-group>
+                      </div>
+                    </el-form-item>
+                  </div>
 
-            <el-form-item label="LDAP 服务器" v-if="ldapConfig.ldap_enabled" prop="ldap_server">
-              <el-input
-                v-model="ldapConfig.ldap_server"
-                placeholder="例如: ldap.example.com"
-                clearable
-              />
-            </el-form-item>
+                  <!-- Authentication Settings -->
+                  <div class="config-subsection">
+                    <h4 class="subsection-title">
+                      <el-icon><Lock /></el-icon>
+                      认证设置
+                    </h4>
 
-            <el-form-item label="端口" v-if="ldapConfig.ldap_enabled" prop="ldap_port">
-              <el-input
-                v-model.number="ldapConfig.ldap_port"
-                type="number"
-                placeholder="389"
-                clearable
-              />
-              <span class="form-tip">常用端口: 389 (标准), 636 (SSL)</span>
-            </el-form-item>
+                    <el-form-item label="绑定 DN" prop="ldap_bind_dn">
+                      <el-input
+                        v-model="ldapConfig.ldap_bind_dn"
+                        placeholder="cn=admin,dc=example,dc=com"
+                        clearable
+                      />
+                      <span class="form-tip">管理员 DN，用于绑定 LDAP 服务器</span>
+                    </el-form-item>
 
-            <el-form-item label="使用 SSL/TLS" v-if="ldapConfig.ldap_enabled" prop="ldap_use_ssl">
-              <el-switch v-model="ldapConfig.ldap_use_ssl" />
-            </el-form-item>
+                    <el-form-item label="绑定密码" prop="ldap_bind_password">
+                      <el-input
+                        v-model="ldapConfig.ldap_bind_password"
+                        type="password"
+                        placeholder="请输入绑定密码"
+                        show-password
+                        clearable
+                      />
+                      <span class="form-tip">管理员账户密码</span>
+                    </el-form-item>
 
-            <el-form-item label="绑定 DN" v-if="ldapConfig.ldap_enabled" prop="ldap_bind_dn">
-              <el-input
-                v-model="ldapConfig.ldap_bind_dn"
-                placeholder="例如: cn=admin,dc=example,dc=com"
-                clearable
-              />
-            </el-form-item>
+                    <el-form-item label="搜索基础 DN" prop="ldap_search_base">
+                      <el-input
+                        v-model="ldapConfig.ldap_search_base"
+                        placeholder="dc=example,dc=com"
+                        clearable
+                      />
+                      <span class="form-tip">用户搜索的根路径</span>
+                    </el-form-item>
+                  </div>
+                </div>
 
-            <el-form-item label="绑定密码" v-if="ldapConfig.ldap_enabled" prop="ldap_bind_password">
-              <el-input
-                v-model="ldapConfig.ldap_bind_password"
-                type="password"
-                placeholder="请输入绑定密码"
-                show-password
-                clearable
-              />
-            </el-form-item>
+                <!-- Attribute Mapping -->
+                <div class="config-subsection full-width">
+                  <h4 class="subsection-title">
+                    <el-icon><Setting /></el-icon>
+                    属性映射配置
+                  </h4>
 
-            <el-form-item label="搜索基础 DN" v-if="ldapConfig.ldap_enabled" prop="ldap_search_base">
-              <el-input
-                v-model="ldapConfig.ldap_search_base"
-                placeholder="例如: dc=example,dc=com"
-                clearable
-              />
-            </el-form-item>
+                  <el-alert
+                    type="warning"
+                    :closable="false"
+                    show-icon
+                    class="config-tip warning-tip"
+                  >
+                    <template #title>
+                      <span>属性映射说明</span>
+                    </template>
+                    <p>配置 LDAP 属性与系统字段的映射关系，确保用户信息正确同步</p>
+                  </el-alert>
 
-            <el-form-item label="邮箱属性" v-if="ldapConfig.ldap_enabled" prop="ldap_email_attribute">
-              <el-input
-                v-model="ldapConfig.ldap_email_attribute"
-                placeholder="mail"
-                clearable
-              />
-            </el-form-item>
+                  <div class="attribute-mapping-grid">
+                    <div class="mapping-item">
+                      <div class="mapping-label">
+                        <el-icon><Message /></el-icon>
+                        邮箱属性
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ldap_email_attribute"
+                        placeholder="mail"
+                        clearable
+                        size="small"
+                      />
+                      <span class="field-hint">LDAP 邮箱属性名</span>
+                    </div>
 
-            <el-form-item label="姓名属性" v-if="ldapConfig.ldap_enabled" prop="ldap_name_attribute">
-              <el-input
-                v-model="ldapConfig.ldap_name_attribute"
-                placeholder="cn"
-                clearable
-              />
-            </el-form-item>
+                    <div class="mapping-item">
+                      <div class="mapping-label">
+                        <el-icon><User /></el-icon>
+                        姓名属性
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ldap_name_attribute"
+                        placeholder="cn"
+                        clearable
+                        size="small"
+                      />
+                      <span class="field-hint">LDAP 姓名属性名</span>
+                    </div>
 
-            <el-form-item label="部门属性" v-if="ldapConfig.ldap_enabled" prop="ldap_department_attribute">
-              <el-input
-                v-model="ldapConfig.ldap_department_attribute"
-                placeholder="department"
-                clearable
-              />
-            </el-form-item>
+                    <div class="mapping-item">
+                      <div class="mapping-label">
+                        <el-icon><OfficeBuilding /></el-icon>
+                        部门属性
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ldap_department_attribute"
+                        placeholder="department"
+                        clearable
+                        size="small"
+                      />
+                      <span class="field-hint">LDAP 部门属性名</span>
+                    </div>
+                  </div>
+                </div>
 
-            <el-divider content-position="left">AD 组映射（权限分配）</el-divider>
+                <!-- AD Group Mapping -->
+                <div class="config-subsection full-width">
+                  <h4 class="subsection-title">
+                    <el-icon><UserFilled /></el-icon>
+                    AD 组权限映射
+                  </h4>
 
-            <el-form-item label="管理员组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_admin_group">
-              <el-input
-                v-model="ldapConfig.ad_admin_group"
-                placeholder="例如: cn=PPAP-Admins,ou=groups,dc=example,dc=com"
-                clearable
-              />
-              <span class="form-tip">该组成员将被分配管理员权限</span>
-            </el-form-item>
+                  <el-alert
+                    type="success"
+                    :closable="false"
+                    show-icon
+                    class="config-tip"
+                  >
+                    <template #title>
+                      <span>组权限映射说明</span>
+                    </template>
+                    <p>配置 LDAP 组与系统角色的映射关系，实现基于组的自动权限分配</p>
+                  </el-alert>
 
-            <el-form-item label="经理组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_manager_group">
-              <el-input
-                v-model="ldapConfig.ad_manager_group"
-                placeholder="例如: cn=PPAP-Managers,ou=groups,dc=example,dc=com"
-                clearable
-              />
-              <span class="form-tip">该组成员将被分配经理权限</span>
-            </el-form-item>
+                  <div class="group-mapping-list">
+                    <div class="group-mapping-item admin-group">
+                      <div class="group-info">
+                        <el-tag type="danger" size="small" effect="dark">管理员</el-tag>
+                        <div class="group-desc">该组成员将被分配管理员权限</div>
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ad_admin_group"
+                        placeholder="cn=PPAP-Admins,ou=groups,dc=example,dc=com"
+                        clearable
+                        size="small"
+                      />
+                    </div>
 
-            <el-form-item label="用户组 DN" v-if="ldapConfig.ldap_enabled" prop="ad_user_group">
-              <el-input
-                v-model="ldapConfig.ad_user_group"
-                placeholder="例如: cn=PPAP-Users,ou=groups,dc=example,dc=com"
-                clearable
-              />
-              <span class="form-tip">该组成员将被分配普通用户权限</span>
-            </el-form-item>
+                    <div class="group-mapping-item manager-group">
+                      <div class="group-info">
+                        <el-tag type="warning" size="small" effect="dark">经理</el-tag>
+                        <div class="group-desc">该组成员将被分配经理权限</div>
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ad_manager_group"
+                        placeholder="cn=PPAP-Managers,ou=groups,dc=example,dc=com"
+                        clearable
+                        size="small"
+                      />
+                    </div>
 
-            <el-divider content-position="left">SSO 配置（OIDC/SAML）</el-divider>
+                    <div class="group-mapping-item user-group">
+                      <div class="group-info">
+                        <el-tag type="info" size="small" effect="dark">普通用户</el-tag>
+                        <div class="group-desc">该组成员将被分配普通用户权限</div>
+                      </div>
+                      <el-input
+                        v-model="ldapConfig.ad_user_group"
+                        placeholder="cn=PPAP-Users,ou=groups,dc=example,dc=com"
+                        clearable
+                        size="small"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-            <el-form-item label="启用 SSO" prop="sso_enabled">
-              <el-switch v-model="ldapConfig.sso_enabled" />
-              <span class="form-tip">启用后用户可使用第三方SSO登录</span>
-            </el-form-item>
+            <!-- SSO Configuration Block -->
+            <div class="config-section sso-section">
+              <div class="section-header">
+                <div class="section-title">
+                  <div class="section-icon sso-icon">
+                    <el-icon><Connection /></el-icon>
+                  </div>
+                  <div>
+                    <h3>SSO 单点登录配置</h3>
+                    <p>配置第三方 SSO 提供商，支持 OIDC/SAML 协议</p>
+                  </div>
+                </div>
+                <el-switch
+                  v-model="ldapConfig.sso_enabled"
+                  size="large"
+                  @change="handleSSOToggle"
+                />
+              </div>
 
-            <el-form-item label="SSO 提供商" v-if="ldapConfig.sso_enabled" prop="sso_provider">
-              <el-input
-                v-model="ldapConfig.sso_provider"
-                placeholder="例如: keycloak, azure, okta"
-                clearable
-              />
-              <span class="form-tip">OIDC提供商名称</span>
-            </el-form-item>
+              <div v-if="ldapConfig.sso_enabled" class="section-content sso-content">
+                <el-alert
+                  type="info"
+                  :closable="false"
+                  show-icon
+                  class="config-tip"
+                >
+                  <template #title>
+                    <span>SSO 配置说明</span>
+                  </template>
+                  <p>支持 Keycloak、Azure AD、Okta 等 OIDC 兼容的身份提供商</p>
+                </el-alert>
 
-            <el-form-item label="发现端点URL" v-if="ldapConfig.sso_enabled" prop="sso_idp_sso_url">
-              <el-input
-                v-model="ldapConfig.sso_idp_sso_url"
-                placeholder="OIDC发现端点: /.well-known/openid-configuration"
-                clearable
-              />
-              <span class="form-tip">OpenID Connect发现文档URL</span>
-            </el-form-item>
+                <div class="config-grid">
+                  <!-- Provider Settings -->
+                  <div class="config-subsection">
+                    <h4 class="subsection-title">
+                      <el-icon><Setting /></el-icon>
+                      提供商设置
+                    </h4>
 
-            <el-form-item label="客户端ID" v-if="ldapConfig.sso_enabled" prop="sso_entity_id">
-              <el-input
-                v-model="ldapConfig.sso_entity_id"
-                placeholder="OIDC客户端ID"
-                clearable
-              />
-              <span class="form-tip">SSO提供商分配的客户端ID</span>
-            </el-form-item>
+                    <el-form-item label="提供商类型" prop="sso_provider">
+                      <el-select
+                        v-model="ldapConfig.sso_provider"
+                        placeholder="选择提供商"
+                        style="width: 100%"
+                      >
+                        <el-option label="Keycloak" value="keycloak" />
+                        <el-option label="Azure AD" value="azure" />
+                        <el-option label="Okta" value="okta" />
+                        <el-option label="Auth0" value="auth0" />
+                        <el-option label="其他" value="other" />
+                      </el-select>
+                      <span class="form-tip">OIDC 兼容的身份提供商</span>
+                    </el-form-item>
 
-            <el-form-item label="客户端密钥" v-if="ldapConfig.sso_enabled" prop="sso_sp_key">
-              <el-input
-                v-model="ldapConfig.sso_sp_key"
-                type="password"
-                placeholder="OIDC客户端密钥"
-                clearable
-                show-password
-              />
-              <span class="form-tip">SSO提供商分配的客户端密钥</span>
-            </el-form-item>
+                    <el-form-item label="发现端点" prop="sso_idp_sso_url">
+                      <el-input
+                        v-model="ldapConfig.sso_idp_sso_url"
+                        placeholder="https://sso.example.com/.well-known/openid-configuration"
+                        clearable
+                      />
+                      <span class="form-tip">OIDC 发现文档 URL</span>
+                    </el-form-item>
+                  </div>
 
-            <el-form-item label="回调地址" v-if="ldapConfig.sso_enabled" prop="sso_acs_url">
-              <el-input
-                v-model="ldapConfig.sso_acs_url"
-                placeholder="前端回调地址"
-                clearable
-              />
-              <span class="form-tip">SSO认证成功后的回调地址</span>
-            </el-form-item>
+                  <!-- Application Settings -->
+                  <div class="config-subsection">
+                    <h4 class="subsection-title">
+                      <el-icon><Key /></el-icon>
+                      应用凭证
+                    </h4>
 
-            <el-form-item label="自动创建用户" v-if="ldapConfig.sso_enabled" prop="auto_create_users">
-              <el-switch v-model="ldapConfig.auto_create_users" />
-              <span class="form-tip">首次SSO登录时自动创建用户</span>
-            </el-form-item>
+                    <el-form-item label="客户端 ID" prop="sso_entity_id">
+                      <el-input
+                        v-model="ldapConfig.sso_entity_id"
+                        placeholder="ppap-client-id"
+                        clearable
+                      />
+                      <span class="form-tip">SSO 提供商分配的客户端标识符</span>
+                    </el-form-item>
 
-            <el-form-item label="默认角色" v-if="ldapConfig.sso_enabled" prop="default_role">
-              <el-select v-model="ldapConfig.default_role" placeholder="选择默认角色">
-                <el-option label="普通用户" value="USER" />
-                <el-option label="管理者" value="MANAGER" />
-                <el-option label="管理员" value="ADMIN" />
-              </el-select>
-              <span class="form-tip">新创建SSO用户的默认角色</span>
-            </el-form-item>
+                    <el-form-item label="客户端密钥" prop="sso_sp_key">
+                      <el-input
+                        v-model="ldapConfig.sso_sp_key"
+                        type="password"
+                        placeholder="请输入客户端密钥"
+                        show-password
+                        clearable
+                      />
+                      <span class="form-tip">客户端密钥，请妥善保管</span>
+                    </el-form-item>
 
-            <el-form-item>
-              <el-button
-                type="primary"
-                :icon="Check"
-                :loading="savingLDAP"
-                @click="handleSaveLDAP"
-              >
-                保存配置
-              </el-button>
-              <el-button
-                v-if="ldapConfig.ldap_enabled"
-                :icon="MessageBox"
-                :loading="testingLDAP"
-                @click="handleTestLDAP"
-              >
-                测试 LDAP 连接
-              </el-button>
-            </el-form-item>
+                    <el-form-item label="回调地址" prop="sso_acs_url">
+                      <el-input
+                        v-model="ldapConfig.sso_acs_url"
+                        placeholder="http://localhost:5173/auth/callback"
+                        clearable
+                      />
+                      <span class="form-tip">认证成功后的回调地址</span>
+                    </el-form-item>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- General Settings -->
+            <div class="config-section general-section">
+              <div class="section-header">
+                <div class="section-title">
+                  <div class="section-icon general-icon">
+                    <el-icon><Setting /></el-icon>
+                  </div>
+                  <div>
+                    <h3>通用用户设置</h3>
+                    <p>配置用户自动创建和默认权限</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section-content general-content">
+                <div class="general-settings-grid">
+                  <div class="general-setting-item">
+                    <div class="setting-header">
+                      <div class="setting-icon">
+                        <el-icon><UserFilled /></el-icon>
+                      </div>
+                      <div class="setting-text">
+                        <h4>自动创建用户</h4>
+                        <p>首次登录时自动创建用户账号</p>
+                      </div>
+                    </div>
+                    <el-switch v-model="ldapConfig.auto_create_users" size="large" />
+                    <div class="setting-status">
+                      <el-tag :type="ldapConfig.auto_create_users ? 'success' : 'info'" size="small">
+                        {{ ldapConfig.auto_create_users ? '已启用' : '已禁用' }}
+                      </el-tag>
+                    </div>
+                  </div>
+
+                  <div class="general-setting-item">
+                    <div class="setting-header">
+                      <div class="setting-icon">
+                        <el-icon><Lock /></el-icon>
+                      </div>
+                      <div class="setting-text">
+                        <h4>保留本地管理员</h4>
+                        <p>保留紧急访问的本地管理员账号</p>
+                      </div>
+                    </div>
+                    <el-switch v-model="ldapConfig.local_admin_enabled" size="large" />
+                    <div class="setting-status">
+                      <el-tag :type="ldapConfig.local_admin_enabled ? 'success' : 'info'" size="small">
+                        {{ ldapConfig.local_admin_enabled ? '已启用' : '已禁用' }}
+                      </el-tag>
+                    </div>
+                  </div>
+
+                  <div class="general-setting-item full-width">
+                    <div class="setting-header">
+                      <div class="setting-icon">
+                        <el-icon><Star /></el-icon>
+                      </div>
+                      <div class="setting-text">
+                        <h4>默认用户角色</h4>
+                        <p>新用户的默认系统权限级别</p>
+                      </div>
+                    </div>
+                    <el-radio-group v-model="ldapConfig.default_role" class="role-selector">
+                      <el-radio value="USER">
+                        <div class="role-option user-role">
+                          <div class="role-info">
+                            <div class="role-name">普通用户</div>
+                            <div class="role-desc">基本的文件查看和上传权限</div>
+                          </div>
+                          <el-tag type="info" size="small">USER</el-tag>
+                        </div>
+                      </el-radio>
+                      <el-radio value="MANAGER">
+                        <div class="role-option manager-role">
+                          <div class="role-info">
+                            <div class="role-name">经理</div>
+                            <div class="role-desc">管理任务和查看报表</div>
+                          </div>
+                          <el-tag type="warning" size="small">MANAGER</el-tag>
+                        </div>
+                      </el-radio>
+                      <el-radio value="ADMIN">
+                        <div class="role-option admin-role">
+                          <div class="role-info">
+                            <div class="role-name">管理员</div>
+                            <div class="role-desc">完整的系统管理权限</div>
+                          </div>
+                          <el-tag type="danger" size="small">ADMIN</el-tag>
+                        </div>
+                      </el-radio>
+                    </el-radio-group>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="config-actions">
+                <el-button
+                  type="primary"
+                  :icon="Check"
+                  :loading="savingLDAP"
+                  @click="handleSaveLDAP"
+                  size="large"
+                >
+                  保存配置
+                </el-button>
+
+                <el-button
+                  v-if="ldapConfig.ldap_enabled"
+                  :icon="MessageBox"
+                  :loading="testingLDAP"
+                  @click="handleTestLDAP"
+                >
+                  测试连接
+                </el-button>
+
+                <el-button
+                  :icon="RefreshLeft"
+                  @click="loadLDAPConfig"
+                >
+                  重置
+                </el-button>
+              </div>
+            </div>
           </el-form>
 
           <el-alert
@@ -1231,7 +1506,29 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { User, Bell, Setting, Document, MessageBox, Check, Plus, Edit, Lock, UserFilled, FolderOpened, Delete, Cpu, Connection, Search, ArrowDown } from '@element-plus/icons-vue'
+import {
+  User,
+  Bell,
+  Setting,
+  Document,
+  MessageBox,
+  Check,
+  Plus,
+  Edit,
+  Lock,
+  UserFilled,
+  FolderOpened,
+  Delete,
+  Cpu,
+  Connection,
+  Search,
+  ArrowDown,
+  OfficeBuilding,
+  Key,
+  RefreshLeft,
+  Message,
+  Star
+} from '@element-plus/icons-vue'
 import type { EmailTemplate, FileRetentionSettings, AiModelConfig, ModelProfile } from '@/api/settings'
 import type { LDAPConfig, UserInfo } from '@/api/ldap'
 
@@ -1400,6 +1697,50 @@ const savingLDAP = ref(false)
 const testingLDAP = ref(false)
 const ldapSaveSuccess = ref(false)
 const ldapFormRef = ref<FormInstance>()
+
+const ldapRules: FormRules = {
+  ldap_server: [
+    { required: true, message: '请输入 LDAP 服务器地址', trigger: 'blur' }
+  ],
+  ldap_port: [
+    { required: true, message: '请输入端口号', trigger: 'blur' }
+  ],
+  ldap_bind_dn: [
+    { required: true, message: '请输入绑定 DN', trigger: 'blur' }
+  ],
+  ldap_bind_password: [
+    { required: true, message: '请输入绑定密码', trigger: 'blur' }
+  ],
+  ldap_search_base: [
+    { required: true, message: '请输入搜索基础 DN', trigger: 'blur' }
+  ],
+  ldap_email_attribute: [
+    { required: true, message: '请输入邮箱属性', trigger: 'blur' }
+  ],
+  ldap_name_attribute: [
+    { required: true, message: '请输入姓名属性', trigger: 'blur' }
+  ],
+  ldap_department_attribute: [
+    { required: true, message: '请输入部门属性', trigger: 'blur' }
+  ],
+  sso_provider: [
+    { required: true, message: '请选择 SSO 提供商', trigger: 'change' }
+  ],
+  sso_idp_sso_url: [
+    { required: true, message: '请输入发现端点 URL', trigger: 'blur' },
+    { type: 'url', message: '请输入正确的 URL 格式', trigger: 'blur' }
+  ],
+  sso_entity_id: [
+    { required: true, message: '请输入客户端 ID', trigger: 'blur' }
+  ],
+  sso_sp_key: [
+    { required: true, message: '请输入客户端密钥', trigger: 'blur' }
+  ],
+  sso_acs_url: [
+    { required: true, message: '请输入回调地址', trigger: 'blur' },
+    { type: 'url', message: '请输入正确的 URL 格式', trigger: 'blur' }
+  ]
+}
 
 const ldapConfig = reactive<LDAPConfig>({
   ldap_enabled: false,
@@ -1843,6 +2184,24 @@ async function handleTestLDAP() {
     ElMessage.error(error.message || '连接测试失败')
   } finally {
     testingLDAP.value = false
+  }
+}
+
+// Handle LDAP toggle
+function handleLDAPToggle(value: boolean) {
+  if (value) {
+    ElMessage.info('LDAP 已启用，请配置连接信息')
+  } else {
+    ElMessage.warning('LDAP 已禁用，用户无法使用 LDAP 登录')
+  }
+}
+
+// Handle SSO toggle
+function handleSSOToggle(value: boolean) {
+  if (value) {
+    ElMessage.info('SSO 已启用，请配置第三方登录')
+  } else {
+    ElMessage.warning('SSO 已禁用，用户无法使用 SSO 登录')
   }
 }
 
@@ -2315,6 +2674,13 @@ onMounted(() => {
   margin-top: 4px;
 }
 
+.form-tip-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .full-width {
   width: 100%;
 }
@@ -2445,6 +2811,446 @@ code {
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
+}
+
+/* LDAP/SSO Configuration Styles */
+.ldap-config-card {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.card-header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  font-size: 20px;
+  color: #409eff;
+}
+
+.ldap-config-content {
+  padding: 0;
+}
+
+.config-section {
+  margin-bottom: 24px;
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.config-section:hover {
+  border-color: #c0c4cc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #f8f9fb 0%, #f1f3f5 100%);
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.section-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.section-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.section-icon.ldap-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.section-icon.sso-icon {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: #fff;
+}
+
+.section-icon.general-icon {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: #fff;
+}
+
+.section-title h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.section-title p {
+  margin: 0;
+  font-size: 13px;
+  color: #909399;
+}
+
+.section-content {
+  padding: 24px;
+}
+
+.ldap-content,
+.sso-content,
+.general-content {
+  background: #fafbfc;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.config-subsection {
+  margin-bottom: 24px;
+}
+
+.config-subsection:last-child {
+  margin-bottom: 0;
+}
+
+.config-subsection.full-width {
+  grid-column: 1 / -1;
+}
+
+.subsection-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #606266;
+}
+
+.subsection-title .el-icon {
+  color: #409eff;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.config-tip {
+  margin-bottom: 16px;
+}
+
+.config-tip :deep(.el-alert__description) {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.config-tip.warning-tip {
+  background: #fff7e6;
+  border-color: #ffd591;
+}
+
+.config-tip.warning-tip :deep(.el-alert__title) {
+  color: #fa8c16;
+}
+
+.encryption-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.encryption-options :deep(.el-radio) {
+  margin-right: 0;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.encryption-options :deep(.el-radio:hover) {
+  border-color: #c0c4cc;
+  background: #f5f7fa;
+}
+
+.encryption-options :deep(.el-radio.is-checked) {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.radio-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.radio-label {
+  font-weight: 500;
+  color: #303133;
+}
+
+.radio-desc {
+  font-size: 12px;
+  color: #909399;
+}
+
+.attribute-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.mapping-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapping-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+}
+
+.mapping-label .el-icon {
+  color: #409eff;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #909399;
+  font-style: italic;
+}
+
+.group-mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-mapping-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.group-mapping-item:hover {
+  border-color: #c0c4cc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.group-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+}
+
+.group-desc {
+  font-size: 12px;
+  color: #909399;
+}
+
+.group-mapping-item .el-input {
+  flex: 1;
+}
+
+.general-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.general-setting-item {
+  padding: 16px;
+  border: 1px solid #e4e7ed;
+  border-radius: 12px;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.general-setting-item:hover {
+  border-color: #c0c4cc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.general-setting-item.full-width {
+  grid-column: 1 / -1;
+}
+
+.setting-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.setting-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8eaf0 100%);
+}
+
+.setting-icon .el-icon {
+  font-size: 18px;
+  color: #606266;
+}
+
+.setting-text h4 {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.setting-text p {
+  margin: 0;
+  font-size: 13px;
+  color: #909399;
+}
+
+.setting-status {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.role-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.role-selector :deep(.el-radio) {
+  margin-right: 0;
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  background: #fff;
+  transition: all 0.3s ease;
+}
+
+.role-selector :deep(.el-radio:hover) {
+  border-color: #c0c4cc;
+  background: #f5f7fa;
+}
+
+.role-selector :deep(.el-radio.is-checked) {
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.role-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.role-name {
+  font-weight: 500;
+  color: #303133;
+}
+
+.role-desc {
+  font-size: 12px;
+  color: #909399;
+}
+
+.config-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  border-top: 1px solid #e4e7ed;
+  background: linear-gradient(135deg, #f8f9fb 0%, #f1f3f5 100%);
+}
+
+.config-actions .el-button {
+  min-width: 120px;
+}
+
+/* Form overrides */
+.ldap-config-card :deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #606266;
+}
+
+.ldap-config-card :deep(.el-input__wrapper) {
+  transition: all 0.3s ease;
+}
+
+.ldap-config-card :deep(.el-input__wrapper:hover) {
+  box-shadow: 0 0 0 1px #c0c4cc inset;
+}
+
+.ldap-config-card :deep(.el-input__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #409eff inset;
+}
+
+.ldap-config-card :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #409eff;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attribute-mapping-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .general-settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .group-mapping-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .config-actions {
+    flex-direction: column;
+  }
+
+  .config-actions .el-button {
+    width: 100%;
+  }
 }
 
 /* Card rounded corners */

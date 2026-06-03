@@ -2,6 +2,276 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-03] - 数据库初始化自动化与Windows部署支持
+
+### 功能描述
+- 实现数据库自动初始化，无需手动执行SQL脚本
+- 添加智能迁移检测，避免重复初始化错误
+- 创建Windows PowerShell部署脚本，支持跨平台一键部署
+- 优化部署流程，实现真正的零配置启动
+
+### 详细修改记录
+
+#### 1. 数据库自动初始化服务
+**文件路径**: `deploy/docker-compose.yml`
+**修改时间**: 2026-06-03
+
+**新增服务**: `db-init`
+```yaml
+db-init:
+  image: postgres:16-alpine
+  container_name: ppap-db-init
+  depends_on:
+    postgres:
+      condition: service_started
+  volumes:
+    - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+  command: >
+    sh -c "sleep 5 && if ! PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap -c 'SELECT 1 FROM users' > /dev/null 2>&1; then
+      PGPASSWORD=ppap123 psql -h postgres -U ppap -d ppap < /docker-entrypoint-initdb.d/init-db.sql; fi"
+  restart: "no"
+```
+
+**功能特点**:
+- 自动检测数据库是否已初始化
+- 仅在首次部署时执行 init-db.sql
+- 执行完成后自动退出，不占用资源
+- 支持容器重启后的幂等性
+
+---
+
+#### 2. 完整的数据库初始化脚本
+**文件路径**: `deploy/init-db.sql`
+**修改时间**: 2026-06-03
+
+**新增内容**: 完整的数据库schema定义
+```sql
+-- 创建枚举类型
+CREATE TYPE userrole AS ENUM ('ADMIN', 'MANAGER', 'USER');
+CREATE TYPE filetype AS ENUM ('PRODUCTION_PLAN', 'QUALITY_REPORT', 'PROCESS_INSTRUCTION', 'TEST_REPORT', 'OTHER');
+CREATE TYPE filestatus AS ENUM ('PENDING', 'VERIFIED', 'FAILED', 'IN_PROGRESS');
+CREATE TYPE taskstatus AS ENUM ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED');
+CREATE TYPE notificationtype AS ENUM ('INFO', 'SUCCESS', 'WARNING', 'ERROR');
+
+-- 创建users表（包含role和ad_groups列）
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    hashed_password VARCHAR(255),
+    full_name VARCHAR(255),
+    role userrole DEFAULT 'USER',
+    ad_groups TEXT[],
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建其他表...
+```
+
+**优势**:
+- 一次性创建所有必要的表结构
+- 包含枚举类型定义，避免迁移时的依赖问题
+- 预设默认管理员账户 (admin@example.com / admin123)
+- 包含示例规则和检测模板数据
+
+---
+
+#### 3. 智能迁移脚本
+**文件路径**: `backend/migrations/versions/455ad299810f_initial_schema.py`
+**修改时间**: 2026-06-03
+
+**新增逻辑**: 表存在性检测
+```python
+def upgrade() -> None:
+    conn = op.get_bind()
+    inspector = inspect(conn)
+
+    # 检查users表是否已存在
+    if 'users' in inspector.get_table_names():
+        print("Database already initialized via init-db.sql, skipping migration...")
+        return
+
+    # 正常执行迁移逻辑
+    ...
+```
+
+**解决的问题**:
+- 避免与 init-db.sql 创建的表冲突
+- 防止重复执行导致的列已存在错误
+- 支持灵活的初始化方式（SQL脚本或Alembic迁移）
+
+---
+
+#### 4. Windows PowerShell部署脚本
+**文件路径**: `deploy.ps1`
+**创建时间**: 2026-06-03
+
+**脚本功能**:
+```powershell
+# 主要功能
+- Docker Desktop 状态检测
+- 自动选择 docker compose 或 docker-compose 命令
+- 自动创建 .env 配置文件
+- 彩色控制台输出（成功/警告/错误）
+- 服务健康检查（PostgreSQL/Redis/MinIO）
+- 自动创建 MinIO 存储桶
+- 灵活的参数支持（-SkipMinIO, -ForceRebuild）
+```
+
+**使用示例**:
+```powershell
+# 标准部署
+.\deploy.ps1
+
+# 强制重新构建
+.\deploy.ps1 -ForceRebuild
+
+# 跳过MinIO配置
+.\deploy.ps1 -SkipMinIO
+```
+
+**特色功能**:
+1. **友好的用户界面**: 带颜色的状态输出
+2. **完整的错误处理**: 详细的错误信息和建议
+3. **健康检查**: 等待所有服务完全启动
+4. **自动MinIO配置**: 创建 ppap-files 存储桶并设置为公开访问
+
+---
+
+#### 5. Linux部署脚本更新
+**文件路径**: `deploy.sh`
+**修改时间**: 2026-06-03
+
+**更新内容**:
+```bash
+# 移除手动数据库初始化步骤
+- 删除了手动执行 psql 命令的部分
+
+# 添加 db-init 服务等待
+echo -e "${YELLOW}Waiting for database initialization to complete...${NC}"
+while [ $RETRIES -gt 0 ]; do
+    if ! docker compose ps db-init | grep -q "Exited (0)"; then
+        echo "Waiting for database initialization... ($((RETRIES--)) retries left)"
+        sleep 2
+    else
+        echo -e "${GREEN}✓ Database initialization completed${NC}"
+        break
+    fi
+done
+```
+
+**改进点**:
+- 自动化程度更高，无需手动干预
+- 清晰的进度提示
+- 与 db-init 服务完美配合
+- 保留所有服务的健康检查
+
+---
+
+### 部署流程对比
+
+#### 旧流程（需要手动操作）
+```bash
+1. cd deploy
+2. docker compose up -d
+3. 手动等待数据库启动
+4. 手动执行: docker compose exec postgres psql -U ppap -d ppap < init-db.sql
+5. 手动创建MinIO存储桶
+```
+
+#### 新流程（完全自动化）
+```bash
+# Linux/macOS
+./deploy.sh
+
+# Windows
+.\deploy.ps1
+```
+
+---
+
+### 测试验证
+
+#### 首次部署测试
+```bash
+# 完全干净的部署
+cd deploy
+docker compose down -v  # 删除所有卷
+docker compose up -d --build
+
+# 验证结果
+- db-init 服务自动执行 init-db.sql ✅
+- users 表自动创建 ✅
+- 默认管理员账户可用 ✅
+- 所有服务健康启动 ✅
+```
+
+#### 重复部署测试
+```bash
+# 停止并重启
+docker compose down
+docker compose up -d
+
+# 验证结果
+- db-init 检测到已存在表，跳过初始化 ✅
+- 现有数据保持完整 ✅
+- 服务正常启动 ✅
+```
+
+#### Windows PowerShell测试
+```powershell
+# 在PowerShell中运行
+.\deploy.ps1
+
+# 验证结果
+- Docker Desktop检测正常 ✅
+- 环境变量自动配置 ✅
+- 服务健康检查通过 ✅
+- MinIO存储桶自动创建 ✅
+```
+
+---
+
+### 相关配置文件
+
+#### 无需修改的配置文件
+以下文件已正确配置，无需修改：
+
+1. **Docker Compose配置**: `deploy/docker-compose.yml`
+   - backend服务已正确移除migration依赖 ✅
+   - db-init服务配置正确 ✅
+   - 所有服务依赖关系合理 ✅
+
+2. **环境变量模板**: `deploy/.env.example`
+   - 包含所有必要的环境变量定义 ✅
+
+---
+
+### 关键改进总结
+
+| 方面 | 改进前 | 改进后 |
+|------|--------|--------|
+| 数据库初始化 | 需要手动执行SQL | 自动通过db-init服务完成 |
+| Windows支持 | 仅提供bash脚本 | 专门的PowerShell脚本 |
+| 重复部署 | 需要判断是否已初始化 | 自动检测并跳过 |
+| MinIO配置 | 需要手动创建存储桶 | 脚本自动创建 |
+| 错误处理 | 基础错误提示 | 详细的错误信息和解决建议 |
+| 用户体验 | 需要一定技术背景 | 零配置一键启动 |
+
+---
+
+### 影响范围
+- ✅ 数据库初始化流程（完全自动化）
+- ✅ 跨平台部署支持（Linux/macOS/Windows）
+- ✅ 后端迁移逻辑（智能检测）
+- ✅ 部署脚本（增强功能）
+- ❌ 无数据库表结构变更（已有表保持不变）
+- ❌ 无API接口变更
+- ❌ 无前端功能变更
+
+---
+
 ## [2026-05-27] - 变量面板功能
 
 ### 功能描述
@@ -376,6 +646,7 @@ docker compose up -d --build
 
 | 日期 | 版本 | 描述 |
 |------|------|------|
+| 2026-06-03 | 1.0.3 | 数据库初始化自动化与Windows部署支持 |
 | 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
 | 2026-05-25 | 1.0.1 | 端口配置优化，解决8000端口冲突 |
 | 2026-05-24 | 1.0.0 | PPAP项目初始版本 |
