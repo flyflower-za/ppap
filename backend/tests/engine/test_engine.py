@@ -121,14 +121,17 @@ async def test_logic_graph_rule_evaluation():
     
     result = await engine.run(context, [graph_rule])
     
-    assert result["pass_count"] == 1
+    assert result["pass_count"] == 2
     assert result["fail_count"] == 0
     
     checks = result.get("checks", [])
-    assert len(checks) == 1
-    assert checks[0]["passed"] is True
-    assert "检测到 1 个二维码" in checks[0]["message"]
-    assert "数字签名完整，签发者匹配" in checks[0]["message"]
+    assert len(checks) == 2
+    for c in checks:
+        assert c["passed"] is True
+    
+    messages = [c["message"] for c in checks]
+    assert any("检测到 1 个二维码" in m for m in messages)
+    assert any("签发者匹配" in m for m in messages)
 
 
 @pytest.mark.asyncio
@@ -187,18 +190,20 @@ async def test_logic_graph_dag_and_interpolation():
     # - Sig verifier passed (visited via QR pass edge)
     # - Node_regex_fail was NOT traversed/executed (so its failure was skipped!)
     # - Node_regex_interpolate passed (visited as an entry node, successfully matched 'CTI')
-    assert result["pass_count"] == 1
+    assert result["pass_count"] == 3
     assert result["fail_count"] == 0
     
     checks = result.get("checks", [])
-    assert len(checks) == 1
-    assert checks[0]["passed"] is True
+    assert len(checks) == 3
+    for c in checks:
+        assert c["passed"] is True
+        
+    messages = [c["message"] for c in checks]
+    assert any("检测到 1 个二维码" in m for m in messages)
+    assert any("签发者匹配" in m for m in messages)
+    assert any("正则匹配成功: [CTI]" in m for m in messages)
     
-    msg = checks[0]["message"]
-    # Verified QR, Sig and Interpolate nodes were run
-    assert "检测到 1 个二维码" in msg
-    assert "数字签名完整，签发者匹配" in msg
-    assert "正则匹配成功: [CTI]" in msg
     # Verify node_regex_fail was skipped and is NOT in the active checks log
-    assert "正则未匹配" not in msg
+    for c in checks:
+        assert "正则未匹配" not in c["message"]
 

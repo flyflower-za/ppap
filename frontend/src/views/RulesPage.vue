@@ -105,7 +105,14 @@
                 <span v-else class="text-placeholder">—</span>
               </template>
             </el-table-column>
-            <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip />
+            <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip>
+              <template #default="scope">
+                <span v-if="scope.row.rule_type === 'logic_graph'" class="text-placeholder">
+                  [可视化流程] {{ scope.row.logic_config?.nodes?.length || 0 }} 个节点, {{ scope.row.logic_config?.edges?.length || 0 }} 条连线
+                </span>
+                <span v-else>{{ scope.row.rule_content }}</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="is_active" label="状态" width="70" align="center">
               <template #default="scope">
                 <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" size="small" />
@@ -159,12 +166,24 @@
     </el-dialog>
 
     <!-- 规则弹窗 -->
-    <el-dialog 
-      :title="ruleForm.id ? '编辑规则' : '添加规则'" 
-      v-model="ruleDialogVisible" 
+    <el-dialog
+      v-model="ruleDialogVisible"
       :width="ruleForm.rule_type === 'logic_graph' ? '95%' : '80%'"
       destroy-on-close
     >
+      <template #header>
+        <div class="rule-dialog-header">
+          <span>{{ ruleForm.id ? '编辑规则' : '添加规则' }}</span>
+          <el-button
+            v-if="ruleForm.rule_type === 'logic_graph'"
+            type="primary"
+            size="small"
+            @click="openFullscreenEditor"
+          >
+            <el-icon><FullScreen /></el-icon> 全屏编辑
+          </el-button>
+        </div>
+      </template>
       <el-form :model="ruleForm" label-width="100px">
         <el-form-item label="规则名称" prop="rule_name" required>
           <el-input v-model="ruleForm.rule_name" placeholder="例如：文档必须包含授权签字" />
@@ -235,9 +254,9 @@
             placeholder="选填。输入触发校验的机构名（如：CTI），不填则全局生效" 
           />
         </el-form-item>
-        
+
         <!-- Logic Graph Editor -->
-        <el-form-item label="逻辑图配置" v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required>
+        <el-form-item v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required label="逻辑图配置">
           <RuleGraphEditor :key="ruleForm.id || 'new'" v-model="ruleForm.logic_config" />
         </el-form-item>
         
@@ -416,7 +435,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound } from '@element-plus/icons-vue'
+import { useRouter, useRoute } from 'vue-router'
+import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound, FullScreen } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import {
@@ -429,6 +449,9 @@ import {
   getRuleTemplates, applyRuleTemplate, initializeRuleTemplates,
   type RuleTemplate
 } from '../api/operators'
+
+const router = useRouter()
+const route = useRoute()
 
 const categories = ref<Category[]>([])
 const rules = ref<Rule[]>([])
@@ -498,6 +521,15 @@ watch(() => ruleForm.value.rule_type, (newType, oldType) => {
 const activeCategoryName = computed(() => {
   const cat = categories.value.find(c => c.id === activeCategoryId.value)
   return cat ? cat.name : ''
+})
+
+// Watch for route changes to refresh rules when returning from fullscreen editor
+watch(() => route.query.refresh, async (newValue) => {
+  if (newValue === 'true' && activeCategoryId.value) {
+    await fetchRules()
+    // Remove the refresh query param
+    router.replace({ query: {} })
+  }
 })
 
 onMounted(async () => {
@@ -671,6 +703,11 @@ const saveRule = async () => {
   delete payload.llm_model_type
   delete payload.llm_operation_mode
 
+  // Ensure rule_content is present for backend validation
+  if (payload.rule_type === 'logic_graph' && !payload.rule_content) {
+    payload.rule_content = ''
+  }
+
   try {
     if (payload.id) {
       await updateRule(payload.id, payload)
@@ -710,6 +747,17 @@ const toggleRuleStatus = async (rule: Rule) => {
     rule.is_active = !rule.is_active
     ElMessage.error('切换状态失败')
   }
+}
+
+// Fullscreen Editor
+const openFullscreenEditor = () => {
+  const query: Record<string, string> = {
+    categoryId: activeCategoryId.value
+  }
+  if (ruleForm.value.id) {
+    query.ruleId = ruleForm.value.id
+  }
+  router.push({ name: 'FullscreenRuleEditor', query })
 }
 
 const handleRestoreDefaults = () => {
@@ -1083,6 +1131,20 @@ const formatDate = (dateStr?: string): string => {
   background: var(--el-fill-color-light);
   padding: 2px 4px;
   border-radius: 4px;
+}
+
+/* Rule Dialog Header */
+.rule-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.rule-dialog-header span {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
 /* Header Actions */

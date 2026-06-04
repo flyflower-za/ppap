@@ -35,6 +35,57 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize database tables: {e}")
 
+    # Initialize Operator Registry
+    try:
+        from app.models.operator_registry import INITIAL_OPERATORS, OperatorRegistry
+        from sqlalchemy import select
+        from app.core.database import async_session_maker
+        async with async_session_maker() as db:
+            for operator_data in INITIAL_OPERATORS:
+                existing = await db.execute(
+                    select(OperatorRegistry).where(
+                        OperatorRegistry.operator_key == operator_data["operator_key"]
+                    )
+                )
+                existing_op = existing.scalars().first()
+                if existing_op:
+                    for key, value in operator_data.items():
+                        if key != "operator_key":
+                            setattr(existing_op, key, value)
+                else:
+                    new_op = OperatorRegistry(**operator_data)
+                    db.add(new_op)
+            await db.commit()
+        logger.info("Operator registry initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize operator registry: {e}")
+
+    # Initialize Rule Templates
+    try:
+        from app.models.rule_template import DEFAULT_RULE_TEMPLATES, RuleTemplate
+        from sqlalchemy import select
+        from app.core.database import async_session_maker
+        async with async_session_maker() as db:
+            for template_data in DEFAULT_RULE_TEMPLATES:
+                existing = await db.execute(
+                    select(RuleTemplate).where(
+                        RuleTemplate.name == template_data["name"],
+                        RuleTemplate.is_system == True
+                    )
+                )
+                existing_template = existing.scalars().first()
+                if existing_template:
+                    for key, value in template_data.items():
+                        if key not in ["name", "created_by"]:
+                            setattr(existing_template, key, value)
+                else:
+                    new_template = RuleTemplate(**template_data)
+                    db.add(new_template)
+            await db.commit()
+        logger.info("Rule templates initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize rule templates: {e}")
+
     # Initialize Default Email Templates
     try:
         from app.data.default_templates import init_default_templates

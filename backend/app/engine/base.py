@@ -18,6 +18,8 @@ class DocumentContext(BaseModel):
     # Shared state cache between operators
     # Example: OCR operator extracts text, stores it here. LLM operator reads it.
     shared_state: Dict[str, Any] = Field(default_factory=dict)
+    # Node outputs cache for structured workflow variables
+    node_outputs: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
 class BaseOperator(ABC):
     """Abstract Base Class for all Verification Operators"""

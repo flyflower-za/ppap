@@ -1,94 +1,97 @@
-# 模块级别校验规则与计分模式优化方案
+# Dify-Style Workflow variables structured passing system
 
-该实施计划旨在解决平台在执行可视化逻辑图规则（`logic_graph`）时，计分系统（`pass_rate` / `pass_count` / `warning_count` / `fail_count`）缺乏对内部"子模块/节点"级别定义的问题。
+This implementation plan details the design and changes required to evolve the visual logic graph rule builder (`RuleGraphEditor.vue`) and execution engine (`core.py`) into a structured workflow builder modeled after Dify's variable mapping architecture.
 
-## 用户审查要求
+## Goal Description
+Currently, variable passing in rules is global and implicit: nodes set variables on a global `shared_state` dictionary, and downstream nodes interpolate them using `{{variable_name}}`. While this works, it leads to namespace collisions, lacks structure, and makes complex multi-step rules hard to visualize and manage.
 
-我们建议将可视化逻辑图中的每个执行算子节点（例如"二维码识别"、"数字签名检查"等）视为独立的校验项进行打分和报告汇总。这样可以更精细地管理各类风险等级，确保任何子节点的"警告"或"人工复核"状态均能正确体现在审计大屏及详情页中。
+We propose a structured variables model where:
+1. **Explicit Node Outputs**: Each operator defines a structured `output_schema` defining what keys it produces.
+2. **Upstream Variable Selection**: When configuring a parameter field in a downstream node, the user can select outputs from any upstream ancestor node using the format `{{#node_id.output_key#}}`.
+3. **Execution Context**: The backend engine runs topological node execution, caching outputs per-node, and resolving `{{#node_id.output_key#}}` references on the fly.
+4. **Complete Backwards-Compatibility**: Standard `{{variable_name}}` references will continue to be resolved against the global `shared_state` to ensure all existing rules remain 100% functional.
+
+---
+
+## User Review Required
 
 > [!IMPORTANT]
-> **关于计分模式的核心变更：**
-> 1. 可视化规则将被拆解为其内部实际执行的算子节点，每个算子根据其配置的严重级别（拦截 `fail`、警告 `warning`、人工复核 `review`、参考 `reference`）单独计分。
-> 2. 规则沙盒模拟测试（Dry Run）将同步计算并返回 `passed` 布尔值与判决消息，确保前端控制台状态和提示显示正确。
-
-## 待解决的典型场景与路由规则
-
-- **场景 A**：文档没有二维码，但包含签名证书。通过关键字匹配将文档归类为"分类 A"。由于"分类 A"只配置了数字签名和文档完整性检查规则，系统将自动跳过并排除默认的"二维码检测"规则，因此二维码不被计入最终的通过率与评分。若由于某些故障导致二维码节点被意外触发且失败，则按其实际配置的 `warning` 级别累加 1 次警告，且文件最终状态为 `WARNING`。
-- **场景 B**：文档包含二维码，但提取内容为 URL 链接。系统支持通过可视化节点的路由条件进行二次提取 PDF 原始内容，并将其与上传文档的签名和完整性（如修订版本）一键合并比对。
-- **场景 C**：文档既无二维码也无签名，通过关键字匹配为"分类 C"，只检查文档本身的完整性。
-- **全局检测路由设计（重点）**：系统支持自定义的检测规则匹配路由。在 Stage 1 解析出文本后：
-  1. 引擎根据各个文档分类（`DocumentCategory`）配置的关键字进行文本、路径及类型正则匹配。
-  2. 若文档匹配到特定的分类，且该分类下配置有专用的激活规则，则引擎**仅执行这些专属规则**，并**自动跳过默认的全局检测逻辑**。
-  3. 若文档未匹配到任何具有专用规则的分类，则安全降级并自动应用系统默认的全局校验逻辑（检测二维码、签名及修订版本）。
+> **Key Architecture Decisions:**
+> 1. **Upstream Reachability**: Upstream variables are strictly bounded by reachable ancestor nodes in the directed graph. Downstream or parallel disconnected nodes will not appear in the variable selector.
+> 2. **Dot-Notation Path Resolution**: For complex nodes like `http_call` that return arbitrary JSON response bodies, the path resolver will support recursive dot-notation (e.g., `{{#node_http.response_json.data.status#}}`).
+> 3. **Interactive Dropdown UX**: Premium inline `{x}` variable selector dropdown trigger integrated next to/inside relevant configuration input boxes in the inspector panel.
 
 ---
 
-## 校验规则路由匹配与模块计分流程图
+## Open Questions
 
-```mermaid
-graph TD
-    A[文档上传 Stage 1] --> B[提取文档文本 / 机构 / 路径]
-    B --> C[加载数据库中全部激活分类 DocumentCategory]
-    C --> D{文档信息匹配分类关键字?}
-    D -- 是 --> E[匹配成功: 获取该分类专属规则]
-    D -- 否 --> F[匹配失败: 降级应用全局默认规则]
-    
-    E --> G{该分类是否配置专属规则?}
-    G -- 是 --> H[仅执行该分类的专用激活规则并跳过默认规则]
-    G -- 否 --> F
-    
-    H --> I[规则引擎运行适用规则]
-    F --> I
-    
-    I --> J[遍历运行每个规则]
-    J --> K{是否为逻辑图 logic_graph 规则?}
-    
-    K -- 否 --> L[传统规则: 按规则顶部 Severity 整体计分]
-    K -- 是 --> M[逻辑图规则: 执行图内部节点 BFS 路由]
-    
-    M --> N[收集所有已运行的子模块/算子节点结果]
-    N --> O[对每个子模块节点依其 node.severity 单独计分并汇总]
-    
-    L --> P[汇总 pass/warning/fail/reference count]
-    O --> P
-    
-    P --> Q[计算总体通过率与状态并归档报告]
-```
+> [!NOTE]
+> Are there any additional custom operators that require dedicated output schemas beyond the 8 predefined native operators? If yes, their schemas will be registered directly in `operator_registry.py`.
 
 ---
 
-## 拟作出的变更
+## Proposed Changes
 
-### 1. 后端 - 分类路由与重构计分汇总
-
-#### ✅ [MODIFY] [core.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/engine/core.py)
-- **支持分类参数**：在 `VerificationEngine.run(...)` 接口中新增 `categories` 列表参数。 ✅ 已实现（L141）
-- **文档分类匹配与过滤**： ✅ 已实现（L186-L213）
-  - 基于文档 `full_text`、`file_path` 及 `file_type` 逐一检查 `categories` 的 `keywords`。
-  - 若匹配成功，判断该分类下是否存在专用校验规则（即 `category_id` 为该分类 ID 的规则）。
-  - 若存在专属规则，则过滤 `rules` 列表，仅执行匹配该分类或机构条件的规则，自动跳过无分类的全局默认规则。
-  - 若未匹配，则降级继续执行所有全局默认规则。
-- **子模块节点收集**：在 `elif rule.rule_type == RuleType.logic_graph:` 分支中引入 `executed_modules` 列表，记录实际运行的验证子模块（如 `signature`, `qr-code` 等）。 ✅ 已实现（L441, L753）
-- **细粒度计分**： ✅ 已实现（L779-L780）
-  - 对逻辑图规则，遍历其 `executed_modules`。根据各个子模块实际配置的 `severity`（`fail` / `warning` / `review` / `reference`），精准累加 `pass_count`、`warning_count`、`fail_count`、`reference_count` 并自动触发 `needs_review = True`。
-
-#### ✅ [MODIFY] [verification_tasks.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/tasks/verification_tasks.py)
-- **传入激活分类列表**：在 Stage 2 执行前，从数据库查询所有激活的 `DocumentCategory` 并作为参数传给 `engine.run`。 ✅ 已实现（L124-L160）
-
-#### ✅ [MODIFY] [rules.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/api/rules.py)
-- **模拟测试支持分类**：在 `/rules/dry-run` 接口中，查询激活分类并传入 `engine.run`；在返回体中补全 `passed` 和 `message` 字段。 ✅ 已实现（L357-L414）
-- **优化模拟测试（Dry Run）响应**：在 `/rules/dry-run` 接口中，在获取 `engine.run` 的输出后，提取 checks 数组并自动计算 `passed`（是否有 `fail` 级别失败）及构建 `message`（汇总的测试结果或拦截说明），并写入返回的数据体中，确保前端沙盒终端可以正常解析和渲染结果。 ✅ 已实现（L402 返回 message）
+### Database & Registry
+#### [MODIFY] [operator_registry.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/models/operator_registry.py)
+- Update `INITIAL_OPERATORS` to register structured `output_schema` objects for all core operators:
+  - `digital_signature`: `{"signer_cn": "string", "signature_valid": "boolean", "digital_signatures": "object"}`
+  - `qr_scanner`: `{"qr_content": "string", "qr_codes": "array"}`
+  - `revision_check`: `{"is_tampered": "boolean", "revision_count": "integer"}`
+  - `institution_sniffer`: `{"institution": "string"}`
+  - `text_llm` / `vision_llm`: `{"passed": "boolean", "reason": "string"}` (plus dynamic output keys when running in extraction mode)
+  - `http_call`: `{"status_code": "integer", "response_text": "string", "response_json": "object", "passed": "boolean"}`
+  - `variable_extractor`: `{"extracted_value": "string"}` (plus dynamic captured groups parsed from regex)
+  - `document_diff`: `{"passed": "boolean", "message": "string", "similarity": "number"}`
 
 ---
 
-## 验证计划
+### Backend Engine
+#### [MODIFY] [core.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/engine/core.py)
+- **Nested Variable Resolver**: Implement a helper function `get_nested_val(d: dict, path: str)` to fetch nested dictionary values using dot-notation.
+- **Enhanced `interpolate_vars`**:
+  - Accept a new `node_outputs` dictionary parameter mapping `node_id` to its outputs.
+  - Parse `{{#node_id.output_key#}}` format by splitting the inner path, locating the target node's output, and resolving the nested value.
+  - Keep standard `{{variable_name}}` fallback interpolation.
+  - Remove duplicate internal `interpolate_vars` re-declarations (e.g. inside `http_call` execution).
+- **Node Outputs Caching**:
+  - Inside the logic graph BFS traversal loop, initialize `context.node_outputs = {}` if it doesn't exist.
+  - After executing each node, construct its `node_outputs_dict` containing its execution results and structured data.
+  - Save to `context.node_outputs[node_id] = node_outputs_dict`.
+  - Pass `context.node_outputs` into `interpolate_vars` during just-in-time node parameters resolution.
 
-### 自动化与接口验证
-- **本地 API 测试**：使用 `POST /api/v1/rules/dry-run` 进行单项规则沙盒模拟，核对返回的 `result.passed` 和 `result.message` 是否正确对应规则内各个节点的失败级别。
+---
 
-### 手动与 UI 验证
-1. 在规则配置页的"可视化流程图编辑器"中，创建一个逻辑图规则，配置一个 QR 扫描节点（严重性设为"警告 `warning`"），以及一个数字签名校验节点（严重性设为"拦截 `fail`"）。
-2. 使用样例 PDF 进行 Dry Run 模拟测试：
-   - **测试用例 A**：PDF 包含有效签名但没有二维码。验证：Dry Run 终端应显示"测试通过"（无 critical fail），但在 Checks 列表中包含 QR 扫描项的状态为"警告"，且 `warning_count` 为 1。
-   - **测试用例 B**：PDF 二维码内容不一致。验证：警告列表与提示消息展示正确。
-   - **测试用例 C**：PDF 什么都不包含。验证：Dry Run 终端应显示"测试拦截"（触发了签名的 fail），且 `fail_count` 增加。
+### Frontend UI
+#### [MODIFY] [RuleGraphEditor.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/components/RuleGraphEditor.vue)
+- **Graph Ancestry Traversal**:
+  - Implement a helper function `getUpstreamNodes(nodeId)` that traverses the graph backwards from `nodeId` along connected incoming edges using a BFS/DFS to build a list of all ancestor nodes.
+- **Node Outputs Schema Definition**:
+  - Define static `NODE_OUTPUT_SCHEMAS` mapping standard operator keys to their outputs.
+  - Add dynamic output logic for `variable_extractor` (parses regex named capture groups `(?P<group_name>...)`) and LLM extraction modes.
+- **Inline Variable Selector Component**:
+  - Create a premium UI styling for inputs/textareas with an integrated variable selector dropdown:
+    - Add a styled `{x}` variable selector button inside/next to configuration inputs (e.g., `prompt` in LLM, `base_document_url` in diff, `url_template` in http).
+    - Trigger an Element Plus `<el-popover>` displaying a searchable, structured tree/list of available variables:
+      - **System Variables**: global `full_text`, `institution`, etc.
+      - **Upstream Outputs**: grouped by ancestor node labels and icons, showing available outputs.
+    - Clicking any variable inserts its selector syntax (`{{#node_id.output_key#}}` or `{{system_var}}`) at the cursor position of the input.
+- **Dynamic Variable Flow badge cards**:
+  - Update the "Node Data Flow" cards in the inspector sidebar.
+  - Parse referenced `{{#node_id.output_key#}}` nodes from the node's settings, and display them under "Inputs (Requires)" as node-specific references (e.g., `Node A > Output Key`) instead of flat global names.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run `pytest` to verify the backend tests are fully intact.
+- Add a new unit test in `tests/engine/test_rule_execution.py` showing that a downstream node can dynamically interpolate parameters from an upstream node's output using `{{#node_id.output_key#}}`.
+
+### Manual Verification
+1. Open the rule graph editor.
+2. Build a workflow: `📥 Input` -> `📱 二维码识别 (qr_node)` -> `🌐 HTTP 外部验证 (http_node)` -> `📊 最终判定聚合`.
+3. In `http_node`, configure the URL template as `https://localhost:31234/health?code={{#qr_node.qr_content#}}` using the new variable selector dropdown.
+4. Verify the variable popover displays correct icons, labels, and output options.
+5. Trigger a Dry Run simulation.
+6. Verify that the backend resolves the variable value correctly and executes the HTTP call, completing the test successfully.

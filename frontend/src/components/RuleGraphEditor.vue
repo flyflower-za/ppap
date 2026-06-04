@@ -119,7 +119,10 @@
                 Prompt 指令
                 <span class="field-hint">告诉大模型要检查什么</span>
               </label>
-              <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="4" placeholder="请检查该文档是否包含..." @focus="trackFocusedInput"></textarea>
+              <div class="field-input-with-var">
+                <textarea id="node-prompt" v-model="selectedNode.data.prompt" class="field-textarea" rows="4" placeholder="请检查该文档是否包含..." @focus="trackFocusedInput"></textarea>
+                <button class="var-trigger-btn" @click="openVarPopover('prompt')" title="插入变量">{x}</button>
+              </div>
             </div>
 
             <!-- LLM Operation Mode -->
@@ -161,7 +164,10 @@
               正则表达式
               <span class="field-hint">匹配内容将写入上下文</span>
             </label>
-            <input id="node-pattern" v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" @focus="trackFocusedInput" />
+            <div class="field-input-with-var">
+              <input id="node-pattern" v-model="selectedNode.data.pattern" type="text" class="field-input mono" placeholder="^报告编号[：:]\s*\w+" @focus="trackFocusedInput" />
+              <button class="var-trigger-btn" @click="openVarPopover('pattern')" title="插入变量">{x}</button>
+            </div>
           </div>
 
           <!-- Signature -->
@@ -211,7 +217,10 @@
                 条件表达式
                 <span class="field-hint">满足条件走 ✅ 分支</span>
               </label>
-              <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" @focus="trackFocusedInput" />
+              <div class="field-input-with-var">
+                <input id="node-expression" v-model="selectedNode.data.expression" type="text" class="field-input mono" placeholder="institution == 'CTI'" @focus="trackFocusedInput" />
+                <button class="var-trigger-btn" @click="openVarPopover('expression')" title="插入变量">{x}</button>
+              </div>
             </div>
             <div class="field-hint-card">
               <p>💡 可用变量：<code>institution</code>, <code>has_signature</code>, <code>qr_count</code>, <code>page_count</code>, <code>revision_count</code>, <code>is_tampered</code></p>
@@ -222,8 +231,11 @@
           <div v-if="selectedNode.data?.nodeType === 'http-call'">
             <div class="field-group">
               <label class="field-label" for="node-url-template">请求 URL <span class="required-mark">*</span></label>
-              <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" placeholder="https://verify.example.com/check?code={{qr_content}}" @focus="trackFocusedInput" />
-              <span class="field-hint">支持变量插值，如 qr_content, extracted_report_id</span>
+              <div class="field-input-with-var">
+                <input id="node-url-template" v-model="selectedNode.data.url_template" type="text" class="field-input mono" :placeholder="'https://verify.example.com/check?code={{#qr_node.qr_content#}}'" @focus="trackFocusedInput" />
+                <button class="var-trigger-btn" @click="openVarPopover('url_template')" title="插入变量">{x}</button>
+              </div>
+              <span class="field-hint" v-pre>支持变量插值: 系统变量 <code>{{var}}</code> 或上游节点 <code>{{#node.key#}}</code></span>
             </div>
             <div class="field-group">
               <span class="field-label">HTTP 方法</span>
@@ -263,7 +275,10 @@
                 <!-- Body (for POST/PUT) -->
                 <div class="sub-field-group" v-if="selectedNode.data?.http_method === 'POST' || selectedNode.data?.http_method === 'PUT'">
                   <label class="field-label">请求 Body (可选)</label>
-                  <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "xxx", "code": "xxx"}' @focus="trackFocusedInput"></textarea>
+                  <div class="field-input-with-var">
+                    <textarea v-model="selectedNode.data.body_template" class="field-textarea mono" rows="4" placeholder='{"report_id": "..."}' @focus="trackFocusedInput"></textarea>
+                    <button class="var-trigger-btn" @click="openVarPopover('body_template')" title="插入变量">{x}</button>
+                  </div>
                   <span class="field-hint">JSON 格式，支持变量插值</span>
                 </div>
 
@@ -338,7 +353,7 @@
             </div>
           </div>
 
-          <!-- === Variables Panel (Common) === -->
+          <!-- === Variables Panel (Dify-Style) === -->
           <div class="variables-section">
             <div class="variables-header" @click="variablesExpanded = !variablesExpanded">
               <span class="variables-title">📋 可用变量</span>
@@ -346,24 +361,43 @@
               <span class="caret" :class="{ open: variablesExpanded }">▸</span>
             </div>
             <div v-show="variablesExpanded" class="variables-content">
-              <div v-for="group in availableVariables" :key="group.category" class="variable-group">
-                <div class="variable-group-title">{{ group.icon }} {{ group.label }}</div>
+              <!-- Search bar -->
+              <div class="variables-search">
+                <input
+                  v-model="varSearchQuery"
+                  type="text"
+                  class="variables-search-input"
+                  placeholder="🔍 搜索变量..."
+                />
+              </div>
+
+              <div v-for="group in filteredVariables" :key="group.category" class="variable-group">
+                <div class="variable-group-title" :class="{ 'is-node-output': group.isNodeOutput }">
+                  {{ group.icon }} {{ group.label }}
+                  <span v-if="group.isNodeOutput" class="node-output-badge">上游节点</span>
+                </div>
                 <div class="variable-list">
                   <div
                     v-for="variable in group.variables"
                     :key="variable.name"
                     class="variable-item"
-                    @click="insertVariable(variable.name)"
-                    :title="'点击插入 {{' + variable.name + '}}'"
+                    :class="{ 'is-node-var': group.isNodeOutput }"
+                    @click="insertVariable(variable.name, variable)"
+                    :title="'点击插入 ' + getVariableSyntax(variable.name, variable)"
                   >
-                    <span class="variable-syntax">{{ getVariableSyntax(variable.name) }}</span>
+                    <span class="variable-syntax" :class="{ 'node-syntax': group.isNodeOutput }">{{ getVariableSyntax(variable.name, variable) }}</span>
                     <span class="variable-desc">{{ variable.desc }}</span>
                     <span class="variable-insert-hint">→</span>
                   </div>
                 </div>
               </div>
-              <div class="variables-footer-hint">
-                💡 点击变量即可插入到光标位置
+
+              <div v-if="filteredVariables.length === 0" class="variables-empty">
+                <span>未找到匹配的变量</span>
+              </div>
+
+              <div class="variables-footer-hint" v-pre>
+                💡 系统变量: <code>{{var}}</code> · 上游节点: <code>{{#node.key#}}</code>
               </div>
             </div>
           </div>
@@ -628,9 +662,94 @@ function toggleHttpAdvanced() {
   httpAdvancedExpanded.value = !httpAdvancedExpanded.value
 }
 
-// ─── Variables Management ───
-// Available variables from backend shared_state
-const availableVariables = [
+// ─── Dify-Style Variables Management ───
+
+// Hardcoded fallback output schemas for operators (used when backend data is unavailable)
+const FALLBACK_OUTPUT_SCHEMAS: Record<string, Record<string, { type: string; desc: string }>> = {
+  'signature':           { signer_cn: { type: 'string', desc: '签署人名称' }, signature_valid: { type: 'boolean', desc: '签名是否有效' }, digital_signatures: { type: 'object', desc: '完整签名数据' } },
+  'qr-code':             { qr_content: { type: 'string', desc: '首个二维码内容' }, qr_codes: { type: 'array', desc: '所有二维码数据' } },
+  'revision-check':      { is_tampered: { type: 'boolean', desc: '是否被篡改' }, revision_count: { type: 'integer', desc: '修订版本数' } },
+  'institution-sniffer': { institution: { type: 'string', desc: '识别机构名称' } },
+  'text-llm':            { passed: { type: 'boolean', desc: '验证是否通过' }, reason: { type: 'string', desc: '分析结论说明' } },
+  'vision-llm':          { passed: { type: 'boolean', desc: '验证是否通过' }, reason: { type: 'string', desc: '分析结论说明' } },
+  'http-call':           { status_code: { type: 'integer', desc: 'HTTP 状态码' }, response_text: { type: 'string', desc: '响应文本' }, response_json: { type: 'object', desc: 'JSON 响应对象' }, passed: { type: 'boolean', desc: '是否成功' } },
+  'regex':               { extracted_value: { type: 'string', desc: '匹配提取值' } },
+  'data-compare':        { passed: { type: 'boolean', desc: '比对是否一致' }, message: { type: 'string', desc: '差异详情' }, similarity: { type: 'number', desc: '相似度百分比' } },
+  'keyword':             { passed: { type: 'boolean', desc: '关键词是否命中' } },
+  'pdf-info':            { pdf_info: { type: 'object', desc: 'PDF 元数据' }, page_count: { type: 'integer', desc: '页数' } },
+}
+
+// Map backend operator_key (snake_case) to frontend nodeType (kebab-case)
+const OPERATOR_KEY_TO_NODE_TYPE: Record<string, string> = {
+  'digital_signature': 'signature',
+  'qr_scanner': 'qr-code',
+  'revision_check': 'revision-check',
+  'institution_sniffer': 'institution-sniffer',
+  'text_llm': 'text-llm',
+  'vision_llm': 'vision-llm',
+  'http_call': 'http-call',
+  'variable_extractor': 'regex',
+  'document_diff': 'data-compare',
+}
+
+// Build output schemas dynamically from backend + fallbacks
+const nodeOutputSchemas = computed<Record<string, Record<string, { type: string; desc: string }>>>(() => {
+  const schemas: Record<string, Record<string, { type: string; desc: string }>> = { ...FALLBACK_OUTPUT_SCHEMAS }
+
+  // Override with backend output_schema data
+  for (const op of loadedOperators.value) {
+    const nodeType = OPERATOR_KEY_TO_NODE_TYPE[op.operator_key] || op.operator_key
+    const backendSchema = op.output_schema?.properties
+    if (backendSchema && typeof backendSchema === 'object') {
+      schemas[nodeType] = {}
+      for (const [key, val] of Object.entries(backendSchema)) {
+        const v = val as any
+        schemas[nodeType][key] = {
+          type: v.type || 'string',
+          desc: v.description || key
+        }
+      }
+    }
+  }
+
+  return schemas
+})
+
+// ─── DAG Traversal: get all upstream ancestor nodes ───
+function getUpstreamNodes(nodeId: string): any[] {
+  const visited = new Set<string>()
+  const queue: string[] = [nodeId]
+  const result: any[] = []
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!
+    // Find all edges pointing TO currentId (i.e., incoming edges)
+    for (const edge of edges.value) {
+      if (edge.target === currentId && !visited.has(edge.source)) {
+        visited.add(edge.source)
+        const sourceNode = nodes.value.find(n => n.id === edge.source)
+        if (sourceNode) {
+          result.push(sourceNode)
+          queue.push(edge.source)
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+// Get the output variable list for a given node
+function getNodeOutputsList(node: any): { key: string; type: string; desc: string }[] {
+  const nodeType = node.data?.nodeType
+  if (!nodeType) return []
+  const schema = nodeOutputSchemas.value[nodeType]
+  if (!schema) return []
+  return Object.entries(schema).map(([key, val]) => ({ key, ...val }))
+}
+
+// System (global context) variables
+const systemVariableGroups = [
   {
     category: 'system',
     icon: '⚙️',
@@ -670,36 +789,61 @@ const availableVariables = [
       { name: 'revision_count', desc: '修订版本数' },
     ]
   },
-  {
-    category: 'extract',
-    icon: '📤',
-    label: '提取数据',
-    variables: [
-      { name: 'extracted_report_number', desc: '报告编号 (提取模式)' },
-      { name: 'extracted_verification_code', desc: '校验码 (提取模式)' },
-      { name: 'extracted_tables', desc: '提取的表格数据' },
-      { name: 'llm_semantic_analysis', desc: 'LLM 语义分析结果' },
-      { name: 'vision_analysis', desc: '视觉分析结果' },
-      { name: 'detected_stamps', desc: '检测到的印章' },
-      { name: 'diff_results', desc: '文档比对结果' },
-    ]
-  }
 ]
 
+// Dynamic available variables: system + upstream node outputs
+const availableVariables = computed(() => {
+  const groups: { category: string; icon: string; label: string; isNodeOutput?: boolean; nodeId?: string; variables: { name: string; desc: string; syntax?: string }[] }[] = []
+
+  // 1. System variables
+  for (const g of systemVariableGroups) {
+    groups.push({ ...g })
+  }
+
+  // 2. Upstream node outputs (only when a node is selected)
+  if (selectedNode.value) {
+    const upstreamNodes = getUpstreamNodes(selectedNode.value.id)
+    for (const upNode of upstreamNodes) {
+      const outputs = getNodeOutputsList(upNode)
+      if (outputs.length === 0) continue
+
+      const meta = getNodeMeta(upNode.data?.nodeType)
+      groups.push({
+        category: `node_${upNode.id}`,
+        icon: meta?.icon || '📦',
+        label: upNode.label || meta?.label || upNode.id,
+        isNodeOutput: true,
+        nodeId: upNode.id,
+        variables: outputs.map(o => ({
+          name: `${upNode.id}.${o.key}`,
+          desc: `${o.desc} (${o.type})`,
+          syntax: `{{#${upNode.id}.${o.key}#}}`
+        }))
+      })
+    }
+  }
+
+  return groups
+})
+
 function getTotalVariablesCount() {
-  return availableVariables.reduce((sum, group) => sum + group.variables.length, 0)
+  return availableVariables.value.reduce((sum, group) => sum + group.variables.length, 0)
 }
 
-function getVariableSyntax(varName: string) {
+function getVariableSyntax(varName: string, variable?: any) {
+  // If the variable has custom syntax (node output), use it
+  if (variable?.syntax) return variable.syntax
+  // Otherwise use simple {{var}} syntax for system variables
   return `{{${varName}}}`
 }
 
-function insertVariable(varName: string) {
+function insertVariable(varName: string, variable?: any) {
   // Use tracked last focused input, or fall back to active element
   const targetInput = lastFocusedInput.value || document.activeElement as HTMLInputElement | HTMLTextAreaElement
 
   if (targetInput && (targetInput.tagName === 'INPUT' || targetInput.tagName === 'TEXTAREA')) {
-    const variableSyntax = `{{${varName}}}`
+    // Determine the correct syntax: node output uses {{#nodeId.key#}}, system uses {{var}}
+    const variableSyntax = variable?.syntax || `{{${varName}}}`
     const start = targetInput.selectionStart ?? 0
     const end = targetInput.selectionEnd ?? 0
     const value = targetInput.value || ''
@@ -723,6 +867,40 @@ function insertVariable(varName: string) {
     // Refocus the input to allow further editing
     targetInput.focus()
   }
+}
+
+// Variable popover state
+const varPopoverVisible = ref(false)
+const varPopoverField = ref('')
+const varSearchQuery = ref('')
+
+function openVarPopover(fieldName: string) {
+  varPopoverField.value = fieldName
+  varSearchQuery.value = ''
+  varPopoverVisible.value = true
+}
+
+function closeVarPopover() {
+  varPopoverVisible.value = false
+  varPopoverField.value = ''
+}
+
+const filteredVariables = computed(() => {
+  const q = varSearchQuery.value.toLowerCase().trim()
+  if (!q) return availableVariables.value
+  return availableVariables.value
+    .map(group => ({
+      ...group,
+      variables: group.variables.filter(v =>
+        v.name.toLowerCase().includes(q) || v.desc.toLowerCase().includes(q)
+      )
+    }))
+    .filter(group => group.variables.length > 0)
+})
+
+function selectVariableFromPopover(variable: any) {
+  insertVariable(variable.name, variable)
+  closeVarPopover()
 }
 
 function trackFocusedInput(event: FocusEvent) {
@@ -2118,4 +2296,113 @@ const formatDate = (dateStr?: string): string => {
 .chk-status.warning { color: #fd971f; }
 .chk-status.fail { color: #f92672; }
 .chk-status.info { color: #66d9ef; }
+
+/* ─── Dify-Style Variable Selector ─── */
+.field-input-with-var {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.field-input-with-var .field-input,
+.field-input-with-var .field-textarea {
+  flex: 1;
+}
+
+.var-trigger-btn {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  border: 1px solid #e0e7ff;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  color: #4f46e5;
+  font-weight: 700;
+  font-size: 12px;
+  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(79, 70, 229, 0.1);
+  letter-spacing: -0.5px;
+}
+
+.var-trigger-btn:hover {
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  border-color: #a5b4fc;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.2);
+  transform: translateY(-1px);
+}
+
+.var-trigger-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(79, 70, 229, 0.1);
+}
+
+/* ─── Variables Panel Enhanced Styles ─── */
+.variables-search {
+  padding: 8px 12px 4px;
+}
+
+.variables-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #f9fafb;
+  transition: all 0.2s ease;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.variables-search-input:focus {
+  border-color: #a5b4fc;
+  background: white;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.variable-group-title.is-node-output {
+  color: #6366f1;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.06) 0%, transparent 100%);
+  border-left: 3px solid #818cf8;
+  padding-left: 9px;
+}
+
+.node-output-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+  color: #4f46e5;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.variable-item.is-node-var {
+  border-left: 2px solid #c7d2fe;
+  margin-left: 4px;
+  padding-left: 8px;
+}
+
+.variable-item.is-node-var:hover {
+  border-left-color: #818cf8;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.variable-syntax.node-syntax {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.variables-empty {
+  padding: 16px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+}
 </style>

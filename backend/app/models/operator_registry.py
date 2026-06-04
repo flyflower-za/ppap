@@ -92,6 +92,14 @@ INITIAL_OPERATORS = [
                 "expectedIssuer": {"type": "string", "description": "预期签发者名称"}
             }
         },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "signer_cn": {"type": "string", "description": "签署人名称"},
+                "signature_valid": {"type": "boolean", "description": "签名是否有效"},
+                "digital_signatures": {"type": "object", "description": "完整数字签名数据结构"}
+            }
+        },
         "supports_severity": True,
         "default_severity": "fail",
         "priority": 10,
@@ -107,6 +115,13 @@ INITIAL_OPERATORS = [
             "type": "object",
             "properties": {
                 "required": {"type": "boolean", "description": "是否必须存在二维码"}
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "qr_content": {"type": "string", "description": "首个二维码内容"},
+                "qr_codes": {"type": "array", "description": "所有二维码数据列表"}
             }
         },
         "supports_severity": True,
@@ -127,6 +142,13 @@ INITIAL_OPERATORS = [
                 "allowIncrementalUpdates": {"type": "boolean", "description": "是否允许增量更新"}
             }
         },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "is_tampered": {"type": "boolean", "description": "文档是否遭到篡改"},
+                "revision_count": {"type": "integer", "description": "修订版本总数"}
+            }
+        },
         "supports_severity": True,
         "default_severity": "fail",
         "priority": 15,
@@ -139,6 +161,12 @@ INITIAL_OPERATORS = [
         "description": "从文档文本中智能识别发证/签发机构名称",
         "operator_type": "native",
         "parameters_schema": {},
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "institution": {"type": "string", "description": "识别归类的发证机构简称"}
+            }
+        },
         "supports_severity": False,
         "priority": 1,
         "is_heavy": False
@@ -154,6 +182,13 @@ INITIAL_OPERATORS = [
             "properties": {
                 "prompt": {"type": "string", "description": "分析提示词"},
                 "operation_mode": {"type": "string", "enum": ["verification", "extraction"]}
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean", "description": "分析或验证是否符合要求"},
+                "reason": {"type": "string", "description": "分析结论或解释说明"}
             }
         },
         "supports_severity": True,
@@ -175,9 +210,67 @@ INITIAL_OPERATORS = [
                 "success_type": {"type": "string", "enum": ["status_2xx", "json_path", "text_contains"]}
             }
         },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "status_code": {"type": "integer", "description": "HTTP 响应状态码"},
+                "response_text": {"type": "string", "description": "原始响应文本内容"},
+                "response_json": {"type": "object", "description": "解析后的 JSON 响应对象"},
+                "passed": {"type": "boolean", "description": "是否符合请求成功条件"}
+            }
+        },
         "supports_severity": True,
         "default_severity": "fail",
         "priority": 60,
+        "is_heavy": True
+    },
+    {
+        "operator_key": "variable_extractor",
+        "display_name": "正则变量提取器",
+        "category": "extraction",
+        "description": "使用正则表达式（支持命名捕获组）从二维码内容或文本中提取变量并注入上下文",
+        "operator_type": "native",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "source_field": {"type": "string", "enum": ["qr_content", "full_text"], "description": "提取源数据字段"},
+                "pattern": {"type": "string", "description": "用于提取变量的正则表达式（例如：(?P<report_number>\\d+)）"}
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "extracted_value": {"type": "string", "description": "全局捕获所得的匹配字符串值"}
+            }
+        },
+        "supports_severity": False,
+        "priority": 25,
+        "is_heavy": False
+    },
+    {
+        "operator_key": "document_diff",
+        "display_name": "原件一致性比对",
+        "category": "comparison",
+        "description": "通过 URL 获取基准原件 PDF 并与当前上传 PDF 执行行级段落文本比对",
+        "operator_type": "native",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "base_document_url": {"type": "string", "description": "基准文档 URL 模板，支持变量插值（例如：https://verify.example.com/docs/{{report_number}}）"},
+                "similarity_threshold": {"type": "number", "description": "相似度阈值百分比（例如：95.0）"}
+            }
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean", "description": "比对相似度是否满足阈值要求"},
+                "message": {"type": "string", "description": "比对差异结果详情或成功说明"},
+                "similarity": {"type": "number", "description": "最终段落行级计算相似度百分比"}
+            }
+        },
+        "supports_severity": True,
+        "default_severity": "fail",
+        "priority": 30,
         "is_heavy": True
     }
 ]

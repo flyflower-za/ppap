@@ -2,6 +2,66 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-04] - 规则页面全面检查与优化
+
+### 功能描述
+- **修复规则保存功能**：解决了 `logic_graph` 类型规则保存时缺少 `rule_content` 字段的问题，确保规则能够正确保存到后端。
+- **修复全屏可视化编辑器保存功能**：解决了保存后规则列表不刷新、payload 构建错误等多个问题，确保规则能够正确保存并显示在列表中。
+- **添加规则列表自动刷新**：从全屏编辑器返回时自动刷新规则列表，确保新创建/更新的规则立即可见。
+- **优化规则列表显示**：为 `logic_graph` 类型规则添加了专门的显示格式，显示节点和连线数量。
+- **清理不支持的字段**：移除了全屏编辑器和规则页面中所有后端不支持的 `description` 字段。
+- **修复按钮状态显示**：将原生按钮的 `:loading` 属性改为 `:disabled`，并添加动态文本显示保存状态。
+- **添加调试日志**：增加详细的控制台日志，便于诊断保存问题。
+
+### 详细修改记录
+
+#### 1. 前端 - 规则页面优化
+- **规则页面** ([RulesPage.vue](frontend/src/views/RulesPage.vue)) [MODIFY]：
+  - 修复 `saveRule` 函数，为 `logic_graph` 类型规则添加 `rule_content` 字段（空字符串）
+  - 优化规则列表中的 `rule_content` 列，为 `logic_graph` 类型显示节点和连线数量
+  - 添加路由查询参数监听，从全屏编辑器返回时自动刷新规则列表
+
+#### 2. 前端 - 全屏编辑器保存修复
+- **全屏编辑器** ([FullscreenRuleEditor.vue](frontend/src/views/FullscreenRuleEditor.vue)) [MODIFY]：
+  - 修复 payload 构建逻辑，添加后端要求的 `rule_content` 字段（对于 `logic_graph` 类型使用空字符串）
+  - 移除后端不支持的 `description` 字段（规则配置表单、`ruleForm` 初始化、加载现有规则时的引用）
+  - 修改保存成功后的导航逻辑，使用 `router.push({ name: 'Rules', query: { refresh: 'true' } })` 替代 `router.back()`
+  - 修复按钮的 `:loading` 属性问题，改用 `:disabled` 和动态文本（"保存中..."）
+  - 添加详细的调试日志，包括 payload 内容和 API 响应
+  - 添加 `categoryId` 验证，确保规则有分类归属
+
+### 影响范围
+- ✅ 前端规则页面
+- ✅ 前端全屏可视化编辑器
+- ❌ 无数据库变更
+- ❌ 无后端变更
+
+---
+
+## [2026-06-04] - 自主规则配置与逻辑图数据流优化
+
+### 功能描述
+- **算子注册表去重与前后端命名对准**：彻底排除了前端可视化节点编辑器中由于 kebab-case 和 snake-case 命名不统一造成的“二维码识别”、“数字签名验证”等节点的冗余重复显示，消除了后端 API 路由双重 prefix 的 `/operators/operators` 重复挂载 Bug，修复了 API 获取算子定义时的 404 错误。
+- **属性配置面板变量数据流联动 (Variable Flow)**：在属性面板中，新增了可折叠/自适应渲染的“节点数据流 (Variable Flow)”面板。通过分析用户填写的字段和正则表达式（包含 (?P<name>...) 命名捕获组和 {{name}} 模板变量插值），动态计算并实时渲染出当前节点对上游变量的“输入依赖 (Requires)”以及向全局上下文注入的“输出变量 (Produces)”。
+- **全量算子及逻辑图测试套件**：重构了 `test_engine.py` 用例中的逻辑图 BFS 执行逻辑，增加了订单无关性验证以抵御多测试路径的影响；并新增了 `test_rule_execution.py` 集成测试，验证了从 `qr_scanner` 到 `variable_extractor` 再到 `document_diff` 的端到端 DAG 流程。
+
+### 详细修改记录
+
+#### 1. 前端 - 算子去重与变量数据流展示
+- **编辑器组件** ([RuleGraphEditor.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/components/RuleGraphEditor.vue)) [MODIFY]：
+  - 更新了 `DEFAULT_NODE_REGISTRY` 全局硬编码列表，将所有 kebab-case 格式的键名对齐为后端统一返回的 snake-case 格式（如 `text_llm`, `digital_signature`, `qr_scanner`, `revision_check` 等）。
+  - 新增 `getNodeVariableInfo` 工具函数，用于动态计算并解析节点表单中的变量字段依赖（支持正则捕获组提取和 `{{var}}` 占位符解析）。
+  - 在 HTML 中添加 `variable-flow-card` 结构，并使用 vanilla CSS 样式规范化 Requires 依赖和 Produces 变量。
+  - 为所有配置子面板增加了 snake-case 与 kebab-case 节点类型的双向条件兼容（如 `text_llm` || `text-llm`）。
+
+#### 2. 后端 - API 路由挂载修正与测试套件完善
+- **算子路由挂载修复** ([operators.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/api/operators.py)) [MODIFY]：
+  - 移除了 `router = APIRouter(prefix="/operators")` 中的重复 `/operators` 路径前缀，确保后端路由通过 `__init__.py` 统一注册后接口地址为标准的 `/api/v1/rule-engine/operators/registry`。
+- **嗅探器返回类型对准** ([sniffer_operator.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/engine/operators/sniffer_operator.py)) [MODIFY]：
+  - 重构了 `InstitutionSnifferOperator`，将其识别归纳的机构返回全称（"华测检测", "SGS通标"）统一校准为全系统和测试用例预置的标准编码简称（"CTI", "SGS"），避免分类规则条件匹配失效。
+- **测试断言优化与集成测试添加**：
+  - [test_engine.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/tests/engine/test_engine.py) [MODIFY]：修改了 `test_logic_graph_rule_evaluation` 和 `test_logic_graph_dag_and_interpolation` 的测试断言，改为对 `checks` 数组元素进行顺序无关的包含性判定（`any(...)`），以规避 BFS 遍历中对无依赖同级节点的排布顺序干扰。
+
 ## [2026-06-04] - P2&P3 规则变更审批流程与版本管理增强
 
 ### 功能描述

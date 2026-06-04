@@ -63,23 +63,37 @@
 
 ---
 
-## 待实施
+## P2: 规则变更审批流程 ✅ 已完成
 
-### P2: 规则变更审批流程 ⏳
-- 模型已就绪（[rule_approval.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/models/rule_approval.py)）
-- 需要前端审批 UI 和工作流逻辑
-
-### P3: 版本管理增强 ⏳
-- 需要添加变更日志和测试覆盖字段
+- 实现了审批策略（`ApprovalPolicy`）和变更请求工单（`RuleChangeRequest`）的工作流模型。
+- 为普通用户和经理角色实现了“审批中心”仪表盘（[ApprovalsPage.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/views/ApprovalsPage.vue)）。
+- 增加了高风险/低风险分类，支持低风险（如 warning 级）变更请求的“免审批”自动部署，而高风险（如停用、删除）需要经理进行确认审计批准。
 
 ---
 
-## 初始化命令（已通过 deploy.sh 自动完成）
+## P3: 版本管理与变更日志增强 ✅ 已完成
+
+- 为 `RuleVersion` 模型添加了 `change_log`（变更说明）与 `change_request_id` 关联字段。
+- 增加了数据库版本迁移升级流程。
+- 前端支持在规则版本历史抽屉中显示 `change_log`，并高亮标记其差异字段和版本对比差异。
+
+---
+
+## 自主规则配置与逻辑图数据流优化 ✅ 已完成
+
+- 实现了 `variable_extractor`（正则变量提取器）与 `document_diff`（原件一致性比对）高吞吐算子。
+- 优化了后端逻辑图解析器路由机制，完美处理了 `type: "default"` 的 VueFlow 序列化解析。
+- 彻底消除了前端算子注册表的重复算子节点，统一使用 Snake-case 进行对齐与覆盖。
+- 前端属性配置面板中新增了动态 `🔗 节点数据流 (Variable Flow)` 连通卡片，支持实时解析输入依赖和输出变量徽章，极大提升了用户自主管理规则链路的易用性。
+
+---
+
+## 启动与测试命令
 
 ```bash
-# 一键部署
-bash deploy.sh
-
-# 强制无缓存重建
+# 启动与重新构建部署
 bash deploy.sh --clean
+
+# 运行后端全量单元与集成测试 (19/19)
+cd backend && pytest tests/ -v
 ```

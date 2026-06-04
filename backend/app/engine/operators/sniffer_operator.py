@@ -35,11 +35,12 @@ class InstitutionSnifferOperator(BaseOperator):
                 with open(context.file_path, "rb") as f:
                     pdf_bytes = f.read()
             except Exception as e:
-                return OperatorResult(
-                    operator_name=self.name,
-                    pass_status=False,
-                    message=f"无法加载 PDF 字节流: {e}"
-                )
+                if not context.shared_state.get("full_text"):
+                    return OperatorResult(
+                        operator_name=self.name,
+                        pass_status=False,
+                        message=f"无法加载 PDF 字节流: {e}"
+                    )
 
         # ─── PART 0: 密码学证书指纹前置直取 (全量泛化提取) ───
         try:
@@ -60,15 +61,15 @@ class InstitutionSnifferOperator(BaseOperator):
                         # A. 优先将超高频缩写/名称清洗为规范标准中文名
                         matched_inst = None
                         if any(kw in org_name_lower for kw in ["华测", "cti", "centre testing"]):
-                            matched_inst = "华测检测"
+                            matched_inst = "CTI"
                         elif any(kw in org_name_lower for kw in ["sgs", "通标"]):
-                            matched_inst = "SGS通标"
+                            matched_inst = "SGS"
                         elif any(kw in org_name_lower for kw in ["中国检验认证", "ccic"]):
-                            matched_inst = "中检集团"
+                            matched_inst = "CCIC"
                         elif any(kw in org_name_lower for kw in ["tuv rheinland", "莱茵", "tüv rheinland"]):
-                            matched_inst = "莱茵TUV"
+                            matched_inst = "TUV"
                         elif any(kw in org_name_lower for kw in ["tuv sud", "南德", "tüv süd"]):
-                            matched_inst = "南德TUV"
+                            matched_inst = "TUV"
                         
                         # B. 【泛化核心】：如果不在高频机构库内，直接原样使用证书提取出的完整企业组织名称！
                         if not matched_inst:
@@ -91,14 +92,18 @@ class InstitutionSnifferOperator(BaseOperator):
 
         # ─── PART 1: 提取第一页的纯文本 ───
         first_page_text = ""
-        try:
-            import fitz
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            if len(doc) > 0:
-                first_page_text = doc[0].get_text().strip()
-            doc.close()
-        except Exception as parse_err:
-            logger.warning(f"Failed to parse first page text: {parse_err}")
+        if pdf_bytes:
+            try:
+                import fitz
+                doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+                if len(doc) > 0:
+                    first_page_text = doc[0].get_text().strip()
+                doc.close()
+            except Exception as parse_err:
+                logger.warning(f"Failed to parse first page text: {parse_err}")
+
+        if not first_page_text:
+            first_page_text = context.shared_state.get("full_text", "")
 
         # 如果没有第一页文本，直接进入视觉分析
         if not first_page_text:
@@ -125,11 +130,11 @@ class InstitutionSnifferOperator(BaseOperator):
 
         # ─── PART 2: 1ms 本地超高速高频正则匹配 ───
         local_rules = [
-            (r"(华测检测|CENTRE TESTING INTERNATIONAL|CTI)", "华测检测"),
-            (r"(SGS|通标标准技术服务)", "SGS通标"),
-            (r"(中国检验认证|CCIC)", "中检集团"),
-            (r"(莱茵|TUV Rhe|TÜV Rhe)", "莱茵TUV"),
-            (r"(南德|TUV SUD|TÜV SÜD)", "南德TUV"),
+            (r"(华测检测|CENTRE TESTING INTERNATIONAL|CTI)", "CTI"),
+            (r"(SGS|通标标准技术服务)", "SGS"),
+            (r"(中国检验认证|CCIC)", "CCIC"),
+            (r"(莱茵|TUV Rhe|TÜV Rhe)", "TUV"),
+            (r"(南德|TUV SUD|TÜV SÜD)", "TUV"),
         ]
 
         text_to_analyze = first_page_text[:1200]
@@ -176,15 +181,15 @@ class InstitutionSnifferOperator(BaseOperator):
             # 对主流机构结果进行一次标准清洗归一化
             inst_lower = institution.lower()
             if "华测" in inst_lower or "cti" in inst_lower:
-                institution = "华测检测"
+                institution = "CTI"
             elif "sgs" in inst_lower or "通标" in inst_lower:
-                institution = "SGS通标"
+                institution = "SGS"
             elif "中检" in inst_lower or "ccic" in inst_lower:
-                institution = "中检集团"
+                institution = "CCIC"
             elif "莱茵" in inst_lower or "rheinland" in inst_lower:
-                institution = "莱茵TUV"
+                institution = "TUV"
             elif "南德" in inst_lower or "sud" in inst_lower:
-                institution = "南德TUV"
+                institution = "TUV"
 
             context.shared_state["institution"] = institution
             

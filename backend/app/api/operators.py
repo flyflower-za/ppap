@@ -20,7 +20,7 @@ from app.schemas.operator import (
 )
 from app.core.audit_logger import log_audit_event
 
-router = APIRouter(prefix="/operators", tags=["operators"])
+router = APIRouter(tags=["operators"])
 
 
 @router.get("/registry", response_model=List[OperatorRegistryResponse])

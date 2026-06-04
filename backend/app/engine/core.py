@@ -105,27 +105,34 @@ class VerificationEngine:
             nodes = logic.get("nodes", [])
             for node in nodes:
                 node_type = node.get("type")
-                if node_type == "digital_signature":
+                # Fallback to data.nodeType if top-level type is generic/default
+                if not node_type or node_type in ["default", "input", "output"]:
+                    node_type = node.get("data", {}).get("nodeType")
+                
+                if not node_type:
+                    continue
+
+                if node_type in ["digital_signature", "signature"]:
                     required_names.add("SignatureVerifier")
-                elif node_type == "qr_scanner":
+                elif node_type in ["qr_scanner", "qr-code"]:
                     required_names.add("QRScanner")
-                elif node_type == "pdf_metadata":
+                elif node_type in ["pdf_metadata", "pdf-info"]:
                     required_names.add("PDFInfoExtractor")
-                elif node_type == "institution_sniffer":
+                elif node_type in ["institution_sniffer", "institution-sniffer"]:
                     required_names.add("InstitutionSniffer")
-                elif node_type == "revision_check":
+                elif node_type in ["revision_check", "revision-check"]:
                     required_names.add("RevisionCheck")
-                elif node_type == "text_llm":
+                elif node_type in ["text_llm", "text-llm"]:
                     required_names.add("TextLLM")
-                elif node_type == "vision_llm":
+                elif node_type in ["vision_llm", "vision-llm"]:
                     required_names.add("VisionLLM")
-                elif node_type == "http_call" or node_type == "http-call":
+                elif node_type in ["http_call", "http-call"]:
                     required_names.add("URLFetchOperator")
-                elif node_type == "stamp_detection":
+                elif node_type in ["stamp_detection"]:
                     required_names.add("StampDetection")
-                elif node_type == "document_diff":
+                elif node_type in ["document_diff", "document-diff"]:
                     required_names.add("DocumentDiff")
-                elif node_type == "table_verification":
+                elif node_type in ["table_verification"]:
                     required_names.add("TableVerification")
 
         # Build list
@@ -395,20 +402,46 @@ class VerificationEngine:
                 await emit_log(f"规则 [{rule.rule_name}] 结果: {'通过' if rule_pass else '不通过'} - {rule_msg}")
 
             elif rule.rule_type == RuleType.logic_graph:
-                # Dynamic Variable Interpolation helper
-                def interpolate_vars(val: any, state: dict) -> any:
+                # Helper function to query nested paths (like response_json.data.status)
+                def get_nested_val(d: dict, path: str):
+                    parts = path.split('.')
+                    curr = d
+                    for p in parts:
+                        if isinstance(curr, dict):
+                            curr = curr.get(p)
+                        else:
+                            return ""
+                    return curr if curr is not None else ""
+
+                # Dynamic Variable Interpolation helper supporting {{#node_id.key#}} and {{key}}
+                def interpolate_vars(val: any, state: dict, node_outputs: dict = None) -> any:
                     if isinstance(val, str):
                         import re
+                        # 1. Resolve Dify-style variable mappings: {{#node_id.key#}}
+                        dify_matches = re.findall(r'\{\{#([^}]+)#\}\}', val)
+                        for match in dify_matches:
+                            parts = match.split('.', 1)
+                            if len(parts) == 2 and node_outputs:
+                                target_node_id, path_key = parts[0].strip(), parts[1].strip()
+                                node_data_dict = node_outputs.get(target_node_id, {})
+                                replacement = get_nested_val(node_data_dict, path_key)
+                                val = val.replace(f"{{{{#{match}#}}}}", str(replacement))
+                            else:
+                                val = val.replace(f"{{{{#{match}#}}}}", "")
+
+                        # 2. Resolve standard flat variables: {{variable}} for backward compatibility
                         matches = re.findall(r'\{\{([^}]+)\}\}', val)
                         for match in matches:
+                            if match.startswith('#'):
+                                continue
                             key = match.strip()
                             replacement = state.get(key, "")
                             val = val.replace(f"{{{{{match}}}}}", str(replacement))
                         return val
                     elif isinstance(val, dict):
-                        return {k: interpolate_vars(v, state) for k, v in val.items()}
+                        return {k: interpolate_vars(v, state, node_outputs) for k, v in val.items()}
                     elif isinstance(val, list):
-                        return [interpolate_vars(v, state) for v in val]
+                        return [interpolate_vars(v, state, node_outputs) for v in val]
                     return val
 
                 nodes = logic.get("nodes", [])
@@ -440,6 +473,10 @@ class VerificationEngine:
                 failed_checks = []
                 executed_modules = []  # Track per-node verification module results
                 
+                # Initialize node_outputs in context
+                if not hasattr(context, "node_outputs"):
+                    context.node_outputs = {}
+                
                 while queue:
                     node_id = queue.pop(0)
                     if node_id in visited:
@@ -451,13 +488,22 @@ class VerificationEngine:
                         continue
                         
                     node_type = node.get("type")
-                    # Interpolate parameters dynamically from shared context
-                    node_data = interpolate_vars(node.get("data", {}), context.shared_state)
+                    if not node_type or node_type in ["default", "input", "output"]:
+                        node_type = node.get("data", {}).get("nodeType")
+
+                    # Interpolate parameters dynamically from shared context and upstream node outputs
+                    node_data = interpolate_vars(node.get("data", {}), context.shared_state, context.node_outputs)
                     
                     node_passed = True
                     node_msg = ""
                     
-                    if node_type == "digital_signature":
+                    # Capture intermediate results for output schema
+                    node_extracted_groups = {}
+                    node_llm_data = {}
+                    node_http_response = {}
+                    node_diff_similarity = None
+                    
+                    if node_type in ["digital_signature", "signature"]:
                         sig_data = context.shared_state.get("digital_signatures", {})
                         sigs = sig_data.get("signatures", [])
                         valid_sigs = [s for s in sigs if s.get("integrity", False)]
@@ -494,7 +540,7 @@ class VerificationEngine:
                         # Flatten signature data for variable access
                         self._flatten_shared_state(context)
                             
-                    elif node_type == "qr_scanner" or node_type == "qr-code":
+                    elif node_type in ["qr_scanner", "qr-code"]:
                         qr_data = context.shared_state.get("qr_codes", [])
                         if len(qr_data) > 0:
                             node_passed = True
@@ -507,7 +553,7 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = "未检测到任何二维码"
                             
-                    elif node_type == "pdf_metadata":
+                    elif node_type in ["pdf_metadata", "pdf-info"]:
                         pdf_info = context.shared_state.get("pdf_info", {})
                         if pdf_info:
                             node_passed = True
@@ -516,7 +562,7 @@ class VerificationEngine:
                             node_passed = True
                             node_msg = "PDF元数据读取通过"
                             
-                    elif node_type == "regex_match":
+                    elif node_type in ["regex_match", "regex"]:
                         pattern = node_data.get("pattern", "")
                         full_text = context.shared_state.get("full_text", "")
                         if pattern:
@@ -535,9 +581,9 @@ class VerificationEngine:
                             node_passed = True
                             node_msg = "未配置正则表达式，跳过"
                             
-                    elif node_type == "comparison":
-                        field_a = node_data.get("fieldA", "")
-                        field_b = node_data.get("fieldB", "")
+                    elif node_type in ["comparison", "data-compare"]:
+                        field_a = node_data.get("fieldA", "") or node_data.get("source_a", "")
+                        field_b = node_data.get("fieldB", "") or node_data.get("source_b", "")
                         val_a = context.shared_state.get(field_a) or context.shared_state.get("institution")
                         val_b = context.shared_state.get(field_b) or node_data.get("fieldBValue")
                         if val_a and val_b and str(val_a).lower() == str(val_b).lower():
@@ -547,14 +593,14 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = f"字段一致校验失败: {field_a} != {field_b}"
                             
-                    elif node_type == "text_llm" or node_type == "vision_llm":
+                    elif node_type in ["text_llm", "text-llm", "vision_llm", "vision-llm"]:
                         # Get node configuration
                         node_prompt = node_data.get("prompt", "")
                         operation_mode = node_data.get("operation_mode", "verification")
 
                         # Execute LLM operator dynamically
                         try:
-                            if node_type == "vision_llm":
+                            if node_type in ["vision_llm", "vision-llm"]:
                                 from app.engine.operators.vision_llm_operator import VisionLLMOperator
                                 op = VisionLLMOperator()
                             else:
@@ -565,6 +611,7 @@ class VerificationEngine:
 
                             if res.pass_status:
                                 llm_data = res.extracted_data if res.extracted_data else {}
+                                node_llm_data = llm_data
 
                                 if operation_mode == "extraction":
                                     # Extraction mode: always pass
@@ -589,12 +636,12 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = f"大模型节点异常: {str(e)}"
                             
-                    elif node_type == "institution_sniffer":
+                    elif node_type in ["institution_sniffer", "institution-sniffer"]:
                         sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
                         node_passed = sniffed_inst != "UNKNOWN"
                         node_msg = f"发证机构嗅探完成: {sniffed_inst}"
 
-                    elif node_type == "revision_check":
+                    elif node_type in ["revision_check", "revision-check"]:
                         rev_data = context.shared_state.get("pdf_revisions", {})
                         is_tampered = rev_data.get("is_tampered_after_sign", False)
                         rev_count = rev_data.get("revision_count", 1)
@@ -620,19 +667,6 @@ class VerificationEngine:
                         # HTTP External Verification Node
                         try:
                             import httpx
-                            import re
-
-                            # Helper function for variable interpolation
-                            def interpolate_vars(val: str, state: dict) -> str:
-                                if isinstance(val, str):
-                                    matches = re.findall(r'\{\{([^}]+)\}\}', val)
-                                    for match in matches:
-                                        key = match.strip()
-                                        replacement = state.get(key, "")
-                                        if replacement is None:
-                                            replacement = ""
-                                        val = val.replace(f"{{{{{match}}}}}", str(replacement))
-                                return val
 
                             # Get configuration
                             url_template = node_data.get("url_template", "")
@@ -645,8 +679,8 @@ class VerificationEngine:
                             json_expected = node_data.get("json_expected", "true")
                             text_contains = node_data.get("text_contains", "")
 
-                            # Interpolate variables in URL
-                            url = interpolate_vars(url_template, context.shared_state)
+                            # Interpolate variables in URL using outer interpolate_vars
+                            url = interpolate_vars(url_template, context.shared_state, context.node_outputs)
 
                             if not url:
                                 node_passed = False
@@ -656,15 +690,15 @@ class VerificationEngine:
                                 headers = {}
                                 for header in headers_list:
                                     # Skip internal fields like _id
-                                    key = interpolate_vars(header.get("key", ""), context.shared_state)
-                                    value = interpolate_vars(header.get("value", ""), context.shared_state)
+                                    key = interpolate_vars(header.get("key", ""), context.shared_state, context.node_outputs)
+                                    value = interpolate_vars(header.get("value", ""), context.shared_state, context.node_outputs)
                                     if key:
                                         headers[key] = value
 
                                 # Build body for POST/PUT
                                 body = None
                                 if http_method in ["POST", "PUT"] and body_template:
-                                    body = interpolate_vars(body_template, context.shared_state)
+                                    body = interpolate_vars(body_template, context.shared_state, context.node_outputs)
 
                                 # Make HTTP request
                                 async with httpx.AsyncClient(timeout=timeout) as client:
@@ -679,6 +713,18 @@ class VerificationEngine:
 
                                 # Check success criteria
                                 status_code = response.status_code
+
+                                # Capture HTTP response for outputs schema
+                                resp_json = None
+                                try:
+                                    resp_json = response.json()
+                                except Exception:
+                                    pass
+                                node_http_response = {
+                                    "status_code": status_code,
+                                    "response_text": response.text,
+                                    "response_json": resp_json
+                                }
 
                                 if success_type == "status_code":
                                     node_passed = status_code == 200
@@ -730,18 +776,145 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = f"HTTP 验证异常: {str(e)}"
 
+                    elif node_type in ["variable_extractor", "variable-extractor"]:
+                        source_field = node_data.get("source_field", "qr_content")
+                        pattern = node_data.get("pattern", "")
+                        
+                        source_text = context.shared_state.get(source_field, "")
+                        if not source_text and source_field == "qr_content":
+                            qr_codes = context.shared_state.get("qr_codes", [])
+                            if qr_codes and isinstance(qr_codes, list) and len(qr_codes) > 0:
+                                source_text = qr_codes[0].get("data", "")
+                        
+                        if pattern and source_text:
+                            import re
+                            try:
+                                match = re.search(pattern, source_text)
+                                if match:
+                                    node_passed = True
+                                    extracted = match.groupdict()
+                                    if extracted:
+                                        for k, v in extracted.items():
+                                            context.shared_state[k] = v
+                                        node_msg = f"变量提取成功: {', '.join([f'{k}={v}' for k, v in extracted.items()])}"
+                                        node_extracted_groups = extracted
+                                    else:
+                                        context.shared_state["extracted_value"] = match.group(0)
+                                        node_msg = f"变量提取成功: extracted_value={match.group(0)}"
+                                else:
+                                    node_passed = False
+                                    node_msg = f"变量提取失败：未匹配到模式 [{pattern}]"
+                            except Exception as e:
+                                node_passed = False
+                                node_msg = f"变量提取语法错误: {e}"
+                        else:
+                            node_passed = False
+                            node_msg = "变量提取跳过：数据源为空或未配置模式"
+
+                    elif node_type in ["document_diff", "document-diff"]:
+                        base_document_url = node_data.get("base_document_url", "")
+                        similarity_threshold = node_data.get("similarity_threshold", 100.0)
+                        
+                        if not base_document_url:
+                            node_passed = False
+                            node_msg = "原件比对失败：未配置基准文档 URL"
+                        else:
+                            try:
+                                op = self._available_operators.get("DocumentDiff")
+                                if not op:
+                                    from app.engine.operators.diff_operator import DocumentDiffOperator
+                                    op = DocumentDiffOperator()
+                                
+                                res = await op.execute(
+                                    context, 
+                                    base_document_url=base_document_url, 
+                                    similarity_threshold=similarity_threshold
+                                )
+                                
+                                node_passed = res.pass_status
+                                node_msg = res.message
+                                node_diff_similarity = res.extracted_data.get("similarity")
+                                
+                                # Store the result in operator_results for frontend FileDetailPage.vue to display diff changes
+                                operator_results["DocumentDiff"] = res.dict()
+                                operator_results["DocumentDiffOperator"] = res.dict()
+                                
+                            except Exception as e:
+                                logger.error(f"[Engine] Document diff node failed: {e}")
+                                node_passed = False
+                                node_msg = f"原件比对异常: {e}"
+
                     else:
                         node_passed = True
                         node_msg = f"节点 {node_type} 执行完毕"
+
+                    # Populate node_outputs cache dictionary
+                    node_outputs_dict = {
+                        "passed": node_passed,
+                        "message": node_msg
+                    }
+
+                    if node_type in ["digital_signature", "signature", "digital-signature"]:
+                        node_outputs_dict.update({
+                            "signer_cn": context.shared_state.get("signer_cn", ""),
+                            "signature_valid": context.shared_state.get("signature_valid", False),
+                            "digital_signatures": context.shared_state.get("digital_signatures", {})
+                        })
+                    elif node_type in ["qr_scanner", "qr-code", "qr_scanner"]:
+                        node_outputs_dict.update({
+                            "qr_content": context.shared_state.get("qr_content", ""),
+                            "qr_codes": context.shared_state.get("qr_codes", [])
+                        })
+                    elif node_type in ["pdf_metadata", "pdf-info", "pdf_info"]:
+                        node_outputs_dict.update({
+                            "pdf_info": context.shared_state.get("pdf_info", {}),
+                            "page_count": context.shared_state.get("pdf_info", {}).get("page_count", 0),
+                            "full_text": context.shared_state.get("full_text", "")
+                        })
+                    elif node_type in ["regex_match", "regex"]:
+                        node_outputs_dict.update({
+                            "pattern": node_data.get("pattern", "")
+                        })
+                    elif node_type in ["text_llm", "text-llm", "vision_llm", "vision-llm"]:
+                        node_outputs_dict.update({
+                            "passed": node_passed,
+                            "reason": node_msg,
+                            **node_llm_data
+                        })
+                    elif node_type in ["institution_sniffer", "institution-sniffer"]:
+                        node_outputs_dict.update({
+                            "institution": context.shared_state.get("institution", "UNKNOWN")
+                        })
+                    elif node_type in ["revision_check", "revision-check"]:
+                        node_outputs_dict.update({
+                            "is_tampered": context.shared_state.get("is_tampered", False),
+                            "revision_count": context.shared_state.get("revision_count", 1)
+                        })
+                    elif node_type in ["http_call", "http-call"]:
+                        node_outputs_dict.update(node_http_response)
+                    elif node_type in ["variable_extractor", "variable-extractor"]:
+                        node_outputs_dict.update({
+                            "extracted_value": context.shared_state.get("extracted_value", ""),
+                            **node_extracted_groups
+                        })
+                    elif node_type in ["document_diff", "document-diff"]:
+                        node_outputs_dict.update({
+                            "similarity": node_diff_similarity if node_diff_similarity is not None else 0.0
+                        })
+
+                    context.node_outputs[node_id] = node_outputs_dict
 
                     # Determine node severity from node data config
                     node_severity = node_data.get("severity", "fail")
                     # Classify this node as a verification module if it has hasSeverity or is a known check type
                     is_verification_module = node_data.get("hasSeverity", False) or node_type in [
-                        "digital_signature", "qr_scanner", "qr-code", "revision_check", "revision-check",
-                        "regex_match", "comparison", "data-compare", "keyword",
-                        "text_llm", "vision_llm", "http_call", "http-call",
-                        "stamp_detection", "document_diff", "table_verification"
+                        "digital_signature", "signature", "qr_scanner", "qr-code", 
+                        "revision_check", "revision-check", "pdf_metadata", "pdf-info",
+                        "regex_match", "regex", "comparison", "data-compare", "keyword",
+                        "text_llm", "text-llm", "vision_llm", "vision-llm", 
+                        "http_call", "http-call", "stamp_detection", 
+                        "document_diff", "document-diff", "variable_extractor", 
+                        "variable-extractor", "table_verification"
                     ]
 
                     active_checks.append(node_msg)
