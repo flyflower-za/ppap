@@ -70,6 +70,8 @@ export interface RuleVersion {
   logic_config: any
   created_at: string
   created_by?: string
+  change_log?: string
+  change_request_id?: string
 }
 
 export const getRuleVersions = async (ruleId: string) => {

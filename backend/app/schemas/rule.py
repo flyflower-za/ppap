@@ -75,6 +75,8 @@ class RuleVersionResponse(BaseModel):
     logic_config: Dict[str, Any]
     created_at: datetime
     created_by: Optional[str]
+    change_log: Optional[str] = None
+    change_request_id: Optional[UUID] = None
 
     class Config:
         from_attributes = True

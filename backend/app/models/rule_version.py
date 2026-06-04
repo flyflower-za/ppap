@@ -19,6 +19,12 @@ class RuleVersion(Base):
     is_active = Column(Boolean, default=True)
     logic_config = Column(JSONB, default=dict)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_by = Column(String, nullable=True) # Full name or email of editor
+    created_by = Column(String, nullable=True)  # Full name or email of editor
+
+    # P3: Version management enhancements
+    change_log = Column(Text, nullable=True)  # Description of what changed and why
+    change_request_id = Column(UUID(as_uuid=False), ForeignKey("rule_change_requests.id", ondelete="SET NULL"), nullable=True)
 
     rule = relationship("VerificationRule")
+    change_request = relationship("RuleChangeRequest", foreign_keys=[change_request_id])
+

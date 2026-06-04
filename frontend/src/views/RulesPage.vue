@@ -263,13 +263,13 @@
     <el-drawer
       v-model="versionsDrawerVisible"
       title="规则配置版本历史"
-      size="40%"
+      size="45%"
       destroy-on-close
     >
       <div class="version-history-container" v-loading="loadingVersions">
         <el-timeline v-if="versions.length > 0">
           <el-timeline-item
-            v-for="ver in versions"
+            v-for="(ver, vIdx) in versions"
             :key="ver.id"
             :timestamp="formatDate(ver.created_at)"
             placement="top"
@@ -280,11 +280,27 @@
                 <span class="version-tag-number font-bold">版本 #{{ ver.version_number }}</span>
                 <span class="version-author text-muted">编辑者: {{ ver.created_by || '系统' }}</span>
               </div>
+              <!-- P3: Change Log -->
+              <div v-if="ver.change_log" class="version-change-log mb-2">
+                <el-icon><ChatDotRound /></el-icon>
+                <span>{{ ver.change_log }}</span>
+              </div>
               <div class="version-details text-sm mb-3">
-                <div class="version-field"><span class="label">名称:</span> {{ ver.rule_name }}</div>
-                <div class="version-field"><span class="label">类型:</span> {{ getRuleTypeName(ver.rule_type) }}</div>
-                <div class="version-field"><span class="label">级别:</span> {{ ver.severity === 'fail' ? '拦截' : ver.severity === 'warning' ? '警告' : '参考' }}</div>
-                <div class="version-field" v-if="ver.rule_type !== 'logic_graph'"><span class="label">内容:</span> <code class="text-monospace">{{ ver.rule_content }}</code></div>
+                <div class="version-field">
+                  <span class="label">名称:</span> {{ ver.rule_name }}
+                  <el-tag v-if="vIdx < versions.length - 1 && ver.rule_name !== versions[vIdx + 1].rule_name" size="small" type="warning" effect="plain" class="diff-tag">已变更</el-tag>
+                </div>
+                <div class="version-field">
+                  <span class="label">类型:</span> {{ getRuleTypeName(ver.rule_type) }}
+                </div>
+                <div class="version-field">
+                  <span class="label">级别:</span> {{ ver.severity === 'fail' ? '拦截' : ver.severity === 'warning' ? '警告' : '参考' }}
+                  <el-tag v-if="vIdx < versions.length - 1 && ver.severity !== versions[vIdx + 1].severity" size="small" type="warning" effect="plain" class="diff-tag">已变更</el-tag>
+                </div>
+                <div class="version-field" v-if="ver.rule_type !== 'logic_graph'">
+                  <span class="label">内容:</span> <code class="text-monospace">{{ ver.rule_content }}</code>
+                  <el-tag v-if="vIdx < versions.length - 1 && ver.rule_content !== versions[vIdx + 1].rule_content" size="small" type="warning" effect="plain" class="diff-tag">已变更</el-tag>
+                </div>
               </div>
               <div class="version-actions" style="display: flex; justify-content: flex-end;">
                 <el-button 
@@ -400,7 +416,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import {
@@ -1213,5 +1229,22 @@ const formatDate = (dateStr?: string): string => {
   color: var(--el-text-color-placeholder);
   text-align: center;
   padding: 4px 0;
+}
+
+/* P3: Version Change Log */
+.version-change-log {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(64, 158, 255, 0.06);
+  border-radius: 6px;
+  font-size: 12px;
+  color: #4f566b;
+}
+
+.diff-tag {
+  margin-left: 6px;
+  font-size: 10px;
 }
 </style>

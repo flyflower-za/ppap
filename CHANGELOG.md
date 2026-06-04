@@ -2,6 +2,47 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-04] - P2&P3 规则变更审批流程与版本管理增强
+
+### 功能描述
+- **P2: 规则变更审批流程**：基于审批策略（ApprovalPolicy）与规则变更请求（RuleChangeRequest）模型，构建了完整的规则审批生命周期。支持创建、更新、停用及删除操作的在线审批流，非 ADMIN/MANAGER 角色需要经过审批批准后方可将变更部署生效，而普通/低风险规则依据预置审批策略可触发“免审批”快速部署通道。
+- **P3: 版本管理与变更日志增强**：在现有的规则多版本历史记录上进行了字段扩展，新增了 `change_log`（变更说明）与 `change_request_id`（关联的审批请求），支持在规则版本历史抽屉中清晰比对多版本配置差异，并高亮标记其差异项。
+- **审批中心 UI 与功能开发**：全新上线“审批中心”仪表盘，包含待审批、已批准、已拒绝等关键工单的卡片式展示与按角色快速审批、拒绝、一键部署生效等功能。
+
+### 详细修改记录
+
+#### 1. 前端 - 审批中心开发与版本差异高亮
+- **审批中心页面** [ApprovalsPage.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/views/ApprovalsPage.vue) [NEW]：
+  - 新增统计卡片区，展示待审批数、已审批数、已驳回数等。
+  - 支持分栏切换（待审批 / 全部 / 我发起的）工单卡片列表。
+  - 支持工单详情预览、填写审批意见、执行通过/驳回以及一键部署生效等操作。
+- **规则配置页面优化** [RulesPage.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/views/RulesPage.vue) [MODIFY]：
+  - 在操作列增加“提交审批”按钮与审批请求填写弹窗。
+  - 增强版本历史抽屉以渲染显示 `change_log` 字段，并新增高亮 diff 标签展示版本间修改的字段差异。
+- **导航与路由配置**：
+  - [MainLayout.vue](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/layouts/MainLayout.vue) [MODIFY]：新增“审批中心”导航栏图标与跳转链接。
+  - [router/index.ts](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/router/index.ts) [MODIFY]：添加 `/approvals` 页面的异步组件懒加载路由。
+- **审批 API 客户端** [approvals.ts](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/frontend/src/api/approvals.ts) [NEW]：封装与后端接口交互的变更工单、审批策略列表及处理操作。
+
+#### 2. 后端 - 审批工作流与版本日志存储
+- **数据库表结构扩展与迁移**：
+  - [rule_version.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/models/rule_version.py) [MODIFY]：为 `RuleVersion` 数据库模型添加 `change_log` 与 `change_request_id` 关联字段。
+  - [p2p3_approval_workflow.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/migrations/versions/p2p3_approval_workflow.py) [NEW]：编写 Alembic 数据库迁移脚本，并手动校准外键关系，通过 `alembic stamp head` 命令使其成功与现有基于 SQLAlchemy 初始化生成的 `rule_change_requests` 和 `approval_policies` 数据库表完成校准和升级。
+- **数据结构定义** [approval.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/schemas/approval.py) [NEW]：新建 Pydantic schemas，对 `RuleChangeRequestCreate`、`RuleChangeRequestResponse`、`ReviewAction` 和 `ApprovalPolicyResponse` 提供全方位的输入/输出校验。
+- **审批流接口开发** [approvals.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/api/approvals.py) [NEW]：
+  - `GET /change-requests` & `POST /change-requests`：列表过滤展示以及新建规则变更工单。
+  - `POST /change-requests/{id}/review` & `POST /change-requests/{id}/deploy`：管理员/经理的评审表决及审核通过规则的一键合并发布与版本快照自动保存。
+  - `GET /policies` & `POST /policies/init`：获取审批策略及默认测试审批规则初始化。
+- **路由注册** [__init__.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/app/api/__init__.py) [MODIFY]：将审批中心路由挂载至全局 API 前缀 `/rule-engine/approvals`。
+
+#### 3. 单元测试 - 稳定性保证
+- **单元测试套件** [test_approvals.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/tests/api/test_approvals.py) [NEW]：
+  - 编写了完整的覆盖测试，对自动放行、待审批挂起、越权访问拦截、管理员确认授权、一键部署以及审计日志记录等核心逻辑进行了全覆盖验证。
+- **全局测试配置** [conftest.py](file:///Users/zhouao/Projects/WorkSpace/Enter-Bro/ppap/backend/tests/conftest.py) [MODIFY]：
+  - 增加 Session-scoped 的 `event_loop` 共享夹具，完美规避多测试用例并发下，异步连接池由于 event loop 重建产生的 `RuntimeError` 错误。
+
+---
+
 ## [2026-06-03] - 平台核心功能升级与响应式文件列表优化
 
 ### 功能描述
@@ -460,6 +501,7 @@ docker compose up -d --build
 
 | 日期 | 版本 | 描述 |
 |------|------|------|
+| 2026-06-04 | 1.1.0 | P2 规则变更审批流程与 P3 版本管理增强 |
 | 2026-06-03 | 1.0.3 | 数据库初始化自动化与Windows部署支持 |
 | 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
 | 2026-05-25 | 1.0.1 | 端口配置优化，解决8000端口冲突 |

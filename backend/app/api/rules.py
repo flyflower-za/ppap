@@ -272,7 +272,7 @@ async def restore_defaults(
 
 # --- Rule Versioning Helpers & Routes ---
 
-async def create_rule_version_snapshot(db: AsyncSession, rule: VerificationRule, user_name: str):
+async def create_rule_version_snapshot(db: AsyncSession, rule: VerificationRule, user_name: str, change_log: str = None, change_request_id: str = None):
     stmt = select(func.max(RuleVersion.version_number)).where(RuleVersion.rule_id == rule.id)
     res = await db.execute(stmt)
     max_ver = res.scalar() or 0
@@ -287,7 +287,9 @@ async def create_rule_version_snapshot(db: AsyncSession, rule: VerificationRule,
         severity=rule.severity,
         is_active=rule.is_active,
         logic_config=rule.logic_config,
-        created_by=user_name
+        created_by=user_name,
+        change_log=change_log,
+        change_request_id=change_request_id
     )
     db.add(snapshot)
     return snapshot

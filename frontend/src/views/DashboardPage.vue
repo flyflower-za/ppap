@@ -86,94 +86,91 @@
         </el-col>
       </el-row>
 
-      <!-- 2. Charts Section -->
-      <el-row :gutter="20" class="charts-row">
-        <!-- Left: SVG Trend Graph -->
-        <el-col :xs="24" :lg="14" class="mb-4">
-          <div class="glass-card chart-card">
-            <div class="card-header mb-3">
-              <h3 class="card-title">📈 近两周校验态势变化趋势</h3>
-              <div class="chart-legend">
-                <span class="legend-item total"><span class="color-dot"></span>上传总量</span>
-                <span class="legend-item passed"><span class="color-dot"></span>合规通过数</span>
-              </div>
-            </div>
-            
-            <div class="trend-chart-container">
-              <svg viewBox="0 0 600 280" class="trend-svg" ref="svgRef">
-                <defs>
-                  <linearGradient id="total-area-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#4285f4" stop-opacity="0.15"></stop>
-                    <stop offset="100%" stop-color="#4285f4" stop-opacity="0.0"></stop>
-                  </linearGradient>
-                  <linearGradient id="passed-area-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#67c23a" stop-opacity="0.15"></stop>
-                    <stop offset="100%" stop-color="#67c23a" stop-opacity="0.0"></stop>
-                  </linearGradient>
-                </defs>
-
-                <!-- Y-axis helper lines -->
-                <line v-for="i in 4" :key="i" x1="40" :y1="50 + (i-1) * 60" x2="580" :y2="50 + (i-1) * 60" stroke="rgba(0,0,0,0.05)" stroke-dasharray="4" />
-
-                <!-- Gradients Area Fill -->
-                <path :d="totalAreaPath" fill="url(#total-area-grad)"></path>
-                <path :d="passedAreaPath" fill="url(#passed-area-grad)"></path>
-
-                <!-- Trend Lines -->
-                <path :d="totalLinePath" fill="none" stroke="#4285f4" stroke-width="3" stroke-linecap="round"></path>
-                <path :d="passedLinePath" fill="none" stroke="#67c23a" stroke-width="3" stroke-linecap="round"></path>
-
-                <!-- Data Dots -->
-                <g v-for="(pt, idx) in trendPoints" :key="'pts-' + idx">
-                  <circle :cx="pt.x" :cy="pt.totalY" r="4" fill="#ffffff" stroke="#4285f4" stroke-width="2" class="chart-dot" />
-                  <circle :cx="pt.x" :cy="pt.passedY" r="4" fill="#ffffff" stroke="#67c23a" stroke-width="2" class="chart-dot" />
-                </g>
-
-                <!-- X Axis Labels -->
-                <text v-for="(pt, idx) in trendPoints" :key="'txt-' + idx" :x="pt.x" y="260" class="axis-label" text-anchor="middle">
-                  {{ formatDateLabel(pt.date) }}
-                </text>
-              </svg>
+      <!-- 2. Trend Chart - Full Width -->
+      <div class="mb-4">
+        <div class="glass-card chart-card trend-full-card">
+          <div class="card-header mb-3">
+            <h3 class="card-title">📈 近两周校验态势变化趋势</h3>
+            <div class="chart-legend">
+              <span class="legend-item total"><span class="color-dot"></span>上传总量</span>
+              <span class="legend-item passed"><span class="color-dot"></span>合规通过数</span>
             </div>
           </div>
-        </el-col>
+          
+          <div class="trend-chart-container">
+            <svg viewBox="0 0 1000 280" preserveAspectRatio="xMidYMid meet" class="trend-svg" ref="svgRef">
+              <defs>
+                <linearGradient id="total-area-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#4285f4" stop-opacity="0.15"></stop>
+                  <stop offset="100%" stop-color="#4285f4" stop-opacity="0.0"></stop>
+                </linearGradient>
+                <linearGradient id="passed-area-grad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#67c23a" stop-opacity="0.15"></stop>
+                  <stop offset="100%" stop-color="#67c23a" stop-opacity="0.0"></stop>
+                </linearGradient>
+              </defs>
 
-        <!-- Right: Top Failing Rules list -->
-        <el-col :xs="24" :lg="10" class="mb-4">
-          <div class="glass-card chart-card">
-            <div class="card-header mb-3">
-              <h3 class="card-title">🔥 高频合规失效规则排行 (Top 5)</h3>
+              <!-- Y-axis helper lines -->
+              <line v-for="i in 4" :key="i" x1="40" :y1="50 + (i-1) * 60" x2="960" :y2="50 + (i-1) * 60" stroke="rgba(0,0,0,0.05)" stroke-dasharray="4" />
+
+              <!-- Gradients Area Fill -->
+              <path :d="totalAreaPath" fill="url(#total-area-grad)"></path>
+              <path :d="passedAreaPath" fill="url(#passed-area-grad)"></path>
+
+              <!-- Trend Lines -->
+              <path :d="totalLinePath" fill="none" stroke="#4285f4" stroke-width="3" stroke-linecap="round"></path>
+              <path :d="passedLinePath" fill="none" stroke="#67c23a" stroke-width="3" stroke-linecap="round"></path>
+
+              <!-- Data Dots -->
+              <g v-for="(pt, idx) in trendPoints" :key="'pts-' + idx">
+                <circle :cx="pt.x" :cy="pt.totalY" r="4" fill="#ffffff" stroke="#4285f4" stroke-width="2" class="chart-dot" />
+                <circle :cx="pt.x" :cy="pt.passedY" r="4" fill="#ffffff" stroke="#67c23a" stroke-width="2" class="chart-dot" />
+              </g>
+
+              <!-- X Axis Labels -->
+              <text v-for="(pt, idx) in trendPoints" :key="'txt-' + idx" :x="pt.x" y="260" class="axis-label" text-anchor="middle">
+                {{ formatDateLabel(pt.date) }}
+              </text>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Failing Rules - Full Width -->
+      <div class="mb-4">
+        <div class="glass-card chart-card rules-full-card">
+          <div class="card-header mb-3">
+            <h3 class="card-title">🔥 高频合规失效规则排行 (Top 5)</h3>
+          </div>
+          
+          <div class="failing-rules-list">
+            <div v-if="stats.top_failing_rules.length === 0" class="empty-failing-state">
+              <el-empty description="暂无合规失败记录" :image-size="60" />
             </div>
-            
-            <div class="failing-rules-list">
-              <div v-if="stats.top_failing_rules.length === 0" class="empty-failing-state">
-                <el-empty description="暂无合规失败记录" :image-size="60" />
+            <div
+              v-else
+              v-for="(rule, idx) in stats.top_failing_rules"
+              :key="idx"
+              class="failing-rule-item"
+            >
+              <div class="rule-ranking-meta mb-1">
+                <div class="rank-name-group">
+                  <span class="rank-index" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
+                  <span class="rule-name" :title="rule.rule_name">{{ rule.rule_name }}</span>
+                </div>
+                <span class="fail-count font-bold">{{ rule.count }} 次拦截</span>
               </div>
-              <div
-                v-else
-                v-for="(rule, idx) in stats.top_failing_rules"
-                :key="idx"
-                class="failing-rule-item"
-              >
-                <div class="rule-ranking-meta mb-1">
-                  <div class="rank-name-group">
-                    <span class="rank-index" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
-                    <span class="rule-name" :title="rule.rule_name">{{ rule.rule_name }}</span>
-                  </div>
-                  <span class="fail-count font-bold">{{ rule.count }} 次拦截</span>
-                </div>
-                <div class="progress-track">
-                  <div 
-                    class="progress-fill" 
-                    :style="{ width: (rule.count / maxFailCount * 100) + '%' }"
-                    :class="'rank-fill-' + (idx + 1)"
-                  ></div>
-                </div>
+              <div class="progress-track">
+                <div 
+                  class="progress-fill" 
+                  :style="{ width: (rule.count / maxFailCount * 100) + '%' }"
+                  :class="'rank-fill-' + (idx + 1)"
+                ></div>
               </div>
             </div>
           </div>
-        </el-col>
-      </el-row>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -213,8 +210,8 @@ const trendPoints = computed(() => {
   if (!stats.value?.trend || stats.value.trend.length === 0) return []
   const trend = stats.value.trend
   const paddingLeft = 40
-  const paddingRight = 20
-  const graphWidth = 600 - paddingLeft - paddingRight
+  const paddingRight = 40
+  const graphWidth = 1000 - paddingLeft - paddingRight
   const maxVal = Math.max(...trend.map((t: any) => t.total), 10)
   
   return trend.map((t: any, index: number) => {
@@ -419,7 +416,15 @@ const formatDateLabel = (dateStr: string) => {
   padding: 24px;
   display: flex;
   flex-direction: column;
+}
+
+.trend-full-card {
   height: 380px;
+}
+
+.rules-full-card {
+  height: auto;
+  min-height: 200px;
 }
 
 .card-header {
@@ -471,7 +476,7 @@ const formatDateLabel = (dateStr: string) => {
 .trend-svg {
   width: 100%;
   height: 100%;
-  max-height: 270px;
+  max-height: 300px;
 }
 
 .axis-label {

@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from httpx import AsyncClient
 from typing import AsyncGenerator
 
@@ -7,6 +8,14 @@ from app.api.deps import get_current_user
 from app.models.user import User
 
 from tests.fixtures import mock_normal_user, mock_admin_user
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create a session-scoped event loop to share connection pools between tests."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
 
 @pytest.fixture
 def override_user():
