@@ -23,6 +23,7 @@ class ModuleType(str, enum.Enum):
     keyword_match = "keyword_match"
     comparison = "comparison"
     variable_extractor = "variable_extractor"
+    online_verification = "online_verification"
 
 
 class ModuleSeverity(str, enum.Enum):

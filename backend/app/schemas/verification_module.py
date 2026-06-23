@@ -19,6 +19,7 @@ class ModuleType(str, Enum):
     keyword_match = "keyword_match"
     comparison = "comparison"
     variable_extractor = "variable_extractor"
+    online_verification = "online_verification"
 
 
 class ModuleSeverity(str, Enum):
@@ -146,6 +147,16 @@ MODULE_TYPE_METADATA = {
         "icon": "🌐",
         "config_fields": [
             {"key": "url", "label": "文档URL", "type": "text", "default": ""}
+        ]
+    },
+    "online_verification": {
+        "label": "在线防伪比对 (一体化)",
+        "description": "自动扫描二维码提取参数，构造URL拉取远程原件并进行差异比对",
+        "icon": "🔗",
+        "config_fields": [
+            {"key": "regex_pattern", "label": "二维码提取正则", "type": "text", "default": "id:(?P<report_id>\\d+);(?P<verify_code>\\w+)"},
+            {"key": "url_template", "label": "请求URL模板", "type": "text", "default": "https://api.example.com/check?id={{report_id}}&code={{verify_code}}"},
+            {"key": "similarity_threshold", "label": "相似度报警阈值(%)", "type": "number", "default": 95}
         ]
     }
 }

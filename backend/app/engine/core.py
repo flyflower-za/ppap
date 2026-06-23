@@ -15,6 +15,7 @@ from app.engine.operators.stamp_operator import StampDetectionOperator
 from app.engine.operators.diff_operator import DocumentDiffOperator
 from app.engine.operators.table_operator import TableVerificationOperator
 from app.engine.operators.template_formatter_operator import TemplateFormatterOperator
+from app.engine.operators.online_verification_operator import OnlineVerificationOperator
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class VerificationEngine:
             "DocumentDiff": DocumentDiffOperator(),
             "TableVerification": TableVerificationOperator(),
             "TemplateFormatter": TemplateFormatterOperator(),
+            "OnlineVerification": OnlineVerificationOperator(),
         }
 
     def _flatten_shared_state(self, context: DocumentContext) -> None:
@@ -84,21 +86,7 @@ class VerificationEngine:
         if isinstance(rev_data, dict):
             context.shared_state["is_tampered"] = rev_data.get("is_tampered_after_sign", False)
             context.shared_state["revision_count"] = rev_data.get("revision_count", 1)
-        # Register available operators
-        self._available_operators: Dict[str, BaseOperator] = {
-            "PDFInfoExtractor": PDFInfoOperator(),
-            "QRScanner": QRScannerOperator(),
-            "SignatureVerifier": SignatureOperator(),
-            "TextLLM": TextLLMOperator(),
-            "VisionLLM": VisionLLMOperator(),
-            "InstitutionSniffer": InstitutionSnifferOperator(),
-            "RevisionCheck": RevisionCheckOperator(),
-            "URLFetchOperator": URLFetchOperator(),
-            "StampDetection": StampDetectionOperator(),
-            "DocumentDiff": DocumentDiffOperator(),
-            "TableVerification": TableVerificationOperator(),
-            "TemplateFormatter": TemplateFormatterOperator(),
-        }
+
 
     def _determine_required_operators(self, rules: List[VerificationRule], rule_to_modules: Dict[str, List[VerificationModule]] = None) -> List[BaseOperator]:
         """
@@ -189,6 +177,7 @@ class VerificationEngine:
             ModuleType.stamp_detection: "StampDetection",
             ModuleType.document_diff: "DocumentDiff",
             ModuleType.table_verification: "TableVerification",
+            ModuleType.online_verification: "OnlineVerification",
         }
         operator_name = module_to_operator.get(module_type)
         if operator_name:
