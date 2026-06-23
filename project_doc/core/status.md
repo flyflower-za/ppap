@@ -113,6 +113,24 @@
 
 ---
 
+## 在线防伪算子输出增强与预设规则 UX 修复 ✅ 已完成 (2026-06-24)
+
+### 算子输出增强
+| 变更项 | 文件 | 状态 |
+|--------|------|------|
+| 在线防伪比对算子结构化输出 | [online_verification_operator.py](backend/app/engine/operators/online_verification_operator.py) | ✅ |
+| 文档差异比对算子返回页数/文本长度 | [diff_operator.py](backend/app/engine/operators/diff_operator.py) | ✅ |
+| 二维码识别算子显示解码内容 | [qr_operator.py](backend/app/engine/operators/qr_operator.py) | ✅ |
+
+### UX 修复
+| 变更项 | 文件 | 状态 |
+|--------|------|------|
+| 预设规则 dirty state 提醒 | [RulesPage.vue](frontend/src/views/RulesPage.vue) | ✅ |
+| 开关/告警级别 @change 事件绑定 | [RulesPage.vue](frontend/src/views/RulesPage.vue) | ✅ |
+| pulse 动画未保存提示标签 | [RulesPage.vue](frontend/src/views/RulesPage.vue) | ✅ |
+
+---
+
 ## 启动与测试命令
 
 ```bash

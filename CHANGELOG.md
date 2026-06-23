@@ -2,6 +2,52 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-24] - 在线防伪算子输出增强与预设规则 UX 修复
+
+### 功能描述
+- **在线防伪比对算子输出详细化**：`OnlineVerificationOperator` 的执行结果从单行摘要升级为结构化的多维度详细报告，涵盖二维码原始内容、正则提取变量、页数对比、文本长度对比和差异摘要。
+- **二维码识别内容可见化**：`QRScannerOperator` 的 message 输出中增加了每个二维码的具体解码内容和类型信息，替代了原先只显示数量的简略输出。
+- **文档差异比对算子元数据增强**：`DocumentDiffOperator` 新增返回本地/远程 PDF 页数和文本字符数等元数据，供上游算子组装更加丰富的比对报告。
+- **预设规则 Dirty State 提醒**：修复了用户在基础底座配置区切换开关/修改告警级别后不点保存就刷新导致配置丢失的 UX 问题。现在任何未保存的修改都会在保存按钮旁显示醒目的"⚠ 配置已修改，请保存"提示标签。
+
+### 详细修改记录
+
+#### 1. 后端 - 算子输出增强
+- **在线防伪比对算子** ([online_verification_operator.py](backend/app/engine/operators/online_verification_operator.py)) [MODIFY]：
+  - 执行结果 message 重构为结构化多行输出：
+    - 📎 二维码原始内容
+    - 🔍 正则提取的命名变量（如 `report_id=A225097188910101C, verify_code=198641334`）
+    - 🔗 组装后的目标 URL
+    - 📄 页数对比（本地 vs 远程，不一致时标记 ⚠️）
+    - 📝 文本长度对比（字符数）
+    - 📊 相似度百分比与阈值判定结论
+    - 差异摘要（前5处变更的原文→现文对照）
+  - `extracted_data` 中新增 `qr_content`、`extracted_vars`、`formatted_url` 字段。
+
+- **文档差异比对算子** ([diff_operator.py](backend/app/engine/operators/diff_operator.py)) [MODIFY]：
+  - `_extract_text_from_bytes` 方法返回值从 `str` 改为 `tuple[str, int]`，同时返回文本和页数。
+  - `extracted_data` 中新增 `current_page_count`、`base_page_count`、`current_text_length`、`base_text_length` 四个字段。
+
+- **二维码识别算子** ([qr_operator.py](backend/app/engine/operators/qr_operator.py)) [MODIFY]：
+  - 结果 message 从 `"成功提取到 N 个二维码数据。"` 改为逐条列出每个二维码的解码内容（超过200字符自动截断）和类型信息。
+
+#### 2. 前端 - 预设规则 UX 改进
+- **规则配置页面** ([RulesPage.vue](frontend/src/views/RulesPage.vue)) [MODIFY]：
+  - 新增 `presetDirty` ref 状态变量，追踪基础底座配置区是否有未保存的修改。
+  - 预设规则开关 `<el-switch>` 绑定 `@change="presetDirty = true"` 事件。
+  - 告警级别下拉框 `<el-select>` 同样绑定 `@change="presetDirty = true"` 事件。
+  - 保存按钮旁新增 `<el-tag>` 未保存提示标签（带 pulse 动画），dirty 状态时自动显示。
+  - `savePresetRules` 成功后重置 `presetDirty = false`。
+  - 新增 `@keyframes pulse` CSS 动画。
+
+### 影响范围
+- ✅ 在线防伪比对引擎输出
+- ✅ 二维码识别引擎输出
+- ✅ 文档差异比对引擎输出
+- ✅ 前端预设规则配置 UX
+
+---
+
 ## [2026-06-23] - 极简预置规则自初始化与规则管理界面优化
 
 ### 功能描述
