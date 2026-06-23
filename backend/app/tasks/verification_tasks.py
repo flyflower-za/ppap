@@ -122,28 +122,13 @@ def queue_verification_task(self, file_id: str):
                 shared_state={"pdf_bytes": pdf_bytes} if pdf_bytes else {}
             )
 
+            # Load verification rules and their associated modules
             # Fetch active rules and categories
             result = await db.execute(select(VerificationRule).where(VerificationRule.is_active == True))
             active_rules = result.scalars().all()
 
             cat_result = await db.execute(select(DocumentCategory).where(DocumentCategory.is_active == True))
             active_categories = cat_result.scalars().all()
-
-            # Force inclusion of base operators if not explicitly defined in rules
-            # We want to keep backward compatibility with the basic checks
-            if not any(r.rule_content == "REQUIRE_QR_CODE" for r in active_rules):
-                active_rules.append(VerificationRule(rule_name="文档二维码识别与解析", rule_type=RuleType.plugin, rule_content="REQUIRE_QR_CODE", severity=Severity.warning))
-            if not any(r.rule_content == "REQUIRE_SIGNATURE" for r in active_rules):
-                active_rules.append(VerificationRule(rule_name="PDF 电子数字签名验证", rule_type=RuleType.plugin, rule_content="REQUIRE_SIGNATURE", severity=Severity.warning))
-            if not any(r.rule_content == "REQUIRE_REVISION_CHECK" for r in active_rules):
-                active_rules.append(VerificationRule(rule_name="电子文档篡改及完整性校验", rule_type=RuleType.plugin, rule_content="REQUIRE_REVISION_CHECK", severity=Severity.fail))
-
-            # Let Engine do the heavy lifting
-            task_record.progress = 60
-            task_record.current_step = "引擎执行与分析算子调度中..."
-            file_record.verification_progress = 60
-            await db.commit()
-            await publish_progress(60, FileStatus.PROCESSING.value, "引擎执行与分析算子调度中...")
 
             # Array to capture detailed trajectory logs from the engine
             trajectory_logs = []
@@ -157,64 +142,48 @@ def queue_verification_task(self, file_id: str):
                 # Keep progress pinned at 60 while engine does work, but update the step_msg
                 await publish_progress(60, FileStatus.PROCESSING.value, msg)
 
-            engine = VerificationEngine()
-            engine_result = await engine.run(context, active_rules, progress_callback=engine_progress_cb, categories=active_categories)
-
-            # Load verification modules for active rules
-            verification_modules = []
+            # Build mapping of rule_id -> List[VerificationModule]
+            rule_to_modules = {}
+            all_active_modules = []
             try:
-                from sqlalchemy.orm import selectinload
-                # Get all rule IDs
-                rule_ids = [r.id for r in active_rules]
-                if rule_ids:
-                    # Fetch modules associated with these rules
-                    from app.models.verification_module import RuleModule
-                    module_junctions = await db.execute(
-                        select(RuleModule.module_id)
-                        .where(RuleModule.rule_id.in_(rule_ids))
-                        .distinct()
-                    )
-                    module_ids = [row[0] for row in module_junctions.all()]
+                from sqlalchemy import select
+                from app.models.verification_module import RuleModule
+                
+                # Fetch all junctions
+                junctions_res = await db.execute(select(RuleModule))
+                junctions = junctions_res.scalars().all()
+                
+                # Fetch all active modules
+                modules_res = await db.execute(
+                    select(VerificationModule)
+                    .where(VerificationModule.is_active == True)
+                    .order_by(VerificationModule.sort_order)
+                )
+                active_modules_list = modules_res.scalars().all()
+                modules_by_id = {m.id: m for m in active_modules_list}
+                
+                for j in junctions:
+                    if j.module_id in modules_by_id:
+                        rule_to_modules.setdefault(j.rule_id, []).append(modules_by_id[j.module_id])
+            except Exception as e:
+                logger.warning(f"Failed to pre-load rule-module junctions: {e}")
 
-                    if module_ids:
-                        modules_result = await db.execute(
-                            select(VerificationModule)
-                            .where(VerificationModule.id.in_(module_ids))
-                            .where(VerificationModule.is_active == True)
-                            .order_by(VerificationModule.sort_order)
-                        )
-                        verification_modules = modules_result.scalars().all()
+            # Let Engine do the heavy lifting
+            task_record.progress = 60
+            task_record.current_step = "引擎执行与分析算子调度中..."
+            file_record.verification_progress = 60
+            await db.commit()
+            await publish_progress(60, FileStatus.PROCESSING.value, "引擎执行与分析算子调度中...")
 
-                logger.info(f"Loaded {len(verification_modules)} verification modules for execution")
-
-                # Execute verification modules and merge results
-                if verification_modules:
-                    module_results = await engine._execute_verification_modules(
-                        verification_modules, context, engine_progress_cb
-                    )
-
-                    # Merge module results into engine results
-                    if "checks" not in engine_result:
-                        engine_result["checks"] = []
-                    engine_result["checks"].extend([
-                        {**mr, "rule_type": "module"} for mr in module_results
-                    ])
-                    engine_result["module_results"] = module_results
-
-                    # Update counts
-                    for mr in module_results:
-                        if mr["status"] == "pass":
-                            engine_result["pass_count"] = engine_result.get("pass_count", 0) + 1
-                        elif mr["status"] == "warning":
-                            engine_result["warning_count"] = engine_result.get("warning_count", 0) + 1
-                        elif mr["status"] == "fail":
-                            engine_result["fail_count"] = engine_result.get("fail_count", 0) + 1
-                        elif mr["status"] == "info":
-                            engine_result["reference_count"] = engine_result.get("reference_count", 0) + 1
-
-            except Exception as module_err:
-                logger.warning(f"Failed to load/execute verification modules: {module_err}")
-                # Continue without modules - don't fail the entire verification
+            engine = VerificationEngine()
+            # Pass rule_to_modules to engine.run
+            engine_result = await engine.run(
+                context, 
+                active_rules, 
+                progress_callback=engine_progress_cb, 
+                categories=active_categories,
+                rule_to_modules=rule_to_modules
+            )
 
             # ============================================================
             # Stage 3: Compile Final Report (Progress 100%)

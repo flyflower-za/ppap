@@ -191,12 +191,16 @@
         <el-form-item label="规则名称" prop="rule_name" required>
           <el-input v-model="ruleForm.rule_name" placeholder="例如：文档必须包含授权签字" />
         </el-form-item>
-        <el-form-item label="规则类型" prop="rule_type" required>
+        <el-form-item label="显示高级类型" v-if="!ruleForm.id">
+          <el-switch v-model="showAdvancedTypes" />
+        </el-form-item>
+        <el-form-item label="规则类型" prop="rule_type" required v-if="showAdvancedTypes || ruleForm.id">
           <el-select v-model="ruleForm.rule_type" style="width: 100%">
-            <el-option label="关键字 (Keyword)" value="keyword" />
-            <el-option label="正则表达式 (Regex)" value="regex" />
-            <el-option label="大模型分析 (LLM Prompt)" value="llm_prompt" />
+            <el-option label="自定义校验规则" value="plugin" />
             <el-option label="可视化节点图 (Logic Graph)" value="logic_graph" />
+            <el-option v-if="ruleForm.rule_type === 'keyword'" label="关键字 (Keyword)" value="keyword" />
+            <el-option v-if="ruleForm.rule_type === 'regex'" label="正则表达式 (Regex)" value="regex" />
+            <el-option v-if="ruleForm.rule_type === 'llm_prompt'" label="大模型分析 (LLM Prompt)" value="llm_prompt" />
           </el-select>
         </el-form-item>
         
@@ -285,7 +289,7 @@
         </el-form-item>
         
         <!-- Standard Content Input -->
-        <el-form-item label="规则内容" v-else prop="rule_content" required>
+        <el-form-item label="规则内容" v-else-if="['keyword', 'regex', 'llm_prompt'].includes(ruleForm.rule_type)" prop="rule_content" required>
           <el-input 
             v-model="ruleForm.rule_content" 
             type="textarea" 
@@ -512,6 +516,7 @@ const loadRuleModules = async (ruleId: string) => {
 // Dialog states
 const categoryDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
+const showAdvancedTypes = ref(false)
 
 // Template Market states
 const templateMarketVisible = ref(false)
@@ -677,6 +682,8 @@ const openRuleDialog = async (rule?: Rule) => {
     await loadAvailableModules()
   }
 
+  showAdvancedTypes.value = false
+
   if (rule) {
     ruleForm.value = { ...rule }
     // Map condition
@@ -698,7 +705,7 @@ const openRuleDialog = async (rule?: Rule) => {
     ruleForm.value = {
       category_id: activeCategoryId.value,
       rule_name: '',
-      rule_type: 'llm_prompt',
+      rule_type: 'plugin', // Default new rules to plugin type
       severity: 'fail',
       rule_content: '',
       logic_config: {}, // Fixed: empty object instead of null to pass backend Pydantic validation
@@ -726,7 +733,7 @@ const saveRule = async () => {
       ElMessage.warning('请配置逻辑图节点')
       return
     }
-  } else if (!ruleForm.value.rule_content) {
+  } else if (['keyword', 'regex', 'llm_prompt'].includes(ruleForm.value.rule_type) && !ruleForm.value.rule_content) {
     ElMessage.warning('请填写规则内容')
     return
   }

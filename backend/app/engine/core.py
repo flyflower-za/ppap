@@ -97,11 +97,21 @@ class VerificationEngine:
             "TableVerification": TableVerificationOperator(),
         }
 
-    def _determine_required_operators(self, rules: List[VerificationRule]) -> List[BaseOperator]:
+    def _determine_required_operators(self, rules: List[VerificationRule], rule_to_modules: Dict[str, List[VerificationModule]] = None) -> List[BaseOperator]:
         """
         Analyze the AST/rule dependencies to figure out which operators must run.
         """
         required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck"])
+        
+        # Collect modules to see if their operators are needed
+        if rule_to_modules:
+            for rid, mods in rule_to_modules.items():
+                # Only check mods if the rule itself is in the active list
+                for mod in mods:
+                    op = self._get_operator_for_module_type(mod.module_type)
+                    if op:
+                        required_names.add(op.name)
+
         for rule in rules:
             if rule.rule_type == RuleType.plugin:
                 # For basic string-based plugins
@@ -282,7 +292,15 @@ class VerificationEngine:
 
         return results
 
-    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None, categories=None, verification_modules: List[VerificationModule] = None) -> Dict[str, any]:
+    async def run(
+        self, 
+        context: DocumentContext, 
+        rules: List[VerificationRule], 
+        progress_callback=None, 
+        categories=None, 
+        verification_modules: List[VerificationModule] = None,
+        rule_to_modules: Dict[str, List[VerificationModule]] = None
+    ) -> Dict[str, any]:
         """
         Execute the dynamic pipeline with a two-stage architecture.
         Stage 1: Pre-classification (PDF Info & Institution Sniffer)
@@ -382,7 +400,7 @@ class VerificationEngine:
         # ---------------------------------------------------------
         # STAGE 2: Heavy Operators for Applicable Rules
         # ---------------------------------------------------------
-        heavy_operators = self._determine_required_operators(applicable_rules)
+        heavy_operators = self._determine_required_operators(applicable_rules, rule_to_modules)
         # Filter out ones already run
         heavy_operators = [op for op in heavy_operators if op.name not in pre_op_names]
 
@@ -405,11 +423,11 @@ class VerificationEngine:
         self._flatten_shared_state(context)
 
         # ---------------------------------------------------------
-        # STAGE 3: Execute Verification Modules
+        # STAGE 3: Execute Verification Modules (legacy global modules input)
         # ---------------------------------------------------------
-        module_results = []
+        global_module_results = []
         if verification_modules:
-            module_results = await self._execute_verification_modules(
+            global_module_results = await self._execute_verification_modules(
                 verification_modules, context, emit_log
             )
 
@@ -418,8 +436,76 @@ class VerificationEngine:
         pass_count = warning_count = fail_count = reference_count = 0
         needs_review = False
 
-        for rule in rules:
+        for rule in applicable_rules:
             await emit_log(f"-> 开始执行验证规则：[{rule.rule_name}]")
+            
+            # Check if this rule has linked modules
+            linked_modules = rule_to_modules.get(rule.id, []) if rule_to_modules else []
+            
+            if linked_modules:
+                # Execute linked modules for this specific rule
+                await emit_log(f"规则 [{rule.rule_name}] 关联了 {len(linked_modules)} 个校验模块，开始执行并评分...")
+                module_res_list = await self._execute_verification_modules(linked_modules, context, emit_log)
+                
+                # A rule's final status is calculated based on its modules' statuses
+                rule_pass = True
+                rule_msgs = []
+                worst_severity = Severity.warning if rule.severity == Severity.warning else Severity.fail
+                rule_severity = rule.severity.value if hasattr(rule.severity, 'value') else rule.severity
+                
+                for mr in module_res_list:
+                    mr_pass = mr.get("passed", False)
+                    mr_sev = mr.get("severity", "warning")
+                    mr_msg = mr.get("message", "")
+                    mr_name = mr.get("name", "未命名模块")
+                    
+                    rule_msgs.append(f"[{mr_name}] {'通过' if mr_pass else '失败'}({mr_msg})")
+                    
+                    if not mr_pass:
+                        # If any critical module fails, the rule is not passed
+                        if mr_sev == "critical":
+                            rule_pass = False
+                            worst_severity = Severity.fail
+                        elif mr_sev == "warning":
+                            # warning module failures make the rule fail, but severity is warning
+                            if worst_severity != Severity.fail:
+                                worst_severity = Severity.warning
+                            # Even if warning, a failing module means the rule doesn't fully pass
+                            rule_pass = False
+
+                rule_msg = "；".join(rule_msgs) if rule_msgs else "没有关联的模块被执行"
+                
+                # Tally stats directly from individual linked modules
+                for mr in module_res_list:
+                    mr_sev = mr.get("severity", "warning")
+                    mr_pass = mr.get("passed", False)
+                    
+                    if mr_sev == "info":
+                        reference_count += 1
+                        mr_status = "info"
+                    elif mr_pass:
+                        pass_count += 1
+                        mr_status = "pass"
+                    elif mr_sev == "warning":
+                        warning_count += 1
+                        mr_status = "warning"
+                    else:
+                        fail_count += 1
+                        mr_status = "fail"
+
+                    # Put module run detail directly as a check item, bound to the parent rule
+                    rule_evaluations.append({
+                        "name": f"{rule.rule_name} > {mr.get('name')}",
+                        "status": mr_status,
+                        "rule_name": rule.rule_name,
+                        "rule_type": "module",
+                        "passed": mr_pass,
+                        "message": mr.get("message", ""),
+                        "severity": mr_sev,
+                        "confidence": mr.get("confidence", 1.0)
+                    })
+                
+                continue
             
             # Check conditions (skip if mismatch)
             logic = rule.logic_config or {}
@@ -1219,7 +1305,7 @@ class VerificationEngine:
         module_fail_count = 0
         module_info_count = 0
 
-        for module_result in module_results:
+        for module_result in global_module_results:
             if module_result["status"] == "pass":
                 module_pass_count += 1
             elif module_result["status"] == "warning":
@@ -1231,7 +1317,7 @@ class VerificationEngine:
 
         # Combine rule and module evaluations
         combined_evaluations = rule_evaluations + [
-            {**mr, "rule_type": "module"} for mr in module_results
+            {**mr, "rule_type": "module"} for mr in global_module_results
         ]
 
         return {
@@ -1244,5 +1330,5 @@ class VerificationEngine:
             "needs_review": needs_review,
             "institution": context.shared_state.get("institution", None),
             "matched_category": matched_category_name,
-            "module_results": module_results
+            "module_results": global_module_results
         }
