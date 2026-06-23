@@ -88,12 +88,60 @@ class OnlineVerificationOperator(BaseOperator):
                 similarity_threshold=similarity_threshold
             )
             
-            # 返回 Diff 算子的比对结果
+            # 5. 组装详细输出信息
+            diff_data = diff_result.extracted_data or {}
+            similarity_pct = diff_data.get("similarity", "N/A")
+            changes_count = diff_data.get("changes_count", 0)
+            current_pages = diff_data.get("current_page_count", "N/A")
+            base_pages = diff_data.get("base_page_count", "N/A")
+            current_len = diff_data.get("current_text_length", "N/A")
+            base_len = diff_data.get("base_text_length", "N/A")
+            changes = diff_data.get("changes", [])
+
+            # 构建结构化的输出消息
+            lines = []
+            lines.append(f"在线防伪比对完成")
+            lines.append(f"")
+            lines.append(f"📎 二维码原始内容: {qr_content}")
+            lines.append(f"🔍 正则提取变量: {', '.join(f'{k}={v}' for k, v in extracted_vars.items())}")
+            lines.append(f"🔗 目标URL: {formatted_url}")
+            lines.append(f"")
+            lines.append(f"📄 页数对比: 本地 {current_pages} 页 / 远程 {base_pages} 页" + (
+                " ✅" if current_pages == base_pages else " ⚠️ 页数不一致"
+            ))
+            lines.append(f"📝 文本长度: 本地 {current_len} 字符 / 远程 {base_len} 字符")
+            lines.append(f"📊 文本相似度: {similarity_pct}%")
+            lines.append(f"")
+
+            if diff_result.pass_status:
+                lines.append(f"✅ 结论: 相似度 {similarity_pct}% 符合阈值要求 (>= {similarity_threshold}%)")
+            else:
+                lines.append(f"❌ 结论: 相似度 {similarity_pct}% 低于阈值要求 ({similarity_threshold}%)，共发现 {changes_count} 处差异")
+
+            # 差异摘要（如有差异，列出前5处）
+            if changes:
+                lines.append(f"")
+                lines.append(f"── 差异摘要 (前 {min(len(changes), 5)} 处) ──")
+                for i, change in enumerate(changes[:5]):
+                    change_type_map = {"replace": "替换", "insert": "新增", "delete": "删除"}
+                    change_type = change_type_map.get(change.get("type", ""), change.get("type", ""))
+                    lines.append(f"  [{i+1}] {change_type}: 原文「{change.get('base_text', '')[:50]}」→ 现文「{change.get('current_text', '')[:50]}」")
+
+            message = "\n".join(lines)
+
+            # 合并 extracted_data
+            enriched_data = {
+                **diff_data,
+                "qr_content": qr_content,
+                "extracted_vars": extracted_vars,
+                "formatted_url": formatted_url,
+            }
+
             return OperatorResult(
                 operator_name=self.name,
                 pass_status=diff_result.pass_status,
-                message=f"在线防伪比对完成 (目标URL: {formatted_url})\n{diff_result.message}",
-                extracted_data=diff_result.extracted_data
+                message=message,
+                extracted_data=enriched_data
             )
         except Exception as e:
             logger.exception("OnlineVerification Diff error")

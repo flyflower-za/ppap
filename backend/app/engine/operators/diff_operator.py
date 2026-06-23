@@ -24,17 +24,20 @@ class DocumentDiffOperator(BaseOperator):
     def requires(self) -> List[str]:
         return ["pdf_bytes"]
         
-    def _extract_text_from_bytes(self, pdf_bytes: bytes) -> str:
+    def _extract_text_from_bytes(self, pdf_bytes: bytes) -> tuple[str, int]:
+        """Extract text and page count from PDF bytes."""
         import fitz
         text = ""
+        page_count = 0
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            page_count = len(doc)
             for page in doc:
                 text += page.get_text("text") + "\n"
             doc.close()
         except Exception as e:
             logger.error(f"Error extracting text for diff: {e}")
-        return text
+        return text, page_count
 
     async def execute(self, context: DocumentContext, **kwargs) -> OperatorResult:
         current_pdf_bytes = context.shared_state.get("pdf_bytes")
@@ -64,8 +67,8 @@ class DocumentDiffOperator(BaseOperator):
                 resp.raise_for_status()
                 base_pdf_bytes = resp.content
                 
-            current_text = self._extract_text_from_bytes(current_pdf_bytes)
-            base_text = self._extract_text_from_bytes(base_pdf_bytes)
+            current_text, current_page_count = self._extract_text_from_bytes(current_pdf_bytes)
+            base_text, base_page_count = self._extract_text_from_bytes(base_pdf_bytes)
             
             # 2. 文本清洗与格式归一化
             current_text_clean = re.sub(r'\s+', ' ', current_text).strip()
@@ -167,6 +170,10 @@ class DocumentDiffOperator(BaseOperator):
                 extracted_data={
                     "similarity": similarity_pct,
                     "changes_count": len(changes),
+                    "current_page_count": current_page_count,
+                    "base_page_count": base_page_count,
+                    "current_text_length": len(current_text_clean),
+                    "base_text_length": len(base_text_clean),
                     # 解开并只返回前 15 个最核心的修改细节到前端 UI，保障界面清爽和高速响应
                     "changes": changes[:15]
                 }
