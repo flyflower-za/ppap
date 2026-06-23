@@ -20,6 +20,10 @@ depends_on = None
 
 
 def upgrade():
+    # Drop existing types if they exist due to a previous failed run
+    op.execute("DROP TYPE IF EXISTS moduletype CASCADE")
+    op.execute("DROP TYPE IF EXISTS moduleseverity CASCADE")
+
     # Create ENUM types
     module_type_enum = ENUM(
         'qr_scanner', 'signature_verifier', 'pdf_info', 'institution_sniffer',
@@ -65,6 +69,9 @@ def upgrade():
         sa.ForeignKeyConstraint(['module_id'], ['verification_modules.id'], ondelete='CASCADE'),
     )
 
+    # Add module_id to verification_rules
+    op.add_column('verification_rules', sa.Column('module_id', UUID(as_uuid=False), sa.ForeignKey('verification_modules.id'), nullable=True))
+
     # Create indexes
     op.create_index('ix_verification_modules_category_id', 'verification_modules', ['category_id'])
     op.create_index('ix_verification_modules_is_active', 'verification_modules', ['is_active'])
@@ -81,6 +88,9 @@ def downgrade():
     op.drop_index('ix_verification_modules_module_type', table_name='verification_modules')
     op.drop_index('ix_verification_modules_is_active', table_name='verification_modules')
     op.drop_index('ix_verification_modules_category_id', table_name='verification_modules')
+
+    # Drop column from verification_rules
+    op.drop_column('verification_rules', 'module_id')
 
     # Drop tables
     op.drop_table('rule_modules')
