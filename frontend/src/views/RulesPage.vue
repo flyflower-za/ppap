@@ -63,9 +63,14 @@
             <template #header>
               <div class="card-header flex-between" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>{{ activeCategoryName }} - 基础底座配置 (预设规则清单)</span>
-                <el-button type="success" :loading="savingPreset" @click="savePresetRules">
-                  <el-icon><Check /></el-icon> 保存基础配置
-                </el-button>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <el-tag v-if="presetDirty" type="warning" effect="dark" size="small" style="animation: pulse 1.5s infinite;">
+                    ⚠ 配置已修改，请保存
+                  </el-tag>
+                  <el-button type="success" :loading="savingPreset" @click="savePresetRules">
+                    <el-icon><Check /></el-icon> 保存基础配置
+                  </el-button>
+                </div>
               </div>
             </template>
 
@@ -73,11 +78,11 @@
               <div v-for="rule in presetRules" :key="rule.id" class="preset-rule-item" style="border: 1px solid var(--el-border-color-light); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--el-fill-color-blank);">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <span style="font-weight: 600; font-size: 14px;">{{ rule.rule_name }}</span>
-                  <el-switch v-model="rule.is_active" size="small" />
+                  <el-switch v-model="rule.is_active" size="small" @change="presetDirty = true" />
                 </div>
                 <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                   <span style="font-size: 12px; color: var(--el-text-color-secondary);">告警级别:</span>
-                  <el-select v-model="rule.severity" size="small" style="width: 120px;">
+                  <el-select v-model="rule.severity" size="small" style="width: 120px;" @change="presetDirty = true">
                     <el-option label="拦截 (Fail)" value="fail" />
                     <el-option label="警告 (Warning)" value="warning" />
                     <el-option label="参考 (Reference)" value="reference" />
@@ -517,6 +522,7 @@ const loadingRules = ref(false)
 const saving = ref(false)
 const restoringDefaults = ref(false)
 const savingPreset = ref(false)
+const presetDirty = ref(false)
 
 // Computed helpers to split rules
 const presetRules = computed(() => {
@@ -537,6 +543,7 @@ const savePresetRules = async () => {
       })
     }
     ElMessage.success('基础配置保存成功')
+    presetDirty.value = false
     await fetchRules()
   } catch (error) {
     ElMessage.error('保存基础配置失败')
@@ -1429,5 +1436,11 @@ const formatDate = (dateStr?: string): string => {
 .diff-tag {
   margin-left: 6px;
   font-size: 10px;
+}
+
+/* Pulse animation for dirty state indicator */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 </style>
