@@ -35,6 +35,10 @@ project_doc/
 | [KEYCLOAK_SSO_SETUP.md](guides/KEYCLOAK_SSO_SETUP.md) | Keycloak SSO 单点登录配置指南 |
 | [PORT_CONFIGURATION_GUIDE.md](guides/PORT_CONFIGURATION_GUIDE.md) | 端口配置说明 |
 | [ONLINE_VERIFICATION_GUIDE.md](guides/ONLINE_VERIFICATION_GUIDE.md) | 在线防伪比对模块配置指南 (含简化提取语法) |
+| [ADD_NEW_MODULE_GUIDE.md](guides/ADD_NEW_MODULE_GUIDE.md) | 新校验模块开发指南 (算子与数据表单动态绑定) |
+| [LOGIC_GRAPH_VARIABLE_FLOW_GUIDE.md](guides/LOGIC_GRAPH_VARIABLE_FLOW_GUIDE.md) | 逻辑图变量传递与数据流配置指南 |
+| [TESTING_AND_INTEGRATION_GUIDE.md](guides/TESTING_AND_INTEGRATION_GUIDE.md) | 测试环境与集成测试运行指南 |
+| [MINIO_STORAGE_AND_LIFECYCLE_GUIDE.md](guides/MINIO_STORAGE_AND_LIFECYCLE_GUIDE.md) | MinIO 对象存储与文件生命周期管理指南 |
 
 ### 📁 部署文档
 

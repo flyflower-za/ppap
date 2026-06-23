@@ -10,6 +10,11 @@ All notable changes to the PPAP project will be documented in this file.
 - **文档差异比对算子元数据增强**：`DocumentDiffOperator` 新增返回本地/远程 PDF 页数和文本字符数等元数据，供上游算子组装更加丰富的比对报告。
 - **在线防伪提取语法简化**：重构了 `OnlineVerificationOperator` 的正则提取逻辑。现在支持用户友好的 `{report_id}` 和 `{verify_code}` 占位符写法，以及使用 `*` 通配符匹配中间无关参数（例如 `reportno={report_id}*randomno={verify_code}`），并且完全向后兼容原生正则表达式。
 - **配置与使用指南文档**：新增了 `ONLINE_VERIFICATION_GUIDE.md` 指南文档，并在项目文档索引 `README.md` 中进行关联。
+- **校验模块扩展开发指南**：新增了 `ADD_NEW_MODULE_GUIDE.md` 手册，说明了如何通过继承 `BaseOperator`、注册 `ModuleType` 枚举和定义 `MODULE_TYPE_METADATA` 属性快速开发并向平台动态插入全新的校验模块，降低团队二次开发难度。
+- **逻辑图与测试及存储相关文档**：
+  - 新增了 `LOGIC_GRAPH_VARIABLE_FLOW_GUIDE.md` 手册，系统性解释了全局与节点变量作用域、模板解析格式及常见应用配置。
+  - 新增了 `TESTING_AND_INTEGRATION_GUIDE.md` 指南，提供了 pytest 本地运行与调试以及容器依赖最小化启动的方法。
+  - 新增了 `MINIO_STORAGE_AND_LIFECYCLE_GUIDE.md` 手册，说明了存储桶的访问级别及通过 `mc ilm` 配置临时比对件定期自动销毁的命令。
 - **预设规则 Dirty State 提醒**：修复了用户在基础底座配置区切换开关/修改告警级别后不点保存就刷新导致配置丢失的 UX 问题。现在任何未保存的修改都会在保存按钮旁显示醒目的"⚠ 配置已修改，请保存"提示标签。
 
 ### 详细修改记录
