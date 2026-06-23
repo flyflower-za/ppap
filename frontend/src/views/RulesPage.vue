@@ -733,9 +733,7 @@ const saveCategory = async () => {
 
 // Rule Actions
 const openRuleDialog = async (rule?: Rule) => {
-  if (availableModules.value.length === 0) {
-    await loadAvailableModules()
-  }
+  await loadAvailableModules()
 
   showAdvancedTypes.value = false
 
