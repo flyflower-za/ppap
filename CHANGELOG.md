@@ -2,6 +2,36 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-23] - Windows 部署脚本修复
+
+### 功能描述
+- **修复 PowerShell 部署脚本与 Bash 脚本功能一致性**：修复 `deploy.ps1` 中的语法错误和缺失功能，使其与 `deploy.sh` 保持完全一致。
+- **解决 PowerShell 语法兼容问题**：将 Bash 专用的 `until` 循环改为 PowerShell 兼容的 `while` 循环结构。
+- **添加完整的健康检查流程**：补充后端 API 健康检查、MinIO bucket 创建重试逻辑等关键功能。
+
+### 详细修改记录
+
+#### 部署脚本修复
+**文件路径**: [deploy.ps1](deploy.ps1) [MODIFY]
+
+- **参数简化**：移除无用的 `-SkipEnvCheck` 和 `-SkipMinIO` 参数，仅保留 `-ForceRebuild`
+- **添加 `--remove-orphans`**：在 `docker compose up` 命令中添加此参数以清理孤立容器
+- **强制重建使用 `--no-cache`**：与 Bash 脚本保持一致，确保完全重建
+- **添加后端 API 健康检查**：检查 `http://localhost:31234/docs` 端点
+- **MinIO bucket 创建重试**：5 次重试，每次等待 3 秒
+- **添加最终状态检查**：显示 `docker compose ps` 输出
+- **语法错误修复**：
+  - 修复第 115 行 here-string 语法错误
+  - 将所有 `until` 循环改为 `while (-not $condition -and $retries -gt 0)` 结构
+- **输出格式统一**：使用表情符号和颜色代码，与 Bash 脚本输出风格一致
+
+### 影响范围
+- ✅ Windows 部署脚本
+- ❌ 无数据库变更
+- ❌ 无后端/前端代码变更
+
+---
+
 ## [2026-06-04] - 规则页面全面检查与优化
 
 ### 功能描述
@@ -561,6 +591,7 @@ docker compose up -d --build
 
 | 日期 | 版本 | 描述 |
 |------|------|------|
+| 2026-06-23 | 1.1.1 | Windows 部署脚本修复，功能对齐 deploy.sh |
 | 2026-06-04 | 1.1.0 | P2 规则变更审批流程与 P3 版本管理增强 |
 | 2026-06-03 | 1.0.3 | 数据库初始化自动化与Windows部署支持 |
 | 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
