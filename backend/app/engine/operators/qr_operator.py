@@ -42,7 +42,18 @@ class QRScannerOperator(BaseOperator):
             # By default, just executing the operator extracts the data.
             if results and len(results) > 0:
                 pass_status = True
-                msg = f"成功提取到 {len(results)} 个二维码数据。"
+                # 构建包含具体内容的详细消息
+                lines = [f"成功提取到 {len(results)} 个二维码数据。"]
+                lines.append("")
+                for i, qr in enumerate(results):
+                    qr_content = qr.get("data", str(qr)) if isinstance(qr, dict) else str(qr)
+                    qr_type = qr.get("type", "unknown") if isinstance(qr, dict) else "unknown"
+                    # 截断过长的内容，保留前200字符
+                    display_content = qr_content if len(qr_content) <= 200 else qr_content[:200] + "..."
+                    lines.append(f"  [{i+1}] {display_content}")
+                    if isinstance(qr, dict) and qr.get("type"):
+                        lines.append(f"      类型: {qr_type}")
+                msg = "\n".join(lines)
             else:
                 pass_status = False
                 msg = "未检测到任何二维码。"
