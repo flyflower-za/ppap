@@ -8,6 +8,8 @@ All notable changes to the PPAP project will be documented in this file.
 - **在线防伪比对算子输出详细化**：`OnlineVerificationOperator` 的执行结果从单行摘要升级为结构化的多维度详细报告，涵盖二维码原始内容、正则提取变量、页数对比、文本长度对比和差异摘要。
 - **二维码识别内容可见化**：`QRScannerOperator` 的 message 输出中增加了每个二维码的具体解码内容和类型信息，替代了原先只显示数量的简略输出。
 - **文档差异比对算子元数据增强**：`DocumentDiffOperator` 新增返回本地/远程 PDF 页数和文本字符数等元数据，供上游算子组装更加丰富的比对报告。
+- **在线防伪提取语法简化**：重构了 `OnlineVerificationOperator` 的正则提取逻辑。现在支持用户友好的 `{report_id}` 和 `{verify_code}` 占位符写法，以及使用 `*` 通配符匹配中间无关参数（例如 `reportno={report_id}*randomno={verify_code}`），并且完全向后兼容原生正则表达式。
+- **配置与使用指南文档**：新增了 `ONLINE_VERIFICATION_GUIDE.md` 指南文档，并在项目文档索引 `README.md` 中进行关联。
 - **预设规则 Dirty State 提醒**：修复了用户在基础底座配置区切换开关/修改告警级别后不点保存就刷新导致配置丢失的 UX 问题。现在任何未保存的修改都会在保存按钮旁显示醒目的"⚠ 配置已修改，请保存"提示标签。
 
 ### 详细修改记录
@@ -23,6 +25,10 @@ All notable changes to the PPAP project will be documented in this file.
     - 📊 相似度百分比与阈值判定结论
     - 差异摘要（前5处变更的原文→现文对照）
   - `extracted_data` 中新增 `qr_content`、`extracted_vars`、`formatted_url` 字段。
+  - 新置 `_convert_simple_pattern` 静态解析方法，支持将 `{report_id}`、`{verify_code}` 占位符和 `*` 通配符转换为标准的命名捕获组正则表达式。
+
+- **文档验证模块 Schema** ([verification_module.py](backend/app/schemas/verification_module.py)) [MODIFY]：
+  - 修改 `online_verification` 算子的配置 schema，将其默认的 `regex_pattern` 从原生正则变更为简化占位符格式（`reportno={report_id}&randomno={verify_code}`），以降低用户的学习与使用成本。
 
 - **文档差异比对算子** ([diff_operator.py](backend/app/engine/operators/diff_operator.py)) [MODIFY]：
   - `_extract_text_from_bytes` 方法返回值从 `str` 改为 `tuple[str, int]`，同时返回文本和页数。

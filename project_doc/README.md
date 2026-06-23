@@ -34,6 +34,7 @@ project_doc/
 |------|------|
 | [KEYCLOAK_SSO_SETUP.md](guides/KEYCLOAK_SSO_SETUP.md) | Keycloak SSO 单点登录配置指南 |
 | [PORT_CONFIGURATION_GUIDE.md](guides/PORT_CONFIGURATION_GUIDE.md) | 端口配置说明 |
+| [ONLINE_VERIFICATION_GUIDE.md](guides/ONLINE_VERIFICATION_GUIDE.md) | 在线防伪比对模块配置指南 (含简化提取语法) |
 
 ### 📁 部署文档
 

@@ -154,8 +154,8 @@ MODULE_TYPE_METADATA = {
         "description": "自动扫描二维码提取参数，构造URL拉取远程原件并进行差异比对",
         "icon": "🔗",
         "config_fields": [
-            {"key": "regex_pattern", "label": "二维码提取正则", "type": "text", "default": "id:(?P<report_id>\\d+);(?P<verify_code>\\w+)"},
-            {"key": "url_template", "label": "请求URL模板", "type": "text", "default": "https://api.example.com/check?id={{report_id}}&code={{verify_code}}"},
+            {"key": "regex_pattern", "label": "二维码提取规则", "type": "text", "default": "reportno={report_id}&randomno={verify_code}", "placeholder": "用 {变量名} 标记需提取的部分，用 * 跳过中间内容"},
+            {"key": "url_template", "label": "请求URL模板", "type": "text", "default": "https://api.example.com/check?id={{report_id}}&code={{verify_code}}", "placeholder": "用 {{变量名}} 引用提取的变量"},
             {"key": "similarity_threshold", "label": "相似度报警阈值(%)", "type": "number", "default": 95}
         ]
     }

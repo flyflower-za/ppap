@@ -25,6 +25,57 @@ class OnlineVerificationOperator(BaseOperator):
     def requires(self) -> List[str]:
         return ["qr_codes"]
 
+    @staticmethod
+    def _convert_simple_pattern(pattern: str) -> str:
+        """
+        将用户友好的简化占位符语法自动转换为正则命名捕获组。
+        支持三种输入方式：
+        
+        1. 简化占位符（相邻参数）:
+           reportno={report_id}&randomno={verify_code}
+           → reportno=(?P<report_id>[^&\\s]+)&randomno=(?P<verify_code>[^&\\s]+)
+        
+        2. 简化占位符 + * 通配符（不相邻参数，中间有其他内容）:
+           reportno={report_id}*randomno={verify_code}
+           → reportno=(?P<report_id>[^&\\s]+).*?randomno=(?P<verify_code>[^&\\s]+)
+        
+        3. 原生正则表达式（包含 (?P<...>) 语法）:
+           直接原样传入，不做任何转换。
+        """
+        # 如果已经包含正则命名捕获组语法，直接原样返回
+        if '(?P<' in pattern or '(?P=' in pattern:
+            return pattern
+        
+        # 如果不包含 {变量名} 占位符，也原样返回（可能是普通正则）
+        if not re.search(r'\{(\w+)\}', pattern):
+            return pattern
+        
+        # 转换流程：
+        # 1. 提取所有占位符名
+        placeholders = re.findall(r'\{(\w+)\}', pattern)
+        
+        # 2. 将占位符临时替换为唯一标记，防止转义时被破坏
+        temp_pattern = pattern
+        for i, ph in enumerate(placeholders):
+            temp_pattern = temp_pattern.replace(f'{{{ph}}}', f'__PLACEHOLDER_{i}__', 1)
+        
+        # 3. 将 * 通配符临时替换为标记
+        temp_pattern = temp_pattern.replace('*', '__WILDCARD__')
+        
+        # 4. 转义剩余的正则特殊字符（保护字面量）
+        temp_pattern = re.escape(temp_pattern)
+        
+        # 5. 将通配符标记还原为 .*?（非贪婪匹配任意内容）
+        temp_pattern = temp_pattern.replace(re.escape('__WILDCARD__'), '.*?')
+        
+        # 6. 将占位符标记还原为命名捕获组
+        for i, ph in enumerate(placeholders):
+            escaped_marker = re.escape(f'__PLACEHOLDER_{i}__')
+            temp_pattern = temp_pattern.replace(escaped_marker, f'(?P<{ph}>[^&\\s]+)')
+        
+        logger.info(f"[OnlineVerification] 简化语法转换: '{pattern}' → '{temp_pattern}'")
+        return temp_pattern
+
     async def execute(self, context: DocumentContext, **kwargs) -> OperatorResult:
         regex_pattern = kwargs.get("regex_pattern", "")
         url_template = kwargs.get("url_template", "")
@@ -49,14 +100,15 @@ class OnlineVerificationOperator(BaseOperator):
                 message="在线防伪失败：二维码内容为空。"
             )
 
-        # 2. 正则提取参数
+        # 2. 正则提取参数（支持简化占位符语法自动转换）
+        regex_pattern = self._convert_simple_pattern(regex_pattern)
         try:
             pattern = re.compile(regex_pattern)
         except Exception as e:
             return OperatorResult(
                 operator_name=self.name,
                 pass_status=False,
-                message=f"在线防伪异常：提取正则配置错误 ({e})。"
+                message=f"在线防伪异常：提取规则配置错误 ({e})。"
             )
 
         match = pattern.search(qr_content)

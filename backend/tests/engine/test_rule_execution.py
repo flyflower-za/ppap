@@ -16,8 +16,8 @@ async def test_logic_graph_variable_extraction_and_diff():
     def mock_extract(self, pdf_bytes):
         # Return base_text if downloading from base URL, otherwise current_text
         if pdf_bytes == b"MOCK_BASE_PDF_BYTES":
-            return base_text_mock
-        return current_text_mock
+            return base_text_mock, 1
+        return current_text_mock, 1
 
     # Setup context with mock pdf bytes and qr scanner content
     context = DocumentContext(
@@ -129,8 +129,8 @@ async def test_logic_graph_dify_variable_interpolation():
     
     def mock_extract(self, pdf_bytes):
         if pdf_bytes == b"MOCK_BASE_PDF_BYTES":
-            return base_text_mock
-        return current_text_mock
+            return base_text_mock, 1
+        return current_text_mock, 1
 
     context = DocumentContext(
         file_path="dummy.pdf",
