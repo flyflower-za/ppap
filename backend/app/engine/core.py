@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Type, Optional
-from app.models.rule import VerificationRule, RuleType
+from app.models.rule import VerificationRule, RuleType, Severity
 from app.models.verification_module import VerificationModule, ModuleType, ModuleSeverity
 from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 from app.engine.operators.qr_operator import QRScannerOperator

@@ -120,7 +120,19 @@ async def delete_category(
     category = result.scalars().first()
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
+        
+    # Delete associated rule_modules entries first to avoid foreign key violations
+    from app.models.verification_module import RuleModule
+    from app.models.rule import VerificationRule
+    from sqlalchemy import delete
     
+    # Get all rule IDs for this category
+    rules_res = await db.execute(select(VerificationRule.id).where(VerificationRule.category_id == category.id))
+    rule_ids = [row[0] for row in rules_res.all()]
+    
+    if rule_ids:
+        await db.execute(delete(RuleModule).where(RuleModule.rule_id.in_(rule_ids)))
+        
     await db.delete(category)
     await db.commit()
     return {"message": "Category deleted successfully"}
