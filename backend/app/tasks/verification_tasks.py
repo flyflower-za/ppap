@@ -144,14 +144,9 @@ def queue_verification_task(self, file_id: str):
 
             # Build mapping of rule_id -> List[VerificationModule]
             rule_to_modules = {}
-            all_active_modules = []
             try:
                 from sqlalchemy import select
-                from app.models.verification_module import RuleModule
-                
-                # Fetch all junctions
-                junctions_res = await db.execute(select(RuleModule))
-                junctions = junctions_res.scalars().all()
+                from app.models.verification_module import VerificationModule
                 
                 # Fetch all active modules
                 modules_res = await db.execute(
@@ -162,11 +157,12 @@ def queue_verification_task(self, file_id: str):
                 active_modules_list = modules_res.scalars().all()
                 modules_by_id = {m.id: m for m in active_modules_list}
                 
-                for j in junctions:
-                    if j.module_id in modules_by_id:
-                        rule_to_modules.setdefault(j.rule_id, []).append(modules_by_id[j.module_id])
+                # Directly map from VerificationRule.module_id
+                for r in active_rules:
+                    if r.module_id and r.module_id in modules_by_id:
+                        rule_to_modules.setdefault(r.id, []).append(modules_by_id[r.module_id])
             except Exception as e:
-                logger.warning(f"Failed to pre-load rule-module junctions: {e}")
+                logger.warning(f"Failed to pre-load rule-module mappings: {e}")
 
             # Let Engine do the heavy lifting
             task_record.progress = 60

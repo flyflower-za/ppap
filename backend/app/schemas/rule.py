@@ -38,6 +38,7 @@ class VerificationRuleBase(BaseModel):
     is_active: bool = True
     is_system: bool = False
     logic_config: Dict[str, Any] = Field(default_factory=dict)
+    module_id: Optional[UUID] = None
 
 class VerificationRuleCreate(VerificationRuleBase):
     pass
@@ -51,6 +52,7 @@ class VerificationRuleUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_system: Optional[bool] = None
     logic_config: Optional[Dict[str, Any]] = None
+    module_id: Optional[UUID] = None
 
 class VerificationRuleResponse(VerificationRuleBase):
     id: UUID

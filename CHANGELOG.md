@@ -2,6 +2,37 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-23] - 极简预置规则自初始化与规则管理界面优化
+
+### 功能描述
+- **分类自动初始化底座规则**：重构了文档分类创建与重置机制。在新建任何分类时，系统会自动将所有活动的系统校验模块（如二维码、数字签名、印章检测等）自动克隆并初始化为该分类下的预置规则（默认不启用）。
+- **底座预置规则配置极简化**：在规则配置页面中重排了布局。右侧校验区划分为“基础配置（预置规则卡片）”与“高级自定义配置（表格）”两部分。基础规则以网格 Switch 卡片形式平铺呈现，用户无需进入复杂表单，直接通过开关与严重级别下拉框进行修改，一键批量保存。
+- **规则-模块外键直连重构**：数据库层面重构了 `VerificationRule` 与 `VerificationModule` 的一对一关系，废除了冗余的 `rule_modules` Junction 关系表，简化了后端的映射解析，并消除了 `is_system` 标记不同步导致规则未初始化的缺陷。
+
+### 详细修改记录
+
+#### 1. 后端 - 数据模型与 API 逻辑重构
+- **数据库模型** ([rule.py](file:///c:/Projects/git/ppap/backend/app/models/rule.py)) [MODIFY]：
+  - 新增 `module_id` 列并与 `VerificationModule` 建立外键直连关系。
+- **分类与重置接口** ([rules.py](file:///c:/Projects/git/ppap/backend/app/api/rules.py)) [MODIFY]：
+  - 修改 `create_category`，新增在分类创建成功时，自动从 `VerificationModule` 加载所有活动的模块，复制并预置写入 `VerificationRule` 表的功能。
+  - 修改 `restore_defaults`，新增自动为系统中现有所有分类扫描并补全预设模块规则的功能。
+- **校验调度引擎** ([verification_tasks.py](file:///c:/Projects/git/ppap/backend/app/tasks/verification_tasks.py)) [MODIFY]：
+  - 弃用 junction 表，直接从 rules 对象的 `module_id` 列提取对应关联的 VerificationModule 传入执行器。
+
+#### 2. 前端 - 极简多模块展示与提交
+- **规则配置页面** ([RulesPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/RulesPage.vue)) [MODIFY]：
+  - 将当前分类下的规则划分出基础配置卡片区域与高级自定义列表区域。
+  - 基础规则区域绑定 `presetRules` 计算属性，支持多卡片 Switch 绑定及告警级别修改，并开发 `savePresetRules` 提交逻辑。
+
+### 影响范围
+- ✅ 规则引擎校验逻辑
+- ✅ 数据库关系表（添加 `module_id`）
+- ✅ 前端规则配置界面
+- ✅ 20 个单元测试通过
+
+---
+
 ## [2026-06-23] - 校验模块联动与引擎比对功能增强
 
 ### 功能描述

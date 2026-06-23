@@ -57,85 +57,112 @@
 
       <!-- 右侧规则列表 -->
       <el-col :span="18">
-        <el-card class="rules-list-card" shadow="hover" v-if="activeCategoryId">
-          <template #header>
-            <div class="card-header">
-              <span>{{ activeCategoryName }} - 校验规则</span>
-              <div class="header-actions">
-                <el-button type="success" plain @click="openTemplateMarket()">
-                  <el-icon><Collection /></el-icon> 从模板创建
-                </el-button>
-                <el-button type="primary" @click="openRuleDialog()">
-                  <el-icon><Plus /></el-icon> 添加规则
+        <div v-if="activeCategoryId">
+          <!-- 1. 基础配置：底座预设规则 -->
+          <el-card class="rules-list-card preset-card mb-4" shadow="hover">
+            <template #header>
+              <div class="card-header flex-between" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ activeCategoryName }} - 基础底座配置 (预设规则清单)</span>
+                <el-button type="success" :loading="savingPreset" @click="savePresetRules">
+                  <el-icon><Check /></el-icon> 保存基础配置
                 </el-button>
               </div>
-            </div>
-          </template>
+            </template>
 
-          <el-table :data="rules" style="width: 100%" v-loading="loadingRules">
-            <el-table-column prop="rule_name" label="规则名称" min-width="180">
-              <template #default="scope">
-                <div style="display: flex; align-items: center;">
-                  <span class="rule-name-text">{{ scope.row.rule_name }}</span>
-                  <el-tag v-if="scope.row.is_system" size="small" type="info" effect="plain" class="system-tag">系统预置</el-tag>
+            <div class="preset-rules-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px;">
+              <div v-for="rule in presetRules" :key="rule.id" class="preset-rule-item" style="border: 1px solid var(--el-border-color-light); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: var(--el-fill-color-blank);">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-weight: 600; font-size: 14px;">{{ rule.rule_name }}</span>
+                  <el-switch v-model="rule.is_active" size="small" />
                 </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="rule_type" label="类型" width="100">
-              <template #default="scope">
-                <el-tag :type="getRuleTypeTag(scope.row.rule_type)" size="small">
-                  {{ getRuleTypeName(scope.row.rule_type) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="operation_mode" label="模式" width="90">
-              <template #default="scope">
-                <el-tag v-if="scope.row.rule_type === 'llm_prompt'" :type="getOperationModeType(scope.row.logic_config?.llm_operation_mode)" size="small">
-                  {{ getOperationModeName(scope.row.logic_config?.llm_operation_mode) }}
-                </el-tag>
-                <span v-else class="text-placeholder">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="severity" label="级别" width="90">
-              <template #default="scope">
-                <el-tag 
-                  v-if="!isExtractionMode(scope.row)" 
-                  :type="scope.row.severity === 'fail' ? 'danger' : scope.row.severity === 'warning' ? 'warning' : 'info'" 
-                  size="small"
-                >
-                  {{ scope.row.severity === 'fail' ? '拦截' : scope.row.severity === 'warning' ? '警告' : '参考' }}
-                </el-tag>
-                <span v-else class="text-placeholder">—</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip>
-              <template #default="scope">
-                <span v-if="scope.row.rule_type === 'logic_graph'" class="text-placeholder">
-                  [可视化流程] {{ scope.row.logic_config?.nodes?.length || 0 }} 个节点, {{ scope.row.logic_config?.edges?.length || 0 }} 条连线
-                </span>
-                <span v-else>{{ scope.row.rule_content }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="is_active" label="状态" width="70" align="center">
-              <template #default="scope">
-                <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" size="small" />
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="160" fixed="right" align="center">
-              <template #default="scope">
-                <el-button link type="primary" @click="openRuleDialog(scope.row)">编辑</el-button>
-                <el-button link type="info" @click="showVersionsHistory(scope.row)">历史</el-button>
-                <el-button 
-                  link 
-                  type="danger" 
-                  @click="deleteRuleData(scope.row.id)"
-                  :disabled="scope.row.is_system"
-                  :title="scope.row.is_system ? '系统预置规则不可物理删除' : ''"
-                >删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                  <span style="font-size: 12px; color: var(--el-text-color-secondary);">告警级别:</span>
+                  <el-select v-model="rule.severity" size="small" style="width: 120px;">
+                    <el-option label="拦截 (Fail)" value="fail" />
+                    <el-option label="警告 (Warning)" value="warning" />
+                    <el-option label="参考 (Reference)" value="reference" />
+                  </el-select>
+                </div>
+              </div>
+            </div>
+          </el-card>
+
+          <!-- 2. 高级配置：自定义规则 -->
+          <el-card class="rules-list-card" shadow="hover">
+            <template #header>
+              <div class="card-header flex-between" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>{{ activeCategoryName }} - 自定义与高级规则</span>
+                <div class="header-actions">
+                  <el-button type="success" plain @click="openTemplateMarket()">
+                    <el-icon><Collection /></el-icon> 从模板创建
+                  </el-button>
+                  <el-button type="primary" @click="openRuleDialog()">
+                    <el-icon><Plus /></el-icon> 添加自定义规则
+                  </el-button>
+                </div>
+              </div>
+            </template>
+
+            <el-table :data="customRules" style="width: 100%" v-loading="loadingRules">
+              <el-table-column prop="rule_name" label="规则名称" min-width="180">
+                <template #default="scope">
+                  <span class="rule-name-text">{{ scope.row.rule_name }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="rule_type" label="类型" width="100">
+                <template #default="scope">
+                  <el-tag :type="getRuleTypeTag(scope.row.rule_type)" size="small">
+                    {{ getRuleTypeName(scope.row.rule_type) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="operation_mode" label="模式" width="90">
+                <template #default="scope">
+                  <el-tag v-if="scope.row.rule_type === 'llm_prompt'" :type="getOperationModeType(scope.row.logic_config?.llm_operation_mode)" size="small">
+                    {{ getOperationModeName(scope.row.logic_config?.llm_operation_mode) }}
+                  </el-tag>
+                  <span v-else class="text-placeholder">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="severity" label="级别" width="90">
+                <template #default="scope">
+                  <el-tag 
+                    v-if="!isExtractionMode(scope.row)" 
+                    :type="scope.row.severity === 'fail' ? 'danger' : scope.row.severity === 'warning' ? 'warning' : 'info'" 
+                    size="small"
+                  >
+                    {{ scope.row.severity === 'fail' ? '拦截' : scope.row.severity === 'warning' ? '警告' : '参考' }}
+                  </el-tag>
+                  <span v-else class="text-placeholder">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip>
+                <template #default="scope">
+                  <span v-if="scope.row.rule_type === 'logic_graph'" class="text-placeholder">
+                    [可视化流程] {{ scope.row.logic_config?.nodes?.length || 0 }} 个节点, {{ scope.row.logic_config?.edges?.length || 0 }} 条连线
+                  </span>
+                  <span v-else>{{ scope.row.rule_content }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="is_active" label="状态" width="70" align="center">
+                <template #default="scope">
+                  <el-switch v-model="scope.row.is_active" @change="toggleRuleStatus(scope.row)" size="small" />
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="160" fixed="right" align="center">
+                <template #default="scope">
+                  <el-button link type="primary" @click="openRuleDialog(scope.row)">编辑</el-button>
+                  <el-button link type="info" @click="showVersionsHistory(scope.row)">历史</el-button>
+                  <el-button 
+                    link 
+                    type="danger" 
+                    @click="deleteRuleData(scope.row.id)"
+                  >删除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+        </div>
 
         <el-empty v-else description="请选择左侧文档分类以查看或配置规则" />
       </el-col>
@@ -489,6 +516,34 @@ const activeCategoryId = ref<string>('')
 const loadingRules = ref(false)
 const saving = ref(false)
 const restoringDefaults = ref(false)
+const savingPreset = ref(false)
+
+// Computed helpers to split rules
+const presetRules = computed(() => {
+  return rules.value.filter(r => r.is_system && r.module_id)
+})
+
+const customRules = computed(() => {
+  return rules.value.filter(r => !r.is_system || !r.module_id)
+})
+
+const savePresetRules = async () => {
+  savingPreset.value = true
+  try {
+    for (const rule of presetRules.value) {
+      await updateRule(rule.id, {
+        is_active: rule.is_active,
+        severity: rule.severity
+      })
+    }
+    ElMessage.success('基础配置保存成功')
+    await fetchRules()
+  } catch (error) {
+    ElMessage.error('保存基础配置失败')
+  } finally {
+    savingPreset.value = false
+  }
+}
 
 // Verification modules associated state
 const availableModules = ref<VerificationModule[]>([])

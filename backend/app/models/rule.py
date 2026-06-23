@@ -39,5 +39,9 @@ class VerificationRule(Base):
     is_active = Column(Boolean, default=True)
     is_system = Column(Boolean, default=False, nullable=False) # True for built-in rules
     logic_config = Column(JSONB, default=dict) # Stores node graph connections / AST
+    
+    # Linked module reference
+    module_id = Column(UUID(as_uuid=False), ForeignKey("verification_modules.id"), nullable=True)
 
     category = relationship("DocumentCategory", back_populates="rules")
+    module = relationship("VerificationModule", backref="rules")

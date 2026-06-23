@@ -55,6 +55,37 @@ async def create_category(
 ):
     category = DocumentCategory(**category_in.model_dump())
     db.add(category)
+    await db.flush() # Flush to get category.id
+    
+    # Automatically initialize rules for this category from system verification modules
+    from app.models.verification_module import VerificationModule
+    from app.models.rule import RuleType, Severity
+    
+    modules_res = await db.execute(
+        select(VerificationModule)
+        .where(VerificationModule.is_active == True)
+    )
+    system_modules = modules_res.scalars().all()
+    
+    for mod in system_modules:
+        rule_severity = Severity.warning
+        if mod.severity.value == "critical":
+            rule_severity = Severity.fail
+        elif mod.severity.value == "info":
+            rule_severity = Severity.reference
+            
+        new_rule = VerificationRule(
+            category_id=category.id,
+            rule_name=mod.name,
+            rule_type=RuleType.plugin,
+            rule_content=mod.module_type.value,
+            severity=rule_severity,
+            is_active=False, # Preset rules are disabled by default
+            is_system=True,
+            module_id=mod.id
+        )
+        db.add(new_rule)
+        
     await db.commit()
     await db.refresh(category)
     return category
@@ -211,50 +242,51 @@ async def restore_defaults(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Restore default system verification rules."""
+    """Restore default system verification rules for all categories."""
     from app.models.rule import RuleType, Severity
+    from app.models.verification_module import VerificationModule
     
-    default_rules = [
-        {
-            "rule_name": "文档二维码识别与解析",
-            "rule_type": RuleType.plugin,
-            "rule_content": "REQUIRE_QR_CODE",
-            "severity": Severity.warning,
-            "is_system": True
-        },
-        {
-            "rule_name": "PDF 电子数字签名验证",
-            "rule_type": RuleType.plugin,
-            "rule_content": "REQUIRE_SIGNATURE",
-            "severity": Severity.warning,
-            "is_system": True
-        }
-    ]
+    # Get all categories
+    categories_res = await db.execute(select(DocumentCategory))
+    categories = categories_res.scalars().all()
     
-    # Iterate through defaults, check if exists, if not create it, if yes reset it.
-    for d_rule in default_rules:
-        result = await db.execute(select(VerificationRule).where(
-            VerificationRule.rule_name == d_rule["rule_name"],
-            VerificationRule.is_system == True
-        ))
-        existing_rule = result.scalars().first()
-        
-        if existing_rule:
-            # Check if values actually changed to avoid duplicate redundant versions
-            if (existing_rule.rule_content != d_rule["rule_content"] or
-                existing_rule.rule_type != d_rule["rule_type"] or
-                existing_rule.severity != d_rule["severity"] or
-                not existing_rule.is_active):
-                existing_rule.rule_content = d_rule["rule_content"]
-                existing_rule.rule_type = d_rule["rule_type"]
-                existing_rule.severity = d_rule["severity"]
-                existing_rule.is_active = True
-                await create_rule_version_snapshot(db, existing_rule, "System")
-        else:
-            new_rule = VerificationRule(**d_rule)
-            db.add(new_rule)
-            await db.flush()
-            await create_rule_version_snapshot(db, new_rule, "System")
+    # Get all active modules
+    modules_res = await db.execute(
+        select(VerificationModule)
+        .where(VerificationModule.is_active == True)
+    )
+    system_modules = modules_res.scalars().all()
+    
+    for category in categories:
+        for mod in system_modules:
+            # Check if this module rule already exists for this category
+            rule_res = await db.execute(
+                select(VerificationRule)
+                .where(VerificationRule.category_id == category.id)
+                .where(VerificationRule.module_id == mod.id)
+            )
+            existing_rule = rule_res.scalars().first()
+            
+            rule_severity = Severity.warning
+            if mod.severity.value == "critical":
+                rule_severity = Severity.fail
+            elif mod.severity.value == "info":
+                rule_severity = Severity.reference
+                
+            if not existing_rule:
+                new_rule = VerificationRule(
+                    category_id=category.id,
+                    rule_name=mod.name,
+                    rule_type=RuleType.plugin,
+                    rule_content=mod.module_type.value,
+                    severity=rule_severity,
+                    is_active=False,
+                    is_system=True,
+                    module_id=mod.id
+                )
+                db.add(new_rule)
+                await db.flush()
+                await create_rule_version_snapshot(db, new_rule, "System")
             
     await log_audit_event(
         db=db,
@@ -262,7 +294,7 @@ async def restore_defaults(
         user=current_user,
         resource_type="SYSTEM",
         resource_id=None,
-        details={"action": "Restored default verification rules"},
+        details={"action": "Restored and initialized preset rules for all categories"},
         request=request
     )
     
