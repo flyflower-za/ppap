@@ -57,19 +57,32 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 1.3 规则引擎 (API)
+### 1.3 规则引擎与文档分类 (API)
 
 **文件**: `backend/app/api/rules.py`
 
+#### 核心端点清单
+
 | 功能 | 端点 | 描述 |
 |------|------|------|
-| 规则列表 | `GET /api/v1/rules` | 获取所有规则 |
-| 创建规则 | `POST /api/v1/rules` | 创建新规则 |
-| 更新规则 | `PUT /api/v1/rules/{id}` | 更新规则配置 |
-| 删除规则 | `DELETE /api/v1/rules/{id}` | 删除规则 |
-| 规则版本历史 | `GET /api/v1/rules/{id}/versions` | 获取规则版本历史 |
-| 规则回滚 | `POST /api/v1/rules/{id}/rollback` | 回滚到历史版本 |
-| 沙盒测试 | `POST /api/v1/rules/dry-run` | 内存级模拟执行规则 |
+| 规则列表 | `GET /api/v1/rule-engine/rules` | 获取所有规则 |
+| 创建规则 | `POST /api/v1/rule-engine/rules` | 创建新规则 |
+| 更新规则 | `PUT /api/v1/rule-engine/rules/{id}` | 更新规则配置 |
+| 删除规则 | `DELETE /api/v1/rule-engine/rules/{id}` | 删除规则 |
+| 规则版本历史 | `GET /api/v1/rule-engine/rules/{id}/versions` | 获取规则版本历史 |
+| 规则回滚 | `POST /api/v1/rule-engine/rules/{id}/rollback` | 回滚到历史版本 |
+| 沙盒测试 | `POST /api/v1/rule-engine/rules/dry-run` | 内存级模拟执行规则 |
+| 分类列表 | `GET /api/v1/rule-engine/categories` | 获取全部文档分类 |
+| 创建分类 | `POST /api/v1/rule-engine/categories` | 创建新分类（自动挂载底座预置规则） |
+| 更新分类 | `PUT /api/v1/rule-engine/categories/{id}` | 更新分类信息 |
+| 删除分类 | `DELETE /api/v1/rule-engine/categories/{id}` | 删除分类（级联物理清理底座规则） |
+| 一键补齐默认规则 | `POST /api/v1/rule-engine/restore-defaults` | 为所有分类自动补齐缺失的预置规则 |
+
+#### 关键技术设计
+
+- **分类创建自动挂载预置规则**: 当调用 `POST /api/v1/rule-engine/categories` 创建新分类时，系统会自动遍历当前数据库中所有处于激活状态（`is_active == True`）的验证底座模块。自动为该分类创建对应的预置规则（`VerificationRule`），默认状态为“未启用”（`is_active = False`），默认告警级别为 `fail`。
+- **直连模块映射**: 规则表结构中增加了 `module_id` 字段直连底座模块，简化了原有的多对多中间表关联设计。
+- **校验评分规则**: 执行引擎调度在分析 PDF 文档时，会自动拉取文档分类下所有已启用的规则。当规则绑定了底座模块（`module_id` 不为空）时，直接基于该底座模块的通过情况（`passed`）进行结果判定和计分。
 
 ---
 
@@ -121,14 +134,23 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ### 1.7 模块管理 (API)
 
-**文件**: `backend/app/api/modules.py`
+**文件**: `backend/app/api/verification_modules.py`
+
+#### 核心端点清单
 
 | 功能 | 端点 | 描述 |
 |------|------|------|
-| 模块列表 | `GET /api/v1/modules` | 获取所有模块 |
-| 创建模块 | `POST /api/v1/modules` | 创建新模块 |
-| 更新模块 | `PUT /api/v1/modules/{id}` | 更新模块配置 |
-| 删除模块 | `DELETE /api/v1/modules/{id}` | 删除模块 |
+| 模块列表 | `GET /api/v1/rule-engine/modules` | 获取所有已注册的底座模块 |
+| 创建模块 | `POST /api/v1/rule-engine/modules` | 创建新底座模块 |
+| 更新模块 | `PUT /api/v1/rule-engine/modules/{id}` | 更新底座模块配置（包含 metadata 和 is_active） |
+| 删除模块 | `DELETE /api/v1/rule-engine/modules/{id}` | 删除底座模块（级联物理清理对应的预置规则） |
+| 获取模块元数据 | `GET /api/v1/rule-engine/modules/metadata` | 获取算子元数据定义 |
+| 恢复默认模块 | `POST /api/v1/rule-engine/modules/restore-defaults` | 一键初始化系统默认底座模块 |
+
+#### 关键技术设计
+
+- **底座模块与规则关联关系**: 每一个规则记录通过 `module_id` 与底座模块进行关联。这种关系是一对一的，使得每个规则能够直接指向特定的底座模块（如数字签名、印章检测等）。
+- **批量同步规则状态**: 在编辑分类规则时，可以通过批量 API 提交批量更新指令，同步更新模块绑定的规则。
 
 ---
 
@@ -278,14 +300,24 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.5 规则版本管理
+### 2.5 规则配置与版本管理
 
-| 功能 | 描述 |
-|------|------|
-| 版本历史 | 时间线展示规则版本 |
-| 一键回滚 | 恢复到任意历史版本 |
-| 版本比对 | 高亮显示版本间差异 |
-| 变更日志 | 显示每次变更的说明 |
+**文件**: `frontend/src/views/RulesPage.vue`
+
+#### 1. 基础预置规则卡片网格 (Preset Rules Grid)
+- **极简化快捷配置**: 页面上方直观呈现当前文档分类挂载的所有系统底座预设规则（包括：二维码识别、数字签名验证、印章检测、PDF信息提取、修订历史检查等）。
+- **快捷开关与级别**: 每个底座模块卡片包含一个 `Switch` 开关（用于一键启用/禁用该底座规则）以及一个 `Severity` 下拉选择器（配置触发警告或直接不合规 `fail`）。
+- **一键批量保存**: 用户可随意调整多个底座模块的开关状态与告警级别，通过右上角「保存基础配置」按钮，一键批量向后端提交更新，免除了对每个底座规则逐个弹窗配置的繁琐。
+
+#### 2. 自定义高级规则列表 (Custom Rules Table)
+- **高级模式扩展**: 页面下方展示自定义规则列表，专用于展示和编辑使用“大模型语义提取”或“可视化逻辑图 (Logic Graph)”构建的复杂规则。
+- **添加/编辑**: 点击可呼起全屏流程图编辑器进行高阶逻辑自主编排。
+
+#### 3. 版本与变更历史
+- **版本历史**: 时间线展示规则的变更版本。
+- **一键回滚**: 支持选择任意历史版本进行一键回滚。
+- **版本比对**: 自动比对不同版本间的 JSON Schema 或 Logic Graph 差异并进行高亮标记。
+- **变更日志**: 与审批工单联动，显示每次规则变更的变更人、时间及详细说明。
 
 ---
 
