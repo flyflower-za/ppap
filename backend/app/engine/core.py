@@ -374,11 +374,13 @@ class VerificationEngine:
                 rules = category_rules
             else:
                 await emit_log(f"文档匹配分类 [{matched_category_name}]，但该分类暂无专属规则，降级使用全局默认规则")
+                rules = [r for r in rules if not r.category_id]
         else:
             if categories:
                 await emit_log(f"分类嗅探结果: {sniffed_inst}。文档未匹配到任何分类关键字，使用全局默认规则")
             else:
                 await emit_log(f"分类嗅探结果: {sniffed_inst}。无可用分类定义，使用全局默认规则")
+            rules = [r for r in rules if not r.category_id]
 
         # ---------------------------------------------------------
         # FILTER RULES (Based on Institution conditions)
