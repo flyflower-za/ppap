@@ -13,6 +13,7 @@ from app.models.user_group import UserGroup, user_group_association
 from app.models.operator_registry import OperatorRegistry, OperatorTemplate
 from app.models.rule_approval import RuleChangeRequest, ApprovalPolicy, ApprovalStatus
 from app.models.rule_template import RuleTemplate
+from app.models.verification_module import VerificationModule, RuleModule, ModuleType, ModuleSeverity
 
 __all__ = [
     "User",
@@ -39,4 +40,8 @@ __all__ = [
     "ApprovalPolicy",
     "ApprovalStatus",
     "RuleTemplate",
+    "VerificationModule",
+    "RuleModule",
+    "ModuleType",
+    "ModuleSeverity",
 ]

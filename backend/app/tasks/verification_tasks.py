@@ -12,6 +12,7 @@ from app.models.file import File, FileStatus, FileType
 from app.models.task import Task, TaskStatus
 from app.models.notification import Notification, NotificationType
 from app.models.rule import VerificationRule, RuleType, Severity, DocumentCategory
+from app.models.verification_module import VerificationModule
 from app.core.redis import redis_client
 import re
 
@@ -158,6 +159,62 @@ def queue_verification_task(self, file_id: str):
 
             engine = VerificationEngine()
             engine_result = await engine.run(context, active_rules, progress_callback=engine_progress_cb, categories=active_categories)
+
+            # Load verification modules for active rules
+            verification_modules = []
+            try:
+                from sqlalchemy.orm import selectinload
+                # Get all rule IDs
+                rule_ids = [r.id for r in active_rules]
+                if rule_ids:
+                    # Fetch modules associated with these rules
+                    from app.models.verification_module import RuleModule
+                    module_junctions = await db.execute(
+                        select(RuleModule.module_id)
+                        .where(RuleModule.rule_id.in_(rule_ids))
+                        .distinct()
+                    )
+                    module_ids = [row[0] for row in module_junctions.all()]
+
+                    if module_ids:
+                        modules_result = await db.execute(
+                            select(VerificationModule)
+                            .where(VerificationModule.id.in_(module_ids))
+                            .where(VerificationModule.is_active == True)
+                            .order_by(VerificationModule.sort_order)
+                        )
+                        verification_modules = modules_result.scalars().all()
+
+                logger.info(f"Loaded {len(verification_modules)} verification modules for execution")
+
+                # Execute verification modules and merge results
+                if verification_modules:
+                    module_results = await engine._execute_verification_modules(
+                        verification_modules, context, engine_progress_cb
+                    )
+
+                    # Merge module results into engine results
+                    if "checks" not in engine_result:
+                        engine_result["checks"] = []
+                    engine_result["checks"].extend([
+                        {**mr, "rule_type": "module"} for mr in module_results
+                    ])
+                    engine_result["module_results"] = module_results
+
+                    # Update counts
+                    for mr in module_results:
+                        if mr["status"] == "pass":
+                            engine_result["pass_count"] = engine_result.get("pass_count", 0) + 1
+                        elif mr["status"] == "warning":
+                            engine_result["warning_count"] = engine_result.get("warning_count", 0) + 1
+                        elif mr["status"] == "fail":
+                            engine_result["fail_count"] = engine_result.get("fail_count", 0) + 1
+                        elif mr["status"] == "info":
+                            engine_result["reference_count"] = engine_result.get("reference_count", 0) + 1
+
+            except Exception as module_err:
+                logger.warning(f"Failed to load/execute verification modules: {module_err}")
+                # Continue without modules - don't fail the entire verification
 
             # ============================================================
             # Stage 3: Compile Final Report (Progress 100%)

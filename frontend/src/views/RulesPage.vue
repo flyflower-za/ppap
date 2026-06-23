@@ -5,7 +5,10 @@
         <h2 class="page-title">规则配置中心</h2>
         <p class="page-subtitle">配置不同文档类型的识别规则与验证规则引擎</p>
       </div>
-      <div>
+      <div class="header-actions">
+        <el-button type="info" plain @click="router.push('/modules')">
+          <el-icon><Management /></el-icon> 模块管理
+        </el-button>
         <el-button type="primary" plain @click="handleRestoreDefaults" :loading="restoringDefaults">
           <el-icon class="mr-1"><Refresh /></el-icon> 一键重置预置系统规则
         </el-button>
@@ -255,6 +258,27 @@
           />
         </el-form-item>
 
+        <!-- 关联校验模块 -->
+        <el-form-item label="关联校验模块" v-if="ruleForm.rule_type !== 'logic_graph'">
+          <el-checkbox-group v-model="selectedModuleIds">
+            <el-checkbox 
+              v-for="mod in availableModules" 
+              :key="mod.id" 
+              :value="mod.id"
+              :label="mod.id"
+              style="margin-bottom: 8px; display: inline-flex;"
+            >
+              <span>{{ mod.metadata?.icon || '📦' }} {{ mod.name }}</span>
+              <el-tag size="small" :type="mod.severity === 'critical' ? 'danger' : mod.severity === 'warning' ? 'warning' : 'info'" style="margin-left: 8px;">
+                {{ mod.severity === 'critical' ? '关键' : mod.severity === 'warning' ? '告警' : '信息' }}
+              </el-tag>
+            </el-checkbox>
+          </el-checkbox-group>
+          <div class="form-tip" style="font-size: 12px; color: var(--el-text-color-secondary); margin-top: 4px;">
+            勾选触发底座底层的子校验模块（例如：数字证书签名校验、修订版本分析等）。
+          </div>
+        </el-form-item>
+
         <!-- Logic Graph Editor -->
         <el-form-item v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required label="逻辑图配置">
           <RuleGraphEditor :key="ruleForm.id || 'new'" v-model="ruleForm.logic_config" />
@@ -436,7 +460,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound, FullScreen } from '@element-plus/icons-vue'
+import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound, FullScreen, Management } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import {
@@ -449,6 +473,7 @@ import {
   getRuleTemplates, applyRuleTemplate, initializeRuleTemplates,
   type RuleTemplate
 } from '../api/operators'
+import { verificationModulesApi, type VerificationModule } from '../api/verificationModules'
 
 const router = useRouter()
 const route = useRoute()
@@ -460,6 +485,29 @@ const activeCategoryId = ref<string>('')
 const loadingRules = ref(false)
 const saving = ref(false)
 const restoringDefaults = ref(false)
+
+// Verification modules associated state
+const availableModules = ref<VerificationModule[]>([])
+const selectedModuleIds = ref<string[]>([])
+
+const loadAvailableModules = async () => {
+  try {
+    const data = await verificationModulesApi.listModules({ is_active: true })
+    availableModules.value = data
+  } catch (error) {
+    console.error('Failed to load verification modules:', error)
+  }
+}
+
+const loadRuleModules = async (ruleId: string) => {
+  try {
+    const data = await verificationModulesApi.getRuleModules(ruleId)
+    selectedModuleIds.value = data.modules.map(m => m.id)
+  } catch (error) {
+    console.error('Failed to load assigned rule modules:', error)
+    selectedModuleIds.value = []
+  }
+}
 
 // Dialog states
 const categoryDialogVisible = ref(false)
@@ -624,7 +672,11 @@ const saveCategory = async () => {
 }
 
 // Rule Actions
-const openRuleDialog = (rule?: Rule) => {
+const openRuleDialog = async (rule?: Rule) => {
+  if (availableModules.value.length === 0) {
+    await loadAvailableModules()
+  }
+
   if (rule) {
     ruleForm.value = { ...rule }
     // Map condition
@@ -641,6 +693,7 @@ const openRuleDialog = (rule?: Rule) => {
         ruleForm.value.logic_config = JSON.parse(JSON.stringify(rule.logic_config))
       }
     }
+    await loadRuleModules(rule.id)
   } else {
     ruleForm.value = {
       category_id: activeCategoryId.value,
@@ -654,6 +707,7 @@ const openRuleDialog = (rule?: Rule) => {
       llm_model_type: 'text',
       llm_operation_mode: 'verification'
     }
+    selectedModuleIds.value = []
   }
   ruleDialogVisible.value = true
 }
@@ -709,13 +763,20 @@ const saveRule = async () => {
   }
 
   try {
+    let savedRule;
     if (payload.id) {
-      await updateRule(payload.id, payload)
+      savedRule = await updateRule(payload.id, payload)
       ElMessage.success('更新成功')
     } else {
-      await createRule(payload as any)
+      savedRule = await createRule(payload as any)
       ElMessage.success('添加成功')
     }
+
+    // Save rule module association if not logic_graph
+    if (payload.rule_type !== 'logic_graph' && savedRule && savedRule.id) {
+      await verificationModulesApi.assignRuleModules(savedRule.id, { module_ids: selectedModuleIds.value })
+    }
+
     ruleDialogVisible.value = false
     await fetchRules()
   } catch (error) {

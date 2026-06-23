@@ -1,7 +1,8 @@
 import logging
-from typing import List, Dict, Type
+from typing import List, Dict, Type, Optional
 from app.models.rule import VerificationRule, RuleType
-from app.engine.base import BaseOperator, DocumentContext
+from app.models.verification_module import VerificationModule, ModuleType, ModuleSeverity
+from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 from app.engine.operators.qr_operator import QRScannerOperator
 from app.engine.operators.signature_operator import SignatureOperator
 from app.engine.operators.pdf_info_operator import PDFInfoOperator
@@ -15,6 +16,20 @@ from app.engine.operators.diff_operator import DocumentDiffOperator
 from app.engine.operators.table_operator import TableVerificationOperator
 
 logger = logging.getLogger(__name__)
+
+def normalize_institution_name(name: str) -> str:
+    if not name:
+        return "unknown"
+    name_lower = name.strip().lower()
+    if any(kw in name_lower for kw in ["华测", "cti", "centre testing"]):
+        return "cti"
+    if any(kw in name_lower for kw in ["sgs", "通标"]):
+        return "sgs"
+    if any(kw in name_lower for kw in ["中检", "ccic", "中国检验认证"]):
+        return "ccic"
+    if any(kw in name_lower for kw in ["莱茵", "rheinland", "tuv rhe", "tüv rhe", "南德", "sud", "tuv sud", "tüv süd", "tuv"]):
+        return "tuv"
+    return name_lower
 
 class VerificationEngine:
     """
@@ -142,10 +157,132 @@ class VerificationEngine:
                 ops_to_run.append(self._available_operators[name])
             else:
                 logger.warning(f"Engine requested unknown operator: {name}")
-                
+
         return ops_to_run
 
-    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None, categories=None) -> Dict[str, any]:
+    def _get_operator_for_module_type(self, module_type: ModuleType) -> Optional[BaseOperator]:
+        """
+        Map module type to the corresponding operator instance.
+        """
+        module_to_operator = {
+            ModuleType.qr_scanner: "QRScanner",
+            ModuleType.signature_verifier: "SignatureVerifier",
+            ModuleType.pdf_info: "PDFInfoExtractor",
+            ModuleType.institution_sniffer: "InstitutionSniffer",
+            ModuleType.revision_check: "RevisionCheck",
+            ModuleType.text_llm: "TextLLM",
+            ModuleType.vision_llm: "VisionLLM",
+            ModuleType.url_fetch: "URLFetchOperator",
+            ModuleType.stamp_detection: "StampDetection",
+            ModuleType.document_diff: "DocumentDiff",
+            ModuleType.table_verification: "TableVerification",
+        }
+        operator_name = module_to_operator.get(module_type)
+        if operator_name:
+            return self._available_operators.get(operator_name)
+        return None
+
+    async def _execute_verification_module(
+        self,
+        module: VerificationModule,
+        context: DocumentContext,
+        emit_log=None
+    ) -> Dict[str, any]:
+        """
+        Execute a single verification module and return its result.
+        """
+        if emit_log:
+            await emit_log(f"[模块] 开始执行校验模块: {module.name}")
+
+        operator = self._get_operator_for_module_type(module.module_type)
+        if not operator:
+            result = {
+                "name": module.name,
+                "status": "fail",
+                "passed": False,
+                "message": f"未找到对应的算子: {module.module_type}",
+                "severity": module.severity.value,
+                "module_id": module.id
+            }
+            if emit_log:
+                await emit_log(f"[模块] {result['message']}")
+            return result
+
+        try:
+            # Execute the operator with module config
+            op_result: OperatorResult = await operator.execute(context, **module.config)
+
+            # Map pass_status to passed
+            passed = op_result.pass_status if hasattr(op_result, 'pass_status') else op_result.passed
+
+            # Determine status based on module severity and result
+            if module.severity == ModuleSeverity.info:
+                status = "info"
+            elif module.severity == ModuleSeverity.warning:
+                status = "warning" if not passed else "pass"
+            else:  # critical
+                status = "fail" if not passed else "pass"
+
+            result = {
+                "name": module.name,
+                "status": status,
+                "passed": passed,
+                "message": op_result.message if hasattr(op_result, 'message') else "执行完成",
+                "severity": module.severity.value,
+                "module_id": module.id,
+                "extracted_data": op_result.extracted_data if hasattr(op_result, 'extracted_data') else {},
+                "confidence": op_result.confidence if hasattr(op_result, 'confidence') else 1.0
+            }
+
+            if emit_log:
+                await emit_log(f"[模块] {module.name} 执行完成: {status} - {result['message']}")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"[Engine] Module {module.name} execution failed: {e}")
+            result = {
+                "name": module.name,
+                "status": "fail" if module.severity == ModuleSeverity.critical else "warning",
+                "passed": False,
+                "message": f"执行异常: {str(e)}",
+                "severity": module.severity.value,
+                "module_id": module.id,
+                "error": str(e)
+            }
+            if emit_log:
+                await emit_log(f"[模块] {module.name} 执行异常: {str(e)}")
+            return result
+
+    async def _execute_verification_modules(
+        self,
+        modules: List[VerificationModule],
+        context: DocumentContext,
+        emit_log=None
+    ) -> List[Dict[str, any]]:
+        """
+        Execute multiple verification modules and return their results.
+        Modules are executed in sort_order.
+        """
+        if not modules:
+            return []
+
+        # Sort modules by sort_order
+        sorted_modules = sorted(modules, key=lambda m: m.sort_order)
+
+        if emit_log:
+            await emit_log(f"[模块] 开始执行 {len(sorted_modules)} 个校验模块")
+
+        results = []
+        for module in sorted_modules:
+            if not module.is_active:
+                continue
+            result = await self._execute_verification_module(module, context, emit_log)
+            results.append(result)
+
+        return results
+
+    async def run(self, context: DocumentContext, rules: List[VerificationRule], progress_callback=None, categories=None, verification_modules: List[VerificationModule] = None) -> Dict[str, any]:
         """
         Execute the dynamic pipeline with a two-stage architecture.
         Stage 1: Pre-classification (PDF Info & Institution Sniffer)
@@ -232,9 +369,12 @@ class VerificationEngine:
             required_inst = conditions.get("institution")
             
             # If the rule has an explicit institution condition, check it.
-            if required_inst and required_inst.lower() != sniffed_inst.lower():
-                logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst}, but sniffed {sniffed_inst})")
-                continue
+            if required_inst:
+                required_norm = normalize_institution_name(required_inst)
+                sniffed_norm = normalize_institution_name(sniffed_inst)
+                if required_norm != sniffed_norm:
+                    logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst} [norm: {required_norm}], but sniffed {sniffed_inst} [norm: {sniffed_norm}])")
+                    continue
             applicable_rules.append(rule)
 
         await emit_log(f"匹配到 {len(applicable_rules)} 条适用规则，开始阶段二深度分析")
@@ -264,6 +404,15 @@ class VerificationEngine:
         # Flatten any newly added shared_state values
         self._flatten_shared_state(context)
 
+        # ---------------------------------------------------------
+        # STAGE 3: Execute Verification Modules
+        # ---------------------------------------------------------
+        module_results = []
+        if verification_modules:
+            module_results = await self._execute_verification_modules(
+                verification_modules, context, emit_log
+            )
+
         # Phase 2: Evaluate Rules
         rule_evaluations = []
         pass_count = warning_count = fail_count = reference_count = 0
@@ -278,10 +427,13 @@ class VerificationEngine:
             if conditions:
                 sniffed_inst = context.shared_state.get("institution", "UNKNOWN")
                 required_inst = conditions.get("institution")
-                if required_inst and required_inst.lower() != sniffed_inst.lower():
-                    logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst}, but sniffed {sniffed_inst})")
-                    await emit_log(f"规则 [{rule.rule_name}] 已跳过（适用机构不匹配）")
-                    continue
+                if required_inst:
+                    required_norm = normalize_institution_name(required_inst)
+                    sniffed_norm = normalize_institution_name(sniffed_inst)
+                    if required_norm != sniffed_norm:
+                        logger.info(f"[Engine] Skipping rule {rule.rule_name} (requires {required_inst} [norm: {required_norm}], but sniffed {sniffed_inst} [norm: {sniffed_norm}])")
+                        await emit_log(f"规则 [{rule.rule_name}] 已跳过（适用机构不匹配）")
+                        continue
 
             rule_pass = False
             rule_msg = "未执行"
@@ -1061,14 +1213,36 @@ class VerificationEngine:
 
         logger.info(f"[Engine] Verification complete. Pass:{pass_count}, Fail:{fail_count}, Reference:{reference_count}")
 
+        # Count module results
+        module_pass_count = 0
+        module_warning_count = 0
+        module_fail_count = 0
+        module_info_count = 0
+
+        for module_result in module_results:
+            if module_result["status"] == "pass":
+                module_pass_count += 1
+            elif module_result["status"] == "warning":
+                module_warning_count += 1
+            elif module_result["status"] == "fail":
+                module_fail_count += 1
+            elif module_result["status"] == "info":
+                module_info_count += 1
+
+        # Combine rule and module evaluations
+        combined_evaluations = rule_evaluations + [
+            {**mr, "rule_type": "module"} for mr in module_results
+        ]
+
         return {
-            "checks": rule_evaluations,
+            "checks": combined_evaluations,
             "operator_logs": operator_results,
-            "pass_count": pass_count,
-            "warning_count": warning_count,
-            "fail_count": fail_count,
-            "reference_count": reference_count,
+            "pass_count": pass_count + module_pass_count,
+            "warning_count": warning_count + module_warning_count,
+            "fail_count": fail_count + module_fail_count,
+            "reference_count": reference_count + module_info_count,
             "needs_review": needs_review,
             "institution": context.shared_state.get("institution", None),
-            "matched_category": matched_category_name
+            "matched_category": matched_category_name,
+            "module_results": module_results
         }

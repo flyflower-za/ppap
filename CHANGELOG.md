@@ -2,6 +2,38 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-23] - 校验模块联动与引擎比对功能增强
+
+### 功能描述
+- **引擎机构归一化比对修复**：在规则引擎中增加了 `normalize_institution_name` 归一化清洗函数，统一比对中英文、简称（如 "华测检测", "华测", "CTI" 都归一化为 "cti"），修复了因为归一化差异导致的规则被跳过、进而检测项为 0 的严重 Bug。
+- **自定义规则的关联模块配置功能**：在规则配置中心的规则编辑与新建对话框中，为非逻辑图类型的标准规则添加了「关联校验模块」的多选勾选框，用户可以为自定义规则勾选需要触发的底层校验模块（如：二维码识别检查、数字签名验证、文档篡改检查、发证机构识别等），并能够将关联的模块成功同步保存至后端。
+- **添加 Docker 构建忽略文件以提速构建**：在前端和后端目录中分别补充了 `.dockerignore` 配置文件，彻底排除了本地 `node_modules`、`dist`、`__pycache__` 等无用缓存对 Docker 上下文的干扰，显著提升了常规部署和热更新的构建效率。
+
+### 详细修改记录
+
+#### 1. 后端 - 引擎归一化与 Docker 忽略
+- **规则引擎核心** ([core.py](file:///c:/Projects/git/ppap/backend/app/engine/core.py)) [MODIFY]：
+  - 新增 `normalize_institution_name` 归一化清洗函数。
+  - 修改引擎两处生效条件校验逻辑，由直接比对 `lower()` 改为基于归一化结果进行比对，防止 "CTI" 与 "华测检测" 等拼写差异导致规则失效。
+- **后端 Docker 忽略** ([.dockerignore](file:///c:/Projects/git/ppap/backend/.dockerignore)) [NEW]：
+  - 忽略 `__pycache__`, `.pytest_cache`, `.venv` 等临时目录，加速构建上下文传输。
+
+#### 2. 前端 - 关联校验模块多选与 Docker 忽略
+- **规则管理页面** ([RulesPage.vue](file:///c:/Projects/git/ppap/frontend/src/views/RulesPage.vue)) [MODIFY]：
+  - 在新建/编辑标准规则的表单中，添加了「关联校验模块」复选框组。
+  - 弹窗打开时自动异步加载活动校验模块列表及规则已绑定的模块列表。
+  - 保存规则时自动调用 `assignRuleModules` 接口保存绑定的校验模块。
+- **前端 Docker 忽略** ([.dockerignore](file:///c:/Projects/git/ppap/frontend/.dockerignore)) [NEW]：
+  - 忽略 `node_modules`, `dist` 等本地开发残留资源。
+
+### 影响范围
+- ✅ 规则引擎校验逻辑
+- ✅ 前端规则配置页面
+- ✅ Docker 构建速度提升
+- ❌ 无数据库变更
+
+---
+
 ## [2026-06-23] - Windows 部署脚本修复
 
 ### 功能描述
@@ -591,9 +623,10 @@ docker compose up -d --build
 
 | 日期 | 版本 | 描述 |
 |------|------|------|
+| 2026-06-23 | 1.1.2 | 校验模块联动与引擎机构归一化比对修复 |
 | 2026-06-23 | 1.1.1 | Windows 部署脚本修复，功能对齐 deploy.sh |
 | 2026-06-04 | 1.1.0 | P2 规则变更审批流程与 P3 版本管理增强 |
 | 2026-06-03 | 1.0.3 | 数据库初始化自动化与Windows部署支持 |
-| 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入数据源变量 |
+| 2026-05-27 | 1.0.2 | 变量面板功能，支持快捷插入 data-source 变量 |
 | 2026-05-25 | 1.0.1 | 端口配置优化，解决8000端口冲突 |
 | 2026-05-24 | 1.0.0 | PPAP项目初始版本 |
