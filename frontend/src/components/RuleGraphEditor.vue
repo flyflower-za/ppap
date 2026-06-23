@@ -304,6 +304,19 @@
               </div>
             </div>
           </div>
+          <!-- Template Formatter -->
+          <div v-if="selectedNode.data?.nodeType === 'template-formatter'">
+            <div class="field-group">
+              <label class="field-label" for="node-template">
+                拼接模板 <span class="required-mark">*</span>
+              </label>
+              <div class="field-input-with-var">
+                <textarea id="node-template" v-model="selectedNode.data.template" class="field-textarea mono" rows="4" placeholder="https://example/api/{{#regex_node.id#}}" @focus="trackFocusedInput"></textarea>
+                <button class="var-trigger-btn" @click="openVarPopover('template')" title="插入变量">{x}</button>
+              </div>
+              <span class="field-hint" v-pre>支持变量插值: 系统变量 <code>{{var}}</code> 或上游节点 <code>{{#node.key#}}</code></span>
+            </div>
+          </div>
 
           <!-- Data Compare -->
           <div v-if="selectedNode.data?.nodeType === 'data-compare'">
@@ -546,6 +559,7 @@ const DEFAULT_NODE_REGISTRY: Record<string, NodeMeta> = {
   'condition':           { label: '条件分支',       icon: '🔀', color: '#fce7f3', borderColor: '#ec4899', group: 'flow',   defaultData: { expression: '' } },
   'human-review':        { label: '人工审核点',     icon: '🙋', color: '#fff7ed', borderColor: '#ea580c', group: 'flow',   defaultData: { review_hint: '' } },
   'http-call':           { label: 'HTTP 外部验证',  icon: '🌐', color: '#ecfdf5', borderColor: '#059669', group: 'flow',   defaultData: { url_template: '', http_method: 'GET', headers: [{ key: 'Content-Type', value: 'application/json', _id: 1 }], body_template: '', timeout: 30, success_type: 'status_2xx', json_path: '', json_expected: 'true', text_contains: '', severity: 'fail', hasSeverity: true } },
+  'template-formatter':  { label: '文本拼接/格式化', icon: '📝', color: '#fffbeb', borderColor: '#f59e0b', group: 'flow',   defaultData: { template: '', severity: 'fail', hasSeverity: false } },
   'data-compare':        { label: '数据比对',       icon: '⚖️', color: '#f0f9ff', borderColor: '#0284c7', group: 'flow',   defaultData: { source_a: '', source_b: '', severity: 'fail', hasSeverity: true } },
   'vote':                { label: '聚合投票',       icon: '🗳️', color: '#faf5ff', borderColor: '#7c3aed', group: 'flow',   defaultData: { min_pass: 2 } },
 }
@@ -589,6 +603,7 @@ function getDefaultDataForOperator(operatorKey: string): Record<string, any> {
     'revision-check': { maxRevisions: 1, allowIncrementalUpdates: false },
     'signature': { expected_issuer: '' },
     'http-call': { url_template: '', http_method: 'GET', headers: [{ key: 'Content-Type', value: 'application/json', _id: 1 }], timeout: 30, success_type: 'status_2xx' },
+    'template-formatter': { template: '' },
     'data-compare': { source_a: '', source_b: '' },
     'vote': { min_pass: 2 },
   }
@@ -676,6 +691,7 @@ const FALLBACK_OUTPUT_SCHEMAS: Record<string, Record<string, { type: string; des
   'regex':               { extracted_value: { type: 'string', desc: '匹配提取值' } },
   'data-compare':        { passed: { type: 'boolean', desc: '比对是否一致' }, message: { type: 'string', desc: '差异详情' }, similarity: { type: 'number', desc: '相似度百分比' } },
   'keyword':             { passed: { type: 'boolean', desc: '关键词是否命中' } },
+  'template-formatter':  { formatted_result: { type: 'string', desc: '格式化拼接后的文本结果' } },
   'pdf-info':            { pdf_info: { type: 'object', desc: 'PDF 元数据' }, page_count: { type: 'integer', desc: '页数' } },
 }
 
@@ -690,6 +706,7 @@ const OPERATOR_KEY_TO_NODE_TYPE: Record<string, string> = {
   'http_call': 'http-call',
   'variable_extractor': 'regex',
   'document_diff': 'data-compare',
+  'template_formatter': 'template-formatter',
 }
 
 // Build output schemas dynamically from backend + fallbacks

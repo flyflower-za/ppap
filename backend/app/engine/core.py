@@ -14,6 +14,7 @@ from app.engine.operators.url_fetch_operator import URLFetchOperator
 from app.engine.operators.stamp_operator import StampDetectionOperator
 from app.engine.operators.diff_operator import DocumentDiffOperator
 from app.engine.operators.table_operator import TableVerificationOperator
+from app.engine.operators.template_formatter_operator import TemplateFormatterOperator
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class VerificationEngine:
             "StampDetection": StampDetectionOperator(),
             "DocumentDiff": DocumentDiffOperator(),
             "TableVerification": TableVerificationOperator(),
+            "TemplateFormatter": TemplateFormatterOperator(),
         }
 
     def _flatten_shared_state(self, context: DocumentContext) -> None:
@@ -95,6 +97,7 @@ class VerificationEngine:
             "StampDetection": StampDetectionOperator(),
             "DocumentDiff": DocumentDiffOperator(),
             "TableVerification": TableVerificationOperator(),
+            "TemplateFormatter": TemplateFormatterOperator(),
         }
 
     def _determine_required_operators(self, rules: List[VerificationRule], rule_to_modules: Dict[str, List[VerificationModule]] = None) -> List[BaseOperator]:
@@ -1049,6 +1052,30 @@ class VerificationEngine:
                             node_passed = False
                             node_msg = "变量提取跳过：数据源为空或未配置模式"
 
+                    elif node_type in ["template_formatter", "template-formatter"]:
+                        template = node_data.get("template", "")
+                        if not template:
+                            node_passed = False
+                            node_msg = "模板拼接失败：未配置拼接模板"
+                        else:
+                            try:
+                                op = self._available_operators.get("TemplateFormatter")
+                                if not op:
+                                    from app.engine.operators.template_formatter_operator import TemplateFormatterOperator
+                                    op = TemplateFormatterOperator()
+                                
+                                res = await op.execute(
+                                    context,
+                                    template=template
+                                )
+                                node_passed = res.pass_status
+                                node_msg = res.message
+                                node_extracted_groups = res.extracted_data
+                            except Exception as e:
+                                logger.error(f"[Engine] Template formatter node failed: {e}")
+                                node_passed = False
+                                node_msg = f"模板拼接异常: {e}"
+
                     elif node_type in ["document_diff", "document-diff"]:
                         base_document_url = node_data.get("base_document_url", "")
                         similarity_threshold = node_data.get("similarity_threshold", 100.0)
@@ -1139,6 +1166,8 @@ class VerificationEngine:
                         node_outputs_dict.update({
                             "similarity": node_diff_similarity if node_diff_similarity is not None else 0.0
                         })
+                    elif node_type in ["template_formatter", "template-formatter"]:
+                        node_outputs_dict.update(node_extracted_groups)
 
                     context.node_outputs[node_id] = node_outputs_dict
 

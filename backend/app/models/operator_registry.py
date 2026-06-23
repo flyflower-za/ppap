@@ -272,5 +272,28 @@ INITIAL_OPERATORS = [
         "default_severity": "fail",
         "priority": 30,
         "is_heavy": True
+    },
+    {
+        "operator_key": "template_formatter",
+        "display_name": "文本拼接/格式化",
+        "category": "extraction",
+        "description": "将上游节点的提取字段与预置模板进行文本拼接和格式化组合",
+        "operator_type": "native",
+        "parameters_schema": {
+            "type": "object",
+            "properties": {
+                "template": {"type": "string", "description": "拼接模板，支持使用上游节点变量（例如：https://example/api/{{#regex_node.id#}}）"}
+            },
+            "required": ["template"]
+        },
+        "output_schema": {
+            "type": "object",
+            "properties": {
+                "formatted_result": {"type": "string", "description": "格式化拼接后的文本结果"}
+            }
+        },
+        "supports_severity": False,
+        "priority": 26,
+        "is_heavy": False
     }
 ]

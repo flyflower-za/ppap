@@ -88,7 +88,8 @@ class URLFetchOperator(BaseOperator):
                 extracted_data={
                     "download_status": "success",
                     "file_size": len(pdf_bytes),
-                    "pdf_info": context.shared_state.get("pdf_info", {})
+                    "pdf_info": context.shared_state.get("pdf_info", {}),
+                    "pdf_text": context.shared_state.get("full_text", "")
                 }
             )
 

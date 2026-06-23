@@ -207,3 +207,52 @@ async def test_logic_graph_dag_and_interpolation():
     for c in checks:
         assert "正则未匹配" not in c["message"]
 
+
+@pytest.mark.asyncio
+async def test_logic_graph_template_formatter():
+    engine = VerificationEngine()
+    
+    context = DocumentContext(
+        file_path="dummy.pdf",
+        file_type="quality_report",
+        shared_state={
+            "full_text": "这是一个由华测检测 (CTI) 签发的报告。",
+            "institution": "CTI",
+            "qr_codes": [{"page": 1, "data": "http://example.com"}]
+        }
+    )
+    
+    # Node 1: variable_extractor (extracts "华测检测")
+    # Node 2: template_formatter (formats url using the extracted name)
+    graph_rule = VerificationRule(
+        rule_name="Template Formatter Test Rule",
+        rule_type=RuleType.logic_graph,
+        rule_content="AST GRAPH",
+        severity=Severity.fail,
+        logic_config={
+            "nodes": [
+                {"id": "node_ext", "type": "variable_extractor", "data": {"source_field": "full_text", "pattern": "由(?P<inst>[^\\s]+)检测", "severity": "fail"}},
+                {"id": "node_fmt", "type": "template_formatter", "data": {"template": "https://verify.org/api/{{#node_ext.inst#}}", "severity": "fail"}}
+            ],
+            "edges": [
+                {"id": "edge_fmt", "source": "node_ext", "target": "node_fmt"}
+            ]
+        }
+    )
+    
+    result = await engine.run(context, [graph_rule])
+    
+    assert result["pass_count"] == 2
+    assert result["fail_count"] == 0
+    
+    checks = result.get("checks", [])
+    assert len(checks) == 2
+    
+    fmt_check = next((c for c in checks if c["node_id"] == "node_fmt"), None)
+    assert fmt_check is not None
+    assert fmt_check["passed"] is True
+    
+    # Check that formatted result was stored in node_outputs
+    assert context.node_outputs["node_fmt"]["formatted_result"] == "https://verify.org/api/华测检测"
+
+
