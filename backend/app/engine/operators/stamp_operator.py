@@ -21,6 +21,70 @@ class StampDetectionOperator(BaseOperator):
     def requires(self) -> List[str]:
         return ["pdf_bytes"]
 
+    @staticmethod
+    def _merge_nearby(candidates: List[dict], merge_gap: int = 40) -> List[dict]:
+        """
+        Merge stamp candidates whose bounding boxes are within *merge_gap*
+        pixels of each other.  Uses a simple union-find so that chains of
+        nearby fragments all collapse into one stamp.
+
+        This keeps cross-page seam stamps (骑缝章) intact because they live
+        on different pages and are never passed in together.
+        """
+        if not candidates:
+            return []
+
+        n = len(candidates)
+        parent = list(range(n))
+
+        def find(i):
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
+
+        # Merge any two candidates whose bbox gap < merge_gap
+        for i in range(n):
+            ci = candidates[i]
+            for j in range(i + 1, n):
+                cj = candidates[j]
+                # Horizontal gap
+                gap_x = max(0, max(ci["x"], cj["x"]) - min(ci["x"] + ci["w"], cj["x"] + cj["w"]))
+                # Vertical gap
+                gap_y = max(0, max(ci["y"], cj["y"]) - min(ci["y"] + ci["h"], cj["y"] + cj["h"]))
+                if gap_x < merge_gap and gap_y < merge_gap:
+                    union(i, j)
+
+        # Group by root
+        groups: dict = {}
+        for i in range(n):
+            r = find(i)
+            groups.setdefault(r, []).append(i)
+
+        merged = []
+        for indices in groups.values():
+            x0 = min(candidates[i]["x"] for i in indices)
+            y0 = min(candidates[i]["y"] for i in indices)
+            x1 = max(candidates[i]["x"] + candidates[i]["w"] for i in indices)
+            y1 = max(candidates[i]["y"] + candidates[i]["h"] for i in indices)
+            total_area = sum(candidates[i]["area"] for i in indices)
+            best_circ = max(candidates[i]["circularity"] for i in indices)
+            merged.append({
+                "x": x0, "y": y0,
+                "w": x1 - x0, "h": y1 - y0,
+                "area": total_area,
+                "circularity": round(best_circ, 3)
+            })
+            if len(indices) > 1:
+                logger.info(f"  Merged {len(indices)} fragments → bbox=({x0},{y0},{x1-x0},{y1-y0})")
+
+        return merged
+
     async def execute(self, context: DocumentContext, **kwargs) -> OperatorResult:
         pdf_bytes = context.shared_state.get("pdf_bytes")
         if not pdf_bytes:
@@ -86,6 +150,8 @@ class StampDetectionOperator(BaseOperator):
                 red_pixel_count = cv2.countNonZero(mask)
                 logger.info(f"Stamp detection page {page_idx + 1}: red_pixels={red_pixel_count}, raw_contours={len(contours)}")
 
+                page_candidates = []
+
                 for cnt in contours:
                     area = cv2.contourArea(cnt)
                     if area < 500:
@@ -96,9 +162,6 @@ class StampDetectionOperator(BaseOperator):
                     if aspect_ratio < 0.3 or aspect_ratio > 3.0:
                         continue
 
-                    # Circularity: 4π·A / P²
-                    # Circle ≈ 1.0, square ≈ 0.78, irregular stamp ≈ 0.3-0.6
-                    # Text chars / lines typically < 0.2
                     perimeter = cv2.arcLength(cnt, True)
                     if perimeter == 0:
                         continue
@@ -112,21 +175,34 @@ class StampDetectionOperator(BaseOperator):
                     if circularity < 0.2:
                         continue
 
-                    # Expand bounding box by 15% on each side for visual margin
-                    pad_x = int(w * 0.15)
-                    pad_y = int(h * 0.15)
-                    x0 = max(0, x - pad_x)
-                    y0 = max(0, y - pad_y)
-                    x1 = x + w + pad_x
-                    y1 = y + h + pad_y
-
-                    total_stamps += 1
-                    stamps_info.append({
-                        "page": page_idx + 1,
-                        "area": int(area),
-                        "circularity": round(circularity, 3),
-                        "bounding_box": [int(x0/zoom), int(y0/zoom), int(x1/zoom), int(y1/zoom)]
+                    page_candidates.append({
+                        "x": x, "y": y, "w": w, "h": h,
+                        "area": area, "circularity": circularity
                     })
+
+            # Merge nearby candidates on the same page into single stamps.
+            # Fragments of the same stamp (border arcs, text, star) that
+            # survived contour detection get merged here.
+            # Cross-page seam stamps (骑缝章) are unaffected — they live on
+            # different pages and are never merged together.
+            merged = self._merge_nearby(page_candidates, merge_gap=40)
+
+            for det in merged:
+                x, y, w, h = det["x"], det["y"], det["w"], det["h"]
+                pad_x = int(w * 0.15)
+                pad_y = int(h * 0.15)
+                x0 = max(0, x - pad_x)
+                y0 = max(0, y - pad_y)
+                x1 = x + w + pad_x
+                y1 = y + h + pad_y
+
+                total_stamps += 1
+                stamps_info.append({
+                    "page": page_idx + 1,
+                    "area": det["area"],
+                    "circularity": det["circularity"],
+                    "bounding_box": [int(x0/zoom), int(y0/zoom), int(x1/zoom), int(y1/zoom)]
+                })
 
             doc.close()
 
