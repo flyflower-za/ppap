@@ -62,8 +62,8 @@
 
             <!-- Failed -->
             <div v-else-if="file.status === 'failed'" class="error-section">
-              <p class="error-msg" :title="file.verification_result_json?.error || '诊断完成：文档核心印章缺失或参数不合规'">
-                <el-icon class="mr-1"><Close /></el-icon> {{ file.verification_result_json?.error || '诊断完成：文档核心印章缺失或参数不合规' }}
+              <p class="error-msg" :title="getFailedMessage(file)">
+                <el-icon class="mr-1"><Close /></el-icon> {{ getFailedMessage(file) }}
               </p>
             </div>
           </div>
@@ -209,6 +209,44 @@ function getRefCount(file: any): number {
 function getInstitution(file: any): string {
   const inst = file.verification_result_json?.summary?.institution
   return inst || '-'
+}
+
+// Generate meaningful error message from verification result
+function getFailedMessage(file: any): string {
+  const vr = file.verification_result_json
+  if (!vr) return '校验失败，无法获取检测结果'
+
+  // If there's an explicit error field, use it
+  if (vr.error) return vr.error
+
+  const summary = vr.summary
+  const checks = vr.checks || []
+
+  // If no checks were executed at all
+  if (checks.length === 0) {
+    if (summary?.matched_category === null) {
+      return '未匹配到任何检测分类，未执行检测项目'
+    }
+    return '校验完成但未产生任何检测项'
+  }
+
+  // Extract failed check descriptions
+  const failedChecks = checks.filter((c: any) => c.severity === 'fail' || c.status === 'fail')
+  if (failedChecks.length > 0) {
+    const reasons = failedChecks.map((c: any) => c.title || c.rule_name || c.message || '未知检测项').slice(0, 2)
+    const suffix = failedChecks.length > 2 ? ` 等 ${failedChecks.length} 项` : ''
+    return `${reasons.join('、')}${suffix} 未通过`
+  }
+
+  // Fallback: use summary counts
+  if (summary) {
+    const { pass = 0, warning = 0, fail = 0, total = 0 } = summary
+    if (total === 0) return '未执行任何检测项目'
+    if (fail > 0) return `${fail} 项检测未通过`
+    if (warning > 0) return `${warning} 项检测存在风险`
+  }
+
+  return '校验未通过，请查看详细报告'
 }
 
 async function fetchTasks(silent = false) {
