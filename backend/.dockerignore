@@ -9,7 +9,20 @@ venv/
 *.sqlite3
 .git/
 .gitignore
-check_db_state.py
-tests/
-requirements.txt
+.env
+.env.*
+!.env.example
 *.md
+.DS_Store
+
+# Dev/test scripts not needed in production
+check_*.py
+test_*.py
+verify_*.py
+analyze_*.py
+create_*.py
+deep_*.py
+e2e_test.py
+algorithm_demo.py
+pytest.ini
+tests/
