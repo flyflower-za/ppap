@@ -41,6 +41,9 @@
                   <el-tag type="info" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
                     二维码: {{ qrCodeCount }} 个
                   </el-tag>
+                  <el-tag v-if="stampCount > 0" type="warning" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
+                    印章: {{ stampCount }} 个
+                  </el-tag>
                 </template>
               </div>
             </div>
@@ -815,6 +818,12 @@ const qrCodeCount = computed(() => {
   return qrCodes.value ? qrCodes.value.length : 0
 })
 
+const stampCount = computed(() => {
+  const v = file.value?.verification_result_json
+  const stamps = v?.operator_logs?.StampDetectionOperator?.extracted_data?.stamps
+  return Array.isArray(stamps) ? stamps.length : 0
+})
+
 const isTextPdf = computed(() => {
   const v = file.value?.verification_result_json
   return v?.operator_logs?.PDFInfoExtractor?.extracted_data?.pdf_info?.is_text_pdf || false
@@ -944,6 +953,16 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
               const color = (sig.integrity && !sig.expired) ? '#67C23A' : '#F56C6C'
               const bg = (sig.integrity && !sig.expired) ? 'rgba(103, 194, 58, 0.25)' : 'rgba(245, 108, 108, 0.25)'
               drawHighlightBox(pageWrapper, sig.rect, viewport, bg, `2px solid ${color}`)
+            }
+          })
+        }
+
+        // Physical stamps / seals (StampDetectionOperator)
+        const stampData = verificationResult?.operator_logs?.StampDetectionOperator?.extracted_data?.stamps || []
+        if (Array.isArray(stampData)) {
+          stampData.forEach((stamp: any) => {
+            if (stamp.page === pageNum && stamp.bounding_box) {
+              drawHighlightBox(pageWrapper, stamp.bounding_box, viewport, 'rgba(230, 162, 60, 0.2)', '2px solid #E6A23C')
             }
           })
         }
