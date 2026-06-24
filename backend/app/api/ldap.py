@@ -350,6 +350,11 @@ async def create_user(
         is_admin=(user_data.role == "ADMIN")
     )
 
+    # Set password hash if password is provided
+    if user_data.password:
+        from app.core.security import get_password_hash
+        new_user.password_hash = get_password_hash(user_data.password)
+
     db.add(new_user)
     await db.commit()
     await db.refresh(new_user)
@@ -442,6 +447,33 @@ async def toggle_user_status(
         "message": f"用户已{status_text}",
         "is_active": user.is_active
     }
+
+
+@router.put("/users/{user_id}/password")
+async def reset_user_password(
+    user_id: str,
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Admin reset a user's password.
+    """
+    check_admin_permission(current_user)
+
+    new_password = body.get("password", "")
+    if not new_password or len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="密码长度至少 6 位")
+
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+
+    from app.core.security import get_password_hash
+    user.password_hash = get_password_hash(new_password)
+    await db.commit()
+
+    return {"message": f"用户 {user.email} 的密码已重置"}
 
 
 @router.delete("/users/{user_id}")

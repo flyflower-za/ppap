@@ -119,6 +119,13 @@ export const ldapApi = {
   },
 
   /**
+   * Admin reset a user's password
+   */
+  resetUserPassword(userId: string, password: string): Promise<{ message: string }> {
+    return client.put<any, { message: string }>(`/settings/users/${userId}/password`, { password })
+  },
+
+  /**
    * Delete a user
    */
   deleteUser(userId: string): Promise<{ message: string }> {

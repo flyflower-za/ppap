@@ -64,6 +64,10 @@
           >
             个人信息由企业 LDAP/SSO 系统统一管理，如需修改请联系系统管理员。
           </el-alert>
+
+          <div class="mt-4">
+            <el-button type="primary" :icon="Key" @click="openChangePasswordDialog">修改密码</el-button>
+          </div>
         </el-card>
 
         <!-- Notification Section -->
@@ -1004,6 +1008,7 @@
                       <el-dropdown-menu>
                         <el-dropdown-item command="edit" :icon="Edit">编辑</el-dropdown-item>
                         <el-dropdown-item command="groups" :icon="UserFilled">设置权限组</el-dropdown-item>
+                        <el-dropdown-item command="resetPassword" :icon="Key">重置密码</el-dropdown-item>
                         <el-dropdown-item command="delete" :icon="Delete" divided v-if="scope.row.id !== authStore.user?.id">删除</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
@@ -1099,6 +1104,15 @@
               <el-input
                 v-model="userForm.department"
                 placeholder="请输入部门"
+                clearable
+              />
+            </el-form-item>
+            <el-form-item v-if="!editingUser?.id" label="密码" prop="password">
+              <el-input
+                v-model="userForm.password"
+                type="password"
+                placeholder="请输入初始密码（至少6位）"
+                show-password
                 clearable
               />
             </el-form-item>
@@ -1244,6 +1258,15 @@
                 clearable
               />
             </el-form-item>
+            <el-form-item v-if="!editingUser?.id" label="密码" prop="password">
+              <el-input
+                v-model="userForm.password"
+                type="password"
+                placeholder="请输入初始密码（至少6位）"
+                show-password
+                clearable
+              />
+            </el-form-item>
             <el-form-item label="角色" prop="role">
               <el-select v-model="userForm.role" placeholder="请选择角色">
                 <el-option label="管理员" value="ADMIN" />
@@ -1263,6 +1286,79 @@
             >
               保存
             </el-button>
+          </template>
+        </el-dialog>
+
+        <!-- Reset Password Dialog (Admin) -->
+        <el-dialog
+          v-model="resetPasswordDialogVisible"
+          title="重置用户密码"
+          width="450px"
+          :close-on-click-modal="false"
+        >
+          <el-form label-width="100px">
+            <el-form-item label="用户">
+              <span>{{ resetPasswordUser?.full_name }} ({{ resetPasswordUser?.email }})</span>
+            </el-form-item>
+            <el-form-item label="新密码" required>
+              <el-input
+                v-model="resetPasswordForm.password"
+                type="password"
+                placeholder="请输入新密码（至少6位）"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="确认密码" required>
+              <el-input
+                v-model="resetPasswordForm.confirmPassword"
+                type="password"
+                placeholder="请再次输入新密码"
+                show-password
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="resettingPassword" @click="handleResetPassword">确认重置</el-button>
+          </template>
+        </el-dialog>
+
+        <!-- Change Password Dialog (Self-service) -->
+        <el-dialog
+          v-model="changePasswordDialogVisible"
+          title="修改密码"
+          width="450px"
+          :close-on-click-modal="false"
+        >
+          <el-form label-width="100px">
+            <el-form-item label="旧密码" required>
+              <el-input
+                v-model="changePasswordForm.oldPassword"
+                type="password"
+                placeholder="请输入当前密码"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="新密码" required>
+              <el-input
+                v-model="changePasswordForm.newPassword"
+                type="password"
+                placeholder="请输入新密码（至少6位）"
+                show-password
+              />
+            </el-form-item>
+            <el-form-item label="确认新密码" required>
+              <el-input
+                v-model="changePasswordForm.confirmNewPassword"
+                type="password"
+                placeholder="请再次输入新密码"
+                show-password
+              />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="changePasswordDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="changingPassword" @click="handleChangePassword">确认修改</el-button>
           </template>
         </el-dialog>
       </el-col>
@@ -1575,6 +1671,7 @@ const userForm = reactive({
   email: '',
   full_name: '',
   department: '',
+  password: '',
   role: 'USER' as 'ADMIN' | 'MANAGER' | 'USER',
   group_ids: [] as string[]
 })
@@ -2031,6 +2128,7 @@ function handleCreateUser() {
     email: '',
     full_name: '',
     department: '',
+    password: '',
     role: 'USER',
     group_ids: []
   })
@@ -2043,6 +2141,7 @@ function handleEditUser(user: UserInfo) {
     email: user.email,
     full_name: user.full_name,
     department: user.department || '',
+    password: '',
     role: user.role as 'ADMIN' | 'MANAGER' | 'USER',
     group_ids: user.groups?.map((g: UserGroupBasic) => g.id) || []
   })
@@ -2077,7 +2176,8 @@ async function handleSaveUser() {
           email: userForm.email,
           full_name: userForm.full_name,
           department: userForm.department || undefined,
-          role: userForm.role
+          role: userForm.role,
+          password: userForm.password || undefined
         })
         userId = result.user.id
         ElMessage.success('用户创建成功')
@@ -2107,6 +2207,78 @@ async function handleDeleteUser(user: UserInfo) {
   }
 }
 
+// ==================== Password Management ====================
+
+// Admin reset password
+const resetPasswordDialogVisible = ref(false)
+const resetPasswordUser = ref<UserInfo | null>(null)
+const resetPasswordForm = reactive({ password: '', confirmPassword: '' })
+const resettingPassword = ref(false)
+
+function openResetPasswordDialog(user: UserInfo) {
+  resetPasswordUser.value = user
+  resetPasswordForm.password = ''
+  resetPasswordForm.confirmPassword = ''
+  resetPasswordDialogVisible.value = true
+}
+
+async function handleResetPassword() {
+  if (!resetPasswordUser.value) return
+  if (resetPasswordForm.password.length < 6) {
+    ElMessage.warning('密码长度至少 6 位')
+    return
+  }
+  if (resetPasswordForm.password !== resetPasswordForm.confirmPassword) {
+    ElMessage.warning('两次输入的密码不一致')
+    return
+  }
+  resettingPassword.value = true
+  try {
+    const { ldapApi } = await import('@/api/ldap')
+    await ldapApi.resetUserPassword(resetPasswordUser.value.id, resetPasswordForm.password)
+    ElMessage.success(`用户 ${resetPasswordUser.value.email} 的密码已重置`)
+    resetPasswordDialogVisible.value = false
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '重置密码失败')
+  } finally {
+    resettingPassword.value = false
+  }
+}
+
+// Self-service change password
+const changePasswordDialogVisible = ref(false)
+const changePasswordForm = reactive({ oldPassword: '', newPassword: '', confirmNewPassword: '' })
+const changingPassword = ref(false)
+
+function openChangePasswordDialog() {
+  changePasswordForm.oldPassword = ''
+  changePasswordForm.newPassword = ''
+  changePasswordForm.confirmNewPassword = ''
+  changePasswordDialogVisible.value = true
+}
+
+async function handleChangePassword() {
+  if (changePasswordForm.newPassword.length < 6) {
+    ElMessage.warning('新密码长度至少 6 位')
+    return
+  }
+  if (changePasswordForm.newPassword !== changePasswordForm.confirmNewPassword) {
+    ElMessage.warning('两次输入的新密码不一致')
+    return
+  }
+  changingPassword.value = true
+  try {
+    const { authApi } = await import('@/api/auth')
+    await authApi.changePassword(changePasswordForm.oldPassword, changePasswordForm.newPassword)
+    ElMessage.success('密码修改成功')
+    changePasswordDialogVisible.value = false
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || error.message || '修改密码失败')
+  } finally {
+    changingPassword.value = false
+  }
+}
+
 // User command handler (for dropdown menu)
 async function handleUserCommand(command: string, user: UserInfo) {
   switch (command) {
@@ -2115,6 +2287,9 @@ async function handleUserCommand(command: string, user: UserInfo) {
       break
     case 'groups':
       handleSetUserGroups(user)
+      break
+    case 'resetPassword':
+      openResetPasswordDialog(user)
       break
     case 'delete':
       await handleDeleteUser(user)

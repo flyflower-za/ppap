@@ -99,3 +99,30 @@ async def get_me(
 ):
     """Get current user info."""
     return UserResponse.model_validate(current_user)
+
+
+@router.post("/change-password")
+async def change_password(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """User changes their own password (requires old password)."""
+    old_password = body.get("old_password", "")
+    new_password = body.get("new_password", "")
+
+    if not old_password or not new_password:
+        raise HTTPException(status_code=400, detail="请填写旧密码和新密码")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="新密码长度至少 6 位")
+
+    if not current_user.password_hash:
+        raise HTTPException(status_code=400, detail="当前账号未设置密码，请联系管理员重置")
+
+    if not verify_password(old_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="旧密码不正确")
+
+    current_user.password_hash = get_password_hash(new_password)
+    await db.commit()
+
+    return {"message": "密码修改成功"}
