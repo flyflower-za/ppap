@@ -72,9 +72,12 @@ class StampDetectionOperator(BaseOperator):
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
                 mask = mask1 + mask2
 
-                # Morphological operations
+                # Morphological: dilate first to merge nearby red fragments into
+                # a single connected region, then clean up noise
+                dilate_kernel = np.ones((7, 7), np.uint8)
+                mask = cv2.dilate(mask, dilate_kernel, iterations=2)
+
                 kernel = np.ones((3, 3), np.uint8)
-                mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
                 # Find contours
