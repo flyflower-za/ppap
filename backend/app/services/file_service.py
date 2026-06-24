@@ -74,13 +74,15 @@ class FileService:
 
     async def get_file_detail(self, file_id: str) -> Optional[FileDetailResponse]:
         """Get detailed file information."""
-        file = await self.get_file(file_id)
+        # Use selectinload to preload user in a single query (fixes N+1)
+        result = await self.db.execute(
+            select(File).options(selectinload(File.uploaded_by_user)).where(File.id == file_id)
+        )
+        file = result.scalar_one_or_none()
         if not file:
             return None
 
-        # Get uploader info
-        result = await self.db.execute(select(User).where(User.id == file.uploaded_by))
-        user = result.scalar_one_or_none()
+        user = file.uploaded_by_user
 
         verification_result = None
         if file.verification_result:

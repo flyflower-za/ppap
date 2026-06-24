@@ -247,9 +247,16 @@ async function fetchTasks(silent = false) {
 
 function startPolling() {
   if (pollTimer) return
-  pollTimer = setInterval(() => {
-    fetchTasks(true)
-  }, 2000)
+  let interval = 2000  // Start at 2s
+  const maxInterval = 30000  // Cap at 30s
+  const schedule = () => {
+    pollTimer = setTimeout(() => {
+      fetchTasks(true)
+      interval = Math.min(interval * 1.5, maxInterval)
+      schedule()
+    }, interval)
+  }
+  schedule()
 }
 
 function stopPolling() {

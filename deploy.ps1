@@ -6,6 +6,12 @@ param(
     [switch]$ForceRebuild = $false
 )
 
+# Configurable host and ports (for remote/SSH forwarding scenarios)
+$apiHost = $env:API_HOST ?? "localhost"
+$apiPort = $env:API_PORT ?? "31234"
+$minioPort = $env:MINIO_PORT ?? "9000"
+$minioConsolePort = $env:MINIO_CONSOLE_PORT ?? "9001"
+
 # Colors for output - Use native PowerShell colors for compatibility
 function Write-ColorOutput {
     param([string]$Message, [string]$Color = "White")
@@ -107,10 +113,11 @@ Write-Host ""
 
 # Check if there are code changes that might require rebuild
 $hasChanges = $false
-$gitRoot = git rev-parse --show-toplevel 2>$null
-if ($gitRoot) {
-    # Check for uncommitted changes in backend or frontend
-    $changedFiles = git status --porcelain backend frontend 2>$null
+$projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
+
+# Only check git if .git directory exists and git is available
+if ((Test-Path "$projectRoot\.git") -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    $changedFiles = git -C $projectRoot status --porcelain backend frontend 2>$null
     if ($changedFiles) {
         $hasChanges = $true
         Write-Warning "Detected uncommitted changes in backend/frontend code."
@@ -141,17 +148,89 @@ if (-not (Test-Path $envFile)) {
     if (Test-Path $envExample) {
         Copy-Item $envExample $envFile
         Write-Success "[+] Created .env from .env.example"
-        Write-Warning "  Please remember to change default secrets for production!"
     } else {
         Write-Warning "Creating basic .env file..."
 @"
 # PPAP Environment Configuration
 SECRET_KEY=change-this-in-production
+POSTGRES_PASSWORD=ppap123
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+REDIS_PASSWORD=redis-secret-pass
 "@ | Out-File -FilePath $envFile -Encoding UTF8
         Write-Success "[+] Created basic .env file"
     }
+
+    # Auto-generate strong secrets for first-time deployment
+    $secretKey = -join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
+    $charSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    $dbPass = -join ((1..20) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
+    $minioPass = -join ((1..20) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
+    $redisPass = -join ((1..16) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
+    $adminPass = -join ((1..12) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
+
+    (Get-Content $envFile) -replace '^SECRET_KEY=.*', "SECRET_KEY=$secretKey" | Set-Content $envFile
+    (Get-Content $envFile) -replace '^POSTGRES_PASSWORD=.*', "POSTGRES_PASSWORD=$dbPass" | Set-Content $envFile
+    (Get-Content $envFile) -replace '^MINIO_ROOT_PASSWORD=.*', "MINIO_ROOT_PASSWORD=$minioPass" | Set-Content $envFile
+    (Get-Content $envFile) -replace '^REDIS_PASSWORD=.*', "REDIS_PASSWORD=$redisPass" | Set-Content $envFile
+
+    Write-Success "[+] Auto-generated strong secrets (saved to .env)"
+    Write-Warning "  ⚠ Save these credentials securely! DB password: $dbPass"
+
+    # P2-5: Generate bcrypt hash for admin password and replace in init-db.sql
+    try {
+        $pyScript = @"
+from passlib.context import CryptContext
+import sys
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+sys.stdout.write(ctx.hash('$adminPass'))
+"@
+        $adminHash = python -c $pyScript 2>$null
+        if ($adminHash) {
+            $initDbPath = Join-Path $PSScriptRoot "..\deploy\init-db.sql"
+            if (-not (Test-Path $initDbPath)) {
+                $initDbPath = "init-db.sql"
+            }
+            if (Test-Path $initDbPath) {
+                # Replace the bcrypt hash pattern in init-db.sql
+                $content = Get-Content $initDbPath -Raw
+                $updated = $content -replace '\$2b\$\d+\$[A-Za-z0-9./]+', $adminHash
+                $updated | Out-File -FilePath $initDbPath -Encoding UTF8
+                Write-Success "[+] Admin password set to: $adminPass"
+            }
+            # Write hash to .env for db-init container (existing databases)
+            Add-Content -Path $envFile -Value "ADMIN_PASSWORD_HASH=$adminHash"
+            $env:ADMIN_PASSWORD_HASH = $adminHash
+        } else {
+            Write-Warning "  ⚠ Python/passlib not available, using default admin password (admin123)"
+        }
+    } catch {
+        Write-Warning "  ⚠ Could not generate admin password hash, using default (admin123)"
+    }
 } else {
-    Write-Success "[+] Found existing .env file"
+    Write-Success "[+] Found existing .env file (reusing saved secrets)"
+    # Ensure ADMIN_PASSWORD_HASH exists in .env for existing deployments
+    $envContent = Get-Content $envFile -Raw
+    if (-not ($envContent -match 'ADMIN_PASSWORD_HASH')) {
+        try {
+            $pyScript = @"
+from passlib.context import CryptContext
+import sys
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+sys.stdout.write(ctx.hash('admin123'))
+"@
+            $adminHash = python -c $pyScript 2>$null
+            if ($adminHash) {
+                Add-Content -Path $envFile -Value "ADMIN_PASSWORD_HASH=$adminHash"
+                Write-Warning "[+] Generated ADMIN_PASSWORD_HASH for existing deployment"
+            }
+        } catch {}
+    }
+}
+# Load ADMIN_PASSWORD_HASH into environment for docker-compose
+$envContent = Get-Content $envFile -Raw
+if ($envContent -match 'ADMIN_PASSWORD_HASH=(.+)') {
+    $env:ADMIN_PASSWORD_HASH = $Matches[1].Trim()
 }
 Write-Host ""
 
@@ -263,7 +342,7 @@ $minioReady = $false
 
 while (-not $minioReady -and $retries -gt 0) {
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:9000/minio/health/live" -UseBasicParsing -TimeoutSec 2
+        $response = Invoke-WebRequest -Uri "http://${apiHost}:${minioPort}/minio/health/live" -UseBasicParsing -TimeoutSec 2
         if ($response.StatusCode -eq 200) {
             $minioReady = $true
         } else {
@@ -291,7 +370,7 @@ $backendReady = $false
 
 while (-not $backendReady -and $retries -gt 0) {
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:31234/docs" -UseBasicParsing -TimeoutSec 2
+        $response = Invoke-WebRequest -Uri "http://${apiHost}:${apiPort}/docs" -UseBasicParsing -TimeoutSec 2
         if ($response.StatusCode -eq 200) {
             $backendReady = $true
         } else {
@@ -312,30 +391,36 @@ if ($backendReady) {
     Write-Warning "Backend API may still be starting"
 }
 
-# 5. Initialize MinIO bucket
+# 5. Wait for MinIO bucket initialization
 Write-Host ""
-Write-Warning "Initializing MinIO bucket..."
-Start-Sleep -Seconds 3  # Give MinIO a moment to stabilize
+Write-Warning "Waiting for MinIO bucket initialization..."
 
-$retries = 5
-$bucketCreated = $false
+$retries = 30
+$minioInitReady = $false
 
-while (-not $bucketCreated -and $retries -gt 0) {
-    $null = docker run --rm --network container:ppap-minio --entrypoint /bin/sh minio/mc -c "mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && mc mb ppapminio/ppap-files --ignore-existing && mc anonymous set public ppapminio/ppap-files" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-        $bucketCreated = $true
+while ($retries -gt 0 -and -not $minioInitReady) {
+    $status = (docker inspect ppap-minio-init --format='{{.State.Status}}' 2>$null)
+    $exitCode = (docker inspect ppap-minio-init --format='{{.State.ExitCode}}' 2>$null)
+
+    if ($status -eq "exited" -and $exitCode -eq "0") {
+        $minioInitReady = $true
+        Write-Success "[+] MinIO bucket 'ppap-files' initialized"
+        break
+    } elseif ($status -eq "exited") {
+        Write-Error-Color "Error: MinIO bucket initialization failed"
+        Invoke-DockerCompose "logs", "minio-init"
+        Write-Warning "⚠ Continuing anyway, may need manual bucket setup"
+        break
     } else {
-        Write-Host "Attempting to create MinIO bucket... ($retries retries left)"
-        Start-Sleep -Seconds 3
+        Write-Host "Waiting for MinIO bucket initialization... ($retries retries left)"
+        Start-Sleep -Seconds 2
         $retries--
     }
 }
 
-if ($bucketCreated) {
-    Write-Success "[+] MinIO bucket 'ppap-files' created"
-} else {
-    Write-Warning "⚠ MinIO bucket creation failed, may need manual setup"
-    Write-Host "Run: docker run --rm --network container:ppap-minio minio/mc ..."
+if (-not $minioInitReady -and $retries -eq 0) {
+    Write-Warning "MinIO bucket initialization may still be in progress. Check logs:"
+    Write-Host "  docker compose logs minio-init"
 }
 
 # 6. Final status check
@@ -346,13 +431,13 @@ Invoke-DockerCompose "ps"
 Write-Host ""
 Write-Host "=== Deployment Completed Successfully ===" -ForegroundColor Green
 Write-Host "Access the services at:" -ForegroundColor Cyan
-Write-Host "  🌐 Frontend UI:   " -NoNewline; Write-Host "http://localhost" -ForegroundColor Green
-Write-Host "  🔧 Backend API:   " -NoNewline; Write-Host "http://localhost:31234/docs" -ForegroundColor Green
-Write-Host "  📁 MinIO Console: " -NoNewline; Write-Host "http://localhost:9001" -ForegroundColor Green; Write-Host " (minioadmin / minioadmin)" -ForegroundColor Yellow
+Write-Host "  🌐 Frontend UI:   " -NoNewline; Write-Host "http://${apiHost}" -ForegroundColor Green
+Write-Host "  🔧 Backend API:   " -NoNewline; Write-Host "http://${apiHost}:${apiPort}/docs" -ForegroundColor Green
+Write-Host "  📁 MinIO Console: " -NoNewline; Write-Host "http://${apiHost}:${minioConsolePort}" -ForegroundColor Green; Write-Host " (minioadmin)" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Default Admin Account:" -ForegroundColor Cyan
 Write-Host "  📧 Email:    " -NoNewline; Write-Host "admin@example.com" -ForegroundColor Green
-Write-Host "  🔑 Password: " -NoNewline; Write-Host "admin123" -ForegroundColor Green
+Write-Host "  🔑 Password: " -NoNewline; Write-Host $(if ($adminPass) { $adminPass } else { "admin123" }) -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Access the frontend UI at http://localhost"

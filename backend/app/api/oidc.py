@@ -20,6 +20,7 @@ from app.schemas.user import Token, UserResponse
 from app.api.deps import get_current_user
 from app.core.audit_logger import log_audit_event
 from app.core.config import settings
+from app.core.redis import redis_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/oidc", tags=["OpenID Connect SSO"])
@@ -321,6 +322,15 @@ async def get_authorization_url(
         # Generate state for CSRF protection
         state = str(uuid.uuid4())
 
+        # Store state in Redis with 10-minute expiry for callback validation
+        try:
+            if not redis_client.redis:
+                await redis_client.connect()
+            await redis_client.set(f"oidc_state:{state}", state, expire=600)
+            logger.info(f"Stored OIDC state in Redis: {state}")
+        except Exception as redis_err:
+            logger.warning(f"Failed to store OIDC state in Redis (CSRF protection degraded): {redis_err}")
+
         # Build authorization URL
         from urllib.parse import urlencode
         scope = config.get("scope", "openid email profile")
@@ -368,6 +378,25 @@ async def oidc_callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing required parameters: code and state"
         )
+
+    # Validate state parameter to prevent CSRF attacks
+    try:
+        if not redis_client.redis:
+            await redis_client.connect()
+        stored_state = await redis_client.get(f"oidc_state:{state}")
+        if not stored_state:
+            logger.warning(f"OIDC callback state validation failed: state '{state}' not found or expired")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid or expired state parameter. Possible CSRF attack."
+            )
+        # Delete the state after validation (one-time use)
+        await redis_client.delete(f"oidc_state:{state}")
+        logger.info(f"OIDC state validated successfully")
+    except HTTPException:
+        raise
+    except Exception as redis_err:
+        logger.warning(f"OIDC state validation failed due to Redis error (proceeding without CSRF check): {redis_err}")
 
     config = await get_oidc_config(db)
 

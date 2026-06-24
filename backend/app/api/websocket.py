@@ -1,7 +1,7 @@
 import json
 import logging
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_maker
@@ -18,16 +18,35 @@ router = APIRouter(prefix="/files", tags=["WebSocket Progress"])
 async def websocket_progress(
     websocket: WebSocket,
     file_id: str,
-    token: str = Query(None),
 ):
     """
     WebSocket endpoint for real-time file verification progress streaming.
-    Authenticates via query parameter token and streams progress from Redis Pub/Sub.
+    Authenticates via first-message token (not query parameter) to avoid
+    token leaking in server access logs, proxy logs, and browser history.
     """
     await websocket.accept()
     logger.info(f"WebSocket connection request for File ID: {file_id}")
 
-    # 1. Authenticate token
+    # 1. Wait for auth message from client (timeout 5 seconds)
+    try:
+        auth_msg_raw = await asyncio.wait_for(websocket.receive_text(), timeout=5.0)
+        auth_data = json.loads(auth_msg_raw)
+        if auth_data.get("type") != "auth":
+            await websocket.send_json({"error": "First message must be auth type"})
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        token = auth_data.get("token")
+    except asyncio.TimeoutError:
+        logger.warning(f"WebSocket rejected for File ID {file_id}: Auth timeout")
+        await websocket.send_json({"error": "Authentication timeout"})
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+    except Exception as e:
+        logger.warning(f"WebSocket rejected for File ID {file_id}: {e}")
+        await websocket.send_json({"error": "Invalid auth message"})
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     if not token:
         logger.warning(f"WebSocket rejected for File ID {file_id}: Missing token")
         await websocket.send_json({"error": "Missing authentication token"})

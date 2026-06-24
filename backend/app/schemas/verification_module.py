@@ -155,7 +155,7 @@ MODULE_TYPE_METADATA = {
         "icon": "🔗",
         "config_fields": [
             {"key": "regex_pattern", "label": "二维码提取规则", "type": "text", "default": "reportno={report_id}&randomno={verify_code}", "placeholder": "用 {变量名} 标记需提取的部分，用 * 跳过中间内容"},
-            {"key": "url_template", "label": "请求URL模板", "type": "text", "default": "https://api.example.com/check?id={{report_id}}&code={{verify_code}}", "placeholder": "用 {{变量名}} 引用提取的变量"},
+            {"key": "url_template", "label": "请求URL模板", "type": "text", "default": "https://api.example.com/check?id={{report_id}}&code={{verify_code}}", "placeholder": "用 {变量名} 或 {{变量名}} 引用提取的变量"},
             {"key": "similarity_threshold", "label": "相似度报警阈值(%)", "type": "number", "default": 95}
         ]
     }

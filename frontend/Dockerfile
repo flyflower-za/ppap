@@ -17,8 +17,8 @@ FROM nginx:alpine
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Configuration is injected via volume mount at runtime
-# COPY ../deploy/nginx.conf /etc/nginx/nginx.conf
+# Built-in nginx config (volume mount can override at runtime)
+COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 

@@ -44,8 +44,9 @@ class UserResponse(UserBase):
 
 
 class UserLogin(BaseModel):
-    """User login schema (for SSO)."""
+    """User login schema."""
     email: EmailStr
+    password: str
     sso_token: Optional[str] = None
 
 

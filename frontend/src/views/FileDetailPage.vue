@@ -1248,25 +1248,30 @@ let socket: WebSocket | null = null
 
 function connectWebSocket() {
   if (socket) return
-  
+
   const token = localStorage.getItem('token') || ''
   const fileId = route.params.id as string
   if (!fileId || fileId === 'undefined') return
-  
+
   let wsUrl = ''
   const apiBase = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-  
+
   if (apiBase.startsWith('http')) {
-    wsUrl = apiBase.replace(/^http/, 'ws') + `/files/ws/${fileId}?token=${token}`
+    wsUrl = apiBase.replace(/^http/, 'ws') + `/files/ws/${fileId}`
   } else {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    wsUrl = `${protocol}//${host}${apiBase}/files/ws/${fileId}?token=${token}`
+    wsUrl = `${protocol}//${host}${apiBase}/files/ws/${fileId}`
   }
-  
+
   console.log('Connecting to verification progress WebSocket:', wsUrl)
   socket = new WebSocket(wsUrl)
-  
+
+  // Send auth message as first message (token not in URL to avoid logging)
+  socket.onopen = () => {
+    socket!.send(JSON.stringify({ type: 'auth', token }))
+  }
+
   socket.onmessage = (event) => {
     const data = JSON.parse(event.data)
     if (data.error) {

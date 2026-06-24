@@ -72,8 +72,6 @@ services:
   db-init:
     image: postgres:15-alpine
     container_name: ppap-db-init
-    environment:
-      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH}
     command: >
       sh -c "
       sleep 5 &&
@@ -82,18 +80,11 @@ services:
         PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -U ppap -d ppap < /docker-entrypoint-initdb.d/init-db.sql &&
         echo 'Database initialization completed';
       else
-        echo 'Database already initialized, running migrations...' &&
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -U ppap -d ppap < /docker-entrypoint-initdb.d/db_migrations.sql || true;
-      fi &&
-      if [ -n \"$$ADMIN_PASSWORD_HASH\" ]; then
-        echo 'Updating admin password...' &&
-        PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -U ppap -d ppap -c \"UPDATE users SET password_hash = '$$ADMIN_PASSWORD_HASH' WHERE email = 'admin@example.com';\" &&
-        echo 'Admin password updated';
+        echo 'Database already initialized';
       fi
       "
     volumes:
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
-      - ../db_migrations.sql:/docker-entrypoint-initdb.d/db_migrations.sql:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,7 +95,6 @@ services:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    image: ppap-backend:latest
     container_name: ppap-backend
     restart: unless-stopped
     environment:
@@ -142,9 +132,11 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro  # optional: overrides built-in config
 
-  # Celery Worker (for background tasks) - reuses backend image
+  # Celery Worker (for background tasks)
   celery-worker:
-    image: ppap-backend:latest
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     container_name: ppap-celery-worker
     restart: unless-stopped
     command: celery -A app.tasks.celery_app worker --loglevel=info

@@ -3,6 +3,7 @@ from minio import Minio
 from minio.error import S3Error
 from app.core.config import settings
 import io
+import asyncio
 
 
 class MinIOClient:
@@ -94,6 +95,32 @@ class MinIOClient:
             return True
         except S3Error:
             return False
+
+    # ── Async wrappers (avoid blocking the event loop) ──
+
+    async def upload_file_async(
+        self,
+        file_path: str,
+        file_data: BinaryIO,
+        content_type: str,
+        length: Optional[int] = None,
+    ) -> str:
+        """Async-friendly upload — runs sync MinIO call in a thread pool."""
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self.upload_file, file_path, file_data, content_type, length
+        )
+
+    async def download_file_async(self, file_path: str) -> bytes:
+        """Async-friendly download — runs sync MinIO call in a thread pool."""
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self.download_file, file_path
+        )
+
+    async def delete_file_async(self, file_path: str) -> bool:
+        """Async-friendly delete — runs sync MinIO call in a thread pool."""
+        return await asyncio.get_event_loop().run_in_executor(
+            None, self.delete_file, file_path
+        )
 
 
 # Global MinIO client instance

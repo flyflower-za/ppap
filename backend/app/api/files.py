@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FormFile, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, text
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.permissions import get_accessible_departments
@@ -117,10 +117,8 @@ async def get_statistics(
 ):
     """Retrieve macro-level compliance statistics for the dashboard."""
     from app.models.file import File, FileStatus
-    from sqlalchemy import select, func, case, Date
+    from sqlalchemy import select, func, case, Date, text
     from datetime import datetime, timedelta
-    import json
-    from collections import Counter
 
     # 1. Overview counts
     total_stmt = select(func.count(File.id))
@@ -187,25 +185,39 @@ async def get_statistics(
             trend_data.append(date_map[d])
 
     # 3. Top Failing Rules Counter
-    # Parse last 1000 files results
-    files_stmt = select(File.verification_result).where(File.verification_result.isnot(None)).order_by(File.uploaded_at.desc()).limit(1000)
-    files_res = await db.execute(files_stmt)
-    failing_rules = Counter()
-    
-    for row in files_res.scalars().all():
-        try:
-            data = json.loads(row) if isinstance(row, str) else row
-            if data and "checks" in data:
-                for check in data["checks"]:
-                    if check.get("status") == "fail":
-                        failing_rules[check.get("name")] += 1
-        except Exception:
-            continue
-            
-    top_failing = [
-        {"rule_name": name, "count": count} 
-        for name, count in failing_rules.most_common(5)
-    ]
+    # Push aggregation into PostgreSQL using JSONB operators — avoids loading
+    # 1000 full JSON blobs into Python memory and parsing them one by one.
+    files_stmt_raw = text("""
+        SELECT check_name, COUNT(*) AS cnt
+        FROM (
+            SELECT jsonb_array_elements(
+                (vr::jsonb -> 'checks')
+            ) ->> 'name' AS check_name,
+            jsonb_array_elements(
+                (vr::jsonb -> 'checks')
+            ) ->> 'status' AS check_status
+            FROM files
+            WHERE verification_result IS NOT NULL
+              AND verification_result != 'null'
+              AND verification_result::jsonb ? 'checks'
+            ORDER BY uploaded_at DESC
+            LIMIT 1000
+        ) expanded
+        WHERE check_status = 'fail'
+        GROUP BY check_name
+        ORDER BY cnt DESC
+        LIMIT 5
+    """)
+
+    try:
+        fail_res = await db.execute(files_stmt_raw)
+        top_failing = [
+            {"rule_name": row[0], "count": row[1]}
+            for row in fail_res.all()
+        ]
+    except Exception as err:
+        logger.warning(f"Failed to query top failing rules via JSONB (fallback disabled): {err}")
+        top_failing = []
 
     return {
         "overview": {

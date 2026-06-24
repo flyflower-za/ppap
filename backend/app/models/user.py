@@ -32,6 +32,9 @@ class User(Base):
     role = Column(SQLEnum(UserRole), default=UserRole.USER, nullable=False)
     is_admin = Column(Boolean, default=False)  # Deprecated, use role instead (kept for compatibility)
 
+    # Authentication
+    password_hash = Column(String(255), nullable=True)  # NULL for SSO/LDAP-only users
+
     # SSO / LDAP fields
     sso_provider = Column(String(50))
     sso_id = Column(String(255), index=True)

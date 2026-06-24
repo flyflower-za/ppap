@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import random
 import time
 from datetime import datetime
@@ -174,12 +175,20 @@ def queue_verification_task(self, file_id: str):
             engine = VerificationEngine()
             # Pass rule_to_modules to engine.run
             engine_result = await engine.run(
-                context, 
-                active_rules, 
-                progress_callback=engine_progress_cb, 
+                context,
+                active_rules,
+                progress_callback=engine_progress_cb,
                 categories=active_categories,
                 rule_to_modules=rule_to_modules
             )
+
+            # Clean up any temp files created during engine execution
+            if context.shared_state.get("_temp_files"):
+                for tf in context.shared_state["_temp_files"]:
+                    try:
+                        os.unlink(tf)
+                    except OSError:
+                        pass
 
             # ============================================================
             # Stage 3: Compile Final Report (Progress 100%)
@@ -321,26 +330,29 @@ def queue_verification_task(self, file_id: str):
             await publish_progress(100, final_status.value, "PDF 标准合规校验完成，报告已归档。")
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
 
-    # Run the async operations inside the sync Celery context and cleanly dispose connections
+    # Run the async operations inside the sync Celery context.
+    # The engine is a shared resource — do NOT dispose it per-task.
+    # Each task uses its own session via async_session_maker(), which
+    # handles connection cleanup automatically when the context exits.
     async def _run_all():
         try:
             await _async_verification()
         except Exception as global_err:
             logger.error(f"Global verification task crash: {global_err}")
-            # 异常时也尝试查出用户并绑定审计
+            # On crash, try to log audit event
             try:
                 async with async_session_maker() as db:
                     from app.core.audit_logger import log_audit_event
                     from app.models.file import File
                     from app.models.user import User
-                    
+
                     file_record = await db.get(File, file_id)
                     uploader_user = None
                     filename = "Unknown"
                     if file_record:
                         filename = file_record.original_filename
                         uploader_user = await db.get(User, file_record.uploaded_by)
-                        
+
                     await log_audit_event(
                         db=db,
                         action="RUN_VERIFICATION",
@@ -358,11 +370,5 @@ def queue_verification_task(self, file_id: str):
             except Exception as inner_err:
                 logger.warning(f"Failed to log crashed RUN_VERIFICATION: {inner_err}")
             raise global_err
-        finally:
-            from app.core.database import engine
-            try:
-                await engine.dispose()
-            except Exception:
-                pass
-                
+
     asyncio.run(_run_all())

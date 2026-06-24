@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
     daily_summary_enabled BOOLEAN DEFAULT false,
     role userrole NOT NULL DEFAULT 'USER',
     ad_groups VARCHAR(1000),
+    password_hash VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP
@@ -121,14 +122,15 @@ CREATE INDEX idx_notes_author_id ON notes(author_id);
 
 -- Insert default admin user (password: admin123)
 -- Password hash is bcrypt hash of 'admin123'
-INSERT INTO users (id, email, full_name, is_active, is_admin, role)
+INSERT INTO users (id, email, full_name, is_active, is_admin, role, password_hash)
 VALUES (
     '01234567-0123-0123-0123-0123456789ab',
     'admin@example.com',
     'System Administrator',
     true,
     true,
-    'ADMIN'
+    'ADMIN',
+    '$2b$12$NdCnV7GiVsVixu18DzGsmeMlD1aP4Tz9B87nuc7gnVOkM0rGhyeqy'
 ) ON CONFLICT (email) DO NOTHING;
 
 -- Function to update updated_at timestamp

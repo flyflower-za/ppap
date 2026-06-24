@@ -60,6 +60,8 @@ class URLFetchOperator(BaseOperator):
                 fd, temp_file_path = tempfile.mkstemp(suffix=".pdf")
                 os.close(fd)
                 context.file_path = temp_file_path
+                context.shared_state["_temp_files"] = context.shared_state.get("_temp_files", [])
+                context.shared_state["_temp_files"].append(temp_file_path)
                 
             with open(context.file_path, "wb") as f:
                 f.write(pdf_bytes)

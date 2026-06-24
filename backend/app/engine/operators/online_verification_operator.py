@@ -124,10 +124,11 @@ class OnlineVerificationOperator(BaseOperator):
             # 如果没有命名捕获组，提供一个通用的 fallback
             extracted_vars = {"matched": match.group(0)}
 
-        # 3. 组装 URL
+        # 3. 组装 URL — 同时支持 {{var}} 和 {var} 两种占位符格式
         formatted_url = url_template
         for key, val in extracted_vars.items():
-            formatted_url = formatted_url.replace(f"{{{{{key}}}}}", str(val))
+            formatted_url = formatted_url.replace(f"{{{{{key}}}}}", str(val))  # {{var}}
+            formatted_url = formatted_url.replace(f"{{{key}}}", str(val))      # {var}
 
         logger.info(f"[OnlineVerification] Formatted URL: {formatted_url}")
 

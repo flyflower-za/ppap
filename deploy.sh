@@ -13,6 +13,12 @@ RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Configurable host and ports (for remote/SSH forwarding scenarios)
+API_HOST="${API_HOST:-localhost}"
+API_PORT="${API_PORT:-31234}"
+MINIO_PORT="${MINIO_PORT:-9000}"
+MINIO_CONSOLE_PORT="${MINIO_CONSOLE_PORT:-9001}"
+
 echo -e "${GREEN}=== PPAP Platform Deployment ===${NC}"
 echo -e "${BLUE}Updated version with automated database initialization${NC}"
 echo ""
@@ -57,18 +63,89 @@ if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         cp .env.example .env
         echo -e "${GREEN}[+] Created .env from .env.example${NC}"
-        echo -e "${YELLOW}  Please remember to change default secrets for production!${NC}"
     else
         echo -e "${YELLOW}Creating basic .env file...${NC}"
         cat > .env << EOF
 # PPAP Environment Configuration
 SECRET_KEY=change-this-in-production
+POSTGRES_PASSWORD=ppap123
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=minioadmin
+REDIS_PASSWORD=redis-secret-pass
 EOF
         echo -e "${GREEN}[+] Created basic .env file${NC}"
     fi
+
+    # Auto-generate strong secrets for first-time deployment
+    if command -v openssl &> /dev/null; then
+        GENERATED_SECRET=$(openssl rand -hex 32)
+        GENERATED_DB_PASS=$(openssl rand -base64 16 | tr -d '/+==' | head -c 20)
+        GENERATED_MINIO_PASS=$(openssl rand -base64 16 | tr -d '/+==' | head -c 20)
+        GENERATED_REDIS_PASS=$(openssl rand -base64 12 | tr -d '/+==' | head -c 16)
+        GENERATED_ADMIN_PASS=$(openssl rand -base64 10 | tr -d '/+==' | head -c 12)
+
+        # macOS sed requires empty string after -i, Linux does not
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i'' -e "s/^SECRET_KEY=.*/SECRET_KEY=${GENERATED_SECRET}/" .env
+            sed -i'' -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${GENERATED_DB_PASS}/" .env
+            sed -i'' -e "s/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=${GENERATED_MINIO_PASS}/" .env
+            sed -i'' -e "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=${GENERATED_REDIS_PASS}/" .env
+        else
+            sed -i "s/^SECRET_KEY=.*/SECRET_KEY=${GENERATED_SECRET}/" .env
+            sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${GENERATED_DB_PASS}/" .env
+            sed -i "s/^MINIO_ROOT_PASSWORD=.*/MINIO_ROOT_PASSWORD=${GENERATED_MINIO_PASS}/" .env
+            sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=${GENERATED_REDIS_PASS}/" .env
+        fi
+
+        echo -e "${GREEN}[+] Auto-generated strong secrets (saved to .env)${NC}"
+        echo -e "${YELLOW}  ⚠ Save these credentials securely!${NC}"
+
+        # P2-5: Generate bcrypt hash for admin password and replace in init-db.sql
+        ADMIN_HASH=$(python3 -c "
+from passlib.context import CryptContext
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+print(ctx.hash('${GENERATED_ADMIN_PASS}'))
+" 2>/dev/null || python -c "
+from passlib.context import CryptContext
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+print(ctx.hash('${GENERATED_ADMIN_PASS}'))
+" 2>/dev/null || echo "")
+
+        if [ -n "$ADMIN_HASH" ]; then
+            # Escape $ in hash for sed (bcrypt hashes contain $)
+            ESCAPED_HASH=$(echo "$ADMIN_HASH" | sed 's/\$/\\$/g')
+            sed -i'' -e "s/\\\$2b\\\$.*'/'${ESCAPED_HASH}'/" init-db.sql 2>/dev/null || \
+            sed -i "s/\$2b\$.*'/'${ESCAPED_HASH}'/" init-db.sql 2>/dev/null || \
+            echo -e "${YELLOW}  ⚠ Could not update admin password in init-db.sql${NC}"
+            # Write hash to .env for db-init container (existing databases)
+            echo "ADMIN_PASSWORD_HASH=${ADMIN_HASH}" >> .env
+            export ADMIN_PASSWORD_HASH="${ADMIN_HASH}"
+            echo -e "${GREEN}[+] Admin password set to: ${GENERATED_ADMIN_PASS}${NC}"
+        else
+            echo -e "${YELLOW}  ⚠ Python/passlib not available, using default admin password (admin123)${NC}"
+        fi
+    fi
 else
-    echo -e "${GREEN}[+] Found existing .env file${NC}"
+    echo -e "${GREEN}[+] Found existing .env file (reusing saved secrets)${NC}"
+    # Ensure ADMIN_PASSWORD_HASH exists in .env for existing deployments
+    if ! grep -q "ADMIN_PASSWORD_HASH" .env; then
+        ADMIN_HASH=$(python3 -c "
+from passlib.context import CryptContext
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+print(ctx.hash('admin123'))
+" 2>/dev/null || python -c "
+from passlib.context import CryptContext
+ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
+print(ctx.hash('admin123'))
+" 2>/dev/null || echo "")
+        if [ -n "$ADMIN_HASH" ]; then
+            echo "ADMIN_PASSWORD_HASH=${ADMIN_HASH}" >> .env
+            echo -e "${YELLOW}[+] Generated ADMIN_PASSWORD_HASH for existing deployment${NC}"
+        fi
+    fi
 fi
+# Export ADMIN_PASSWORD_HASH for docker-compose
+export $(grep -E '^ADMIN_PASSWORD_HASH=' .env | xargs) 2>/dev/null
 echo ""
 
 # Parse arguments
@@ -153,7 +230,7 @@ fi
 # Wait for MinIO
 echo "Waiting for MinIO..."
 RETRIES=15
-until curl -sf http://localhost:9000/minio/health/live > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until curl -sf http://${API_HOST}:${MINIO_PORT}/minio/health/live > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
     echo "MinIO: ($((RETRIES--)) retries left)"
     sleep 2
 done
@@ -167,7 +244,7 @@ fi
 # Wait for Backend API
 echo "Waiting for Backend API..."
 RETRIES=30
-until curl -sf http://localhost:31234/docs > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until curl -sf http://${API_HOST}:${API_PORT}/docs > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
     echo "Backend API: ($((RETRIES--)) retries left)"
     sleep 2
 done
@@ -178,22 +255,32 @@ else
     echo -e "${YELLOW}Backend API may still be starting${NC}"
 fi
 
-# 5. Initialize MinIO bucket
+# 5. Wait for MinIO bucket initialization
 echo ""
-echo -e "${YELLOW}Initializing MinIO bucket...${NC}"
-sleep 3  # Give MinIO a moment to stabilize
+echo -e "${YELLOW}Waiting for MinIO bucket initialization...${NC}"
 
-RETRIES=5
-until docker run --rm --network container:ppap-minio --entrypoint /bin/sh minio/mc -c "mc alias set ppapminio http://localhost:9000 minioadmin minioadmin && mc mb ppapminio/ppap-files --ignore-existing && mc anonymous set public ppapminio/ppap-files" > /dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
-    echo "Attempting to create MinIO bucket... ($((RETRIES--)) retries left)"
-    sleep 3
+MINIO_RETRIES=30
+while [ $MINIO_RETRIES -gt 0 ]; do
+    STATUS=$(docker inspect ppap-minio-init --format='{{.State.Status}}' 2>/dev/null || echo "")
+    EXITCODE=$(docker inspect ppap-minio-init --format='{{.State.ExitCode}}' 2>/dev/null || echo "")
+
+    if [ "$STATUS" = "exited" ] && [ "$EXITCODE" = "0" ]; then
+        echo -e "${GREEN}[+] MinIO bucket 'ppap-files' initialized${NC}"
+        break
+    elif [ "$STATUS" = "exited" ]; then
+        echo -e "${RED}Error: MinIO bucket initialization failed${NC}"
+        $DOCKER_COMPOSE_CMD logs minio-init
+        echo -e "${YELLOW}⚠ Continuing anyway, may need manual bucket setup${NC}"
+        break
+    else
+        echo "Waiting for MinIO bucket initialization... ($((MINIO_RETRIES--)) retries left)"
+        sleep 2
+    fi
 done
 
-if [ $? -eq 0 ] || [ $RETRIES -gt 0 ]; then
-    echo -e "${GREEN}[+] MinIO bucket 'ppap-files' created${NC}"
-else
-    echo -e "${YELLOW}⚠ MinIO bucket creation failed, may need manual setup${NC}"
-    echo "Run: docker run --rm --network container:ppap-minio minio/mc ..."
+if [ $MINIO_RETRIES -eq 0 ]; then
+    echo -e "${YELLOW}MinIO bucket initialization may still be in progress. Check logs:${NC}"
+    echo "  $DOCKER_COMPOSE_CMD logs minio-init"
 fi
 
 # 6. Final status check
@@ -204,13 +291,13 @@ $DOCKER_COMPOSE_CMD ps
 echo ""
 echo -e "${GREEN}=== Deployment Completed Successfully ===${NC}"
 echo -e "${BLUE}Access the services at:${NC}"
-echo -e "  🌐 Frontend UI:   ${GREEN}http://localhost${NC}"
-echo -e "  🔧 Backend API:   ${GREEN}http://localhost:31234/docs${NC}"
-echo -e "  📁 MinIO Console: ${GREEN}http://localhost:9001${NC} ${YELLOW}(minioadmin / minioadmin)${NC}"
+echo -e "  🌐 Frontend UI:   ${GREEN}http://${API_HOST}${NC}"
+echo -e "  🔧 Backend API:   ${GREEN}http://${API_HOST}:${API_PORT}/docs${NC}"
+echo -e "  📁 MinIO Console: ${GREEN}http://${API_HOST}:${MINIO_CONSOLE_PORT}${NC} ${YELLOW}(minioadmin / ${MINIO_ROOT_USER:-minioadmin})${NC}"
 echo ""
 echo -e "${BLUE}Default Admin Account:${NC}"
 echo -e "  📧 Email:    ${GREEN}admin@example.com${NC}"
-echo -e "  🔑 Password: ${GREEN}admin123${NC}"
+echo -e "  🔑 Password: ${GREEN}${GENERATED_ADMIN_PASS:-admin123}${NC}"
 echo ""
 echo -e "${YELLOW}Next steps:${NC}"
 echo "  1. Access the frontend UI at http://localhost"

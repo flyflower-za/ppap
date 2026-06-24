@@ -2,6 +2,73 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-24] - 安全加固与登录认证修复
+
+### 功能描述
+- **登录密码校验**：登录接口新增密码验证，移除邮箱推断角色的安全隐患，新用户默认 USER 角色。
+- **OIDC state 校验**：SSO 回调增加 CSRF 防护，state 参数存储到 Redis 并在回调时校验。
+- **WebSocket token 安全**：token 不再通过 URL query 传递，改为连接后首条消息认证。
+- **Redis 鉴权**：Redis 添加密码认证，移除宿主机端口映射。
+- **密钥自动生成**：部署脚本首次运行时自动生成强密钥（SECRET_KEY、数据库密码、MinIO 密码、Redis 密码）。
+- **跨平台部署优化**：MinIO bucket 创建容器化、前端 nginx.conf 内置、健康检查环境变量化。
+
+### 详细修改记录
+
+#### 1. 后端 - 安全与认证
+- **登录接口** ([auth.py](backend/app/api/auth.py)) [MODIFY]：
+  - 新增 `verify_password()` 密码校验，密码错误返回 401
+  - 移除邮箱推断角色逻辑（`admin@` → ADMIN），新用户默认 USER
+  - 无密码哈希的旧用户拒绝登录，提示联系管理员
+- **用户模型** ([user.py](backend/app/models/user.py)) [MODIFY]：新增 `password_hash` 字段
+- **登录 Schema** ([user.py](backend/app/schemas/user.py)) [MODIFY]：`UserLogin` 新增 `password: str` 字段
+- **安全模块** ([security.py](backend/app/core/security.py)) [MODIFY]：
+  - 移除 `passlib` 依赖，改用 `bcrypt` 库直接哈希/校验
+  - 修复 `passlib 1.7.4` 与 `bcrypt 5.0.0` 不兼容导致的 500 错误
+- **OIDC 回调** ([oidc.py](backend/app/api/oidc.py)) [MODIFY]：
+  - `/auth-url` 生成 state 存储到 Redis（10 分钟过期）
+  - `/callback` 校验 state 一致性，通过后立即删除
+- **WebSocket** ([websocket.py](backend/app/api/websocket.py)) [MODIFY]：
+  - 移除 `token: str = Query(None)`
+  - 改为连接后等待首条 `{"type": "auth", "token": "..."}` 消息认证（5 秒超时）
+- **依赖** ([requirements.txt](backend/requirements.txt)) [MODIFY]：`passlib[bcrypt]` → `bcrypt>=4.0.0`
+
+#### 2. 部署 - 安全加固与跨平台
+- **init-db.sql** ([init-db.sql](deploy/init-db.sql)) [MODIFY]：
+  - `users` 表新增 `password_hash VARCHAR(255)` 列
+  - admin 用户 INSERT 包含 bcrypt 密码哈希
+- **docker-compose.yml** ([docker-compose.yml](deploy/docker-compose.yml)) [MODIFY]：
+  - Redis 移除端口映射，添加 `--requirepass`
+  - db-init 服务新增 `ADMIN_PASSWORD_HASH` 环境变量，每次启动自动 UPDATE admin 密码
+  - db-init 对已有数据库执行 `db_migrations.sql` 迁移
+  - 所有硬编码密码替换为 `${VAR}` 引用
+- **deploy.sh / deploy.ps1** [MODIFY]：
+  - 首次部署自动生成强密钥（openssl rand / Get-Random）
+  - 生成 admin bcrypt 密码哈希写入 `.env`
+  - 健康检查支持 `API_HOST` / `API_PORT` 环境变量
+  - deploy.ps1 移除 git 依赖，改用 `$PSScriptRoot`
+- **.env.example** ([.env.example](deploy/.env.example)) [MODIFY]：新增 `ADMIN_PASSWORD_HASH` 配置项
+- **db_migrations.sql** ([db_migrations.sql](db_migrations.sql)) [MODIFY]：新增 `password_hash` 列迁移
+
+#### 3. 前端 - WebSocket 认证
+- **FileDetailPage.vue** ([FileDetailPage.vue](frontend/src/views/FileDetailPage.vue)) [MODIFY]：
+  - WebSocket URL 不再包含 `?token=xxx`
+  - `socket.onopen` 时发送 `{"type": "auth", "token": "..."}` 认证消息
+
+### 数据库迁移
+- `deploy/init-db.sql`：新部署自动包含 `password_hash` 列
+- `db_migrations.sql`：已有部署通过 db-init 服务自动执行迁移
+- admin 密码哈希通过 `ADMIN_PASSWORD_HASH` 环境变量注入，每次启动自动更新
+
+### 影响范围
+- ✅ 登录认证流程（密码校验）
+- ✅ SSO/OIDC 回调安全
+- ✅ WebSocket 连接认证
+- ✅ Redis 访问控制
+- ✅ 部署密钥管理
+- ⚠️ 已有用户需重新设置密码（password_hash 为 NULL 的用户无法登录）
+
+---
+
 ## [2026-06-24] - 在线防伪算子输出增强与预设规则 UX 修复
 
 ### 功能描述
