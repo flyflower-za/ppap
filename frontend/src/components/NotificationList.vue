@@ -43,6 +43,11 @@ import dayjs from 'dayjs'
 
 const props = defineProps<{
   unreadOnly: boolean
+  refreshKey?: number
+}>()
+
+const emit = defineEmits<{
+  (e: 'unread-change', count: number): void
 }>()
 
 const notifications = ref<Notification[]>([])
@@ -64,6 +69,9 @@ async function fetchNotifications() {
       notifications.value = items.filter((n: Notification) => !n.is_read)
     } else {
       notifications.value = items
+    }
+    if (!props.unreadOnly) {
+      emit('unread-change', res.unread_count ?? 0)
     }
   } catch (error) {
     console.error('获取通知列表失败:', error)
@@ -90,6 +98,7 @@ function formatTime(timeStr: string) {
 }
 
 watch(() => props.unreadOnly, fetchNotifications)
+watch(() => props.refreshKey, fetchNotifications)
 
 onMounted(fetchNotifications)
 </script>

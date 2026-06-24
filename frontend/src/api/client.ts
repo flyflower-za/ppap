@@ -30,8 +30,12 @@ client.interceptors.request.use(
 client.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    const message = error.response?.data?.detail || error.message || '请求失败'
-    ElMessage.error(message)
+    const config = error.config as AxiosRequestConfig & { skipGlobalError?: boolean }
+
+    if (!config?.skipGlobalError) {
+      const message = error.response?.data?.detail || error.message || '请求失败'
+      ElMessage.error(message)
+    }
 
     if (error.response?.status === 401) {
       const authStore = useAuthStore()

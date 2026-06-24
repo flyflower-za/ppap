@@ -38,16 +38,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { Bell } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
+import client from '@/api/client'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
 const unreadCount = ref(0)
+let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+async function fetchUnreadCount() {
+  try {
+    const res: any = await client.get('/notifications?limit=1')
+    unreadCount.value = res.unread_count ?? 0
+  } catch {
+    // silent — 非关键请求
+  }
+  pollTimer = setTimeout(fetchUnreadCount, 60_000)
+}
+
+onMounted(fetchUnreadCount)
+onUnmounted(() => { if (pollTimer) clearTimeout(pollTimer) })
 
 async function handleLogout() {
   try {

@@ -2,16 +2,16 @@
   <div>
     <div class="flex-between mb-4">
       <h2>消息中心</h2>
-      <el-button v-if="hasUnread" @click="handleMarkAllRead">全部已读</el-button>
+      <el-button v-if="hasUnread" :loading="markingAll" @click="handleMarkAllRead">全部已读</el-button>
     </div>
 
     <el-card shadow="never" class="notifications-card">
       <el-tabs v-model="activeTab">
         <el-tab-pane label="全部" name="all">
-          <NotificationList :unread-only="false" />
+          <NotificationList :unread-only="false" :refresh-key="refreshKey" @unread-change="onUnreadChange" />
         </el-tab-pane>
         <el-tab-pane label="未读" name="unread">
-          <NotificationList :unread-only="true" />
+          <NotificationList :unread-only="true" :refresh-key="refreshKey" />
         </el-tab-pane>
       </el-tabs>
     </el-card>
@@ -22,13 +22,29 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import NotificationList from '@/components/NotificationList.vue'
+import client from '@/api/client'
 
 const activeTab = ref('all')
 const hasUnread = ref(true)
+const markingAll = ref(false)
+const refreshKey = ref(0)
 
-function handleMarkAllRead() {
-  ElMessage.success('已全部标记为已读')
-  hasUnread.value = false
+async function handleMarkAllRead() {
+  markingAll.value = true
+  try {
+    await client.post('/notifications/mark-all-read')
+    ElMessage.success('已全部标记为已读')
+    hasUnread.value = false
+    refreshKey.value++
+  } catch {
+    ElMessage.error('操作失败，请重试')
+  } finally {
+    markingAll.value = false
+  }
+}
+
+function onUnreadChange(count: number) {
+  hasUnread.value = count > 0
 }
 </script>
 
