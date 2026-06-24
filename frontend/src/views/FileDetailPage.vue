@@ -958,7 +958,15 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
         }
 
         // Physical stamps / seals (StampDetectionOperator)
-        const stampData = verificationResult?.operator_logs?.StampDetectionOperator?.extracted_data?.stamps || []
+        const opLogs = verificationResult?.operator_logs || {}
+        if (pageNum === 1) {
+          console.log('[PDF Preview] operator_logs keys:', Object.keys(opLogs))
+          console.log('[PDF Preview] StampDetectionOperator data:', opLogs.StampDetectionOperator)
+        }
+        const stampData = opLogs.StampDetectionOperator?.extracted_data?.stamps || []
+        if (pageNum === 1) {
+          console.log('[PDF Preview] stampData count:', stampData.length, stampData)
+        }
         if (Array.isArray(stampData)) {
           stampData.forEach((stamp: any) => {
             if (stamp.page === pageNum && stamp.bounding_box) {
