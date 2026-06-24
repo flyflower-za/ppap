@@ -63,18 +63,16 @@ class StampDetectionOperator(BaseOperator):
                 hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
                 # Red color wraps around in HSV
-                # Lower red range — widened saturation/value floors for faded seals
-                lower_red1 = np.array([0, 30, 30])
-                upper_red1 = np.array([12, 255, 255])
-                # Upper red range
-                lower_red2 = np.array([156, 30, 30])
+                lower_red1 = np.array([0, 50, 50])
+                upper_red1 = np.array([10, 255, 255])
+                lower_red2 = np.array([160, 50, 50])
                 upper_red2 = np.array([180, 255, 255])
 
                 mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
                 mask = mask1 + mask2
 
-                # Morphological operations — smaller kernel to preserve thin stamp edges
+                # Morphological operations
                 kernel = np.ones((3, 3), np.uint8)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -83,22 +81,41 @@ class StampDetectionOperator(BaseOperator):
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 red_pixel_count = cv2.countNonZero(mask)
-                logger.info(f"Stamp detection page {page_idx + 1}: red pixels={red_pixel_count}, contours={len(contours)}")
+                logger.info(f"Stamp detection page {page_idx + 1}: red_pixels={red_pixel_count}, raw_contours={len(contours)}")
+
+                page_h, page_w = img_bgr.shape[:2]
+                page_area = page_w * page_h
 
                 for cnt in contours:
                     area = cv2.contourArea(cnt)
-                    # Wider area range: catch small stamps and large official seals
-                    if 300 < area < 1500000:
-                        x, y, w, h = cv2.boundingRect(cnt)
-                        aspect_ratio = float(w) / h
-                        # Stamps are usually circular/elliptical/square
-                        if 0.3 < aspect_ratio < 3.0:
-                            total_stamps += 1
-                            stamps_info.append({
-                                "page": page_idx + 1,
-                                "area": int(area),
-                                "bounding_box": [int(x/zoom), int(y/zoom), int((x+w)/zoom), int((y+h)/zoom)]
-                            })
+                    # Area filter: minimum 1000px (~250px² at 2x zoom = ~1.2cm stamp)
+                    # Maximum 40% of page area to exclude full-page red backgrounds
+                    if area < 1000 or area > page_area * 0.4:
+                        continue
+
+                    x, y, w, h = cv2.boundingRect(cnt)
+                    aspect_ratio = float(w) / h
+                    if aspect_ratio < 0.3 or aspect_ratio > 3.0:
+                        continue
+
+                    # Circularity filter: real stamps are circular/elliptical
+                    # Circle ≈ 1.0, square ≈ 0.78, text/lines < 0.3
+                    perimeter = cv2.arcLength(cnt, True)
+                    if perimeter == 0:
+                        continue
+                    circularity = 4 * np.pi * area / (perimeter * perimeter)
+                    if circularity < 0.4:
+                        logger.debug(f"  Rejected contour: area={area}, aspect={aspect_ratio:.2f}, circularity={circularity:.3f}")
+                        continue
+
+                    logger.info(f"  Stamp found: area={area}, aspect={aspect_ratio:.2f}, circularity={circularity:.3f}")
+                    total_stamps += 1
+                    stamps_info.append({
+                        "page": page_idx + 1,
+                        "area": int(area),
+                        "circularity": round(circularity, 3),
+                        "bounding_box": [int(x/zoom), int(y/zoom), int((x+w)/zoom), int((y+h)/zoom)]
+                    })
 
             doc.close()
 
