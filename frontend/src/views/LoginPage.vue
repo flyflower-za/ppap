@@ -114,6 +114,7 @@ import { useAuthStore } from '@/stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
+import { getErrorMessage } from '@/utils/formatters'
 
 const router = useRouter()
 const route = useRoute()
@@ -195,8 +196,8 @@ async function handleSSOLogin() {
     // Redirect to OIDC provider login page
     window.location.href = data.auth_url
 
-  } catch (error: any) {
-    ElMessage.error(error.message || 'SSO登录失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, 'SSO登录失败'))
     ssoLoading.value = false
   }
 }
@@ -242,8 +243,8 @@ async function handleSSOCallback(code: string, state: string) {
     const redirect = route.query.redirect as string || '/'
     router.push(redirect)
 
-  } catch (error: any) {
-    ElMessage.error(error.message || 'SSO认证失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, 'SSO认证失败'))
     router.push('/login')
   } finally {
     ssoLoading.value = false
@@ -269,8 +270,8 @@ async function handleLogin() {
       const redirect = route.query.redirect as string || '/'
       router.push(redirect)
 
-    } catch (error: any) {
-      ElMessage.error(error.message || '登录失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '登录失败'))
     } finally {
       loading.value = false
     }

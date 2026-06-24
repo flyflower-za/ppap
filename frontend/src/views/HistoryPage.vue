@@ -310,6 +310,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Delete, ArrowDown, Tickets } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import { filesApi } from '@/api/files'
+import { getErrorMessage } from '@/utils/formatters'
 
 const router = useRouter()
 
@@ -544,9 +545,9 @@ async function fetchData() {
     const response = await filesApi.list(params)
     tableData.value = response.items || []
     pagination.total = response.total || 0
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to fetch historical files:', err)
-    ElMessage.error(err.response?.data?.detail || '拉取历史数据失败，请重试')
+    ElMessage.error(getErrorMessage(err, '拉取历史数据失败，请重试'))
   } finally {
     loading.value = false
   }
@@ -602,9 +603,9 @@ async function handleDownload(row: { id: string; original_filename: string }) {
     } else {
       throw new Error('未获取到合法的下载链接')
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Failed to get download URL:', err)
-    ElMessage.error(err.message || '获取下载地址失败，请检查文件是否在库')
+    ElMessage.error(getErrorMessage(err, '获取下载地址失败，请检查文件是否在库'))
   }
 }
 

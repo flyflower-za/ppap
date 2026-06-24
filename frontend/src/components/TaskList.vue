@@ -159,7 +159,7 @@ const emit = defineEmits(['task-finished'])
 const router = useRouter()
 const files = ref<File[]>([])
 const loading = ref(false)
-let pollTimer: any = null
+let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const emptyText = computed(() => {
   if (props.status === 'all') return '暂无任何校验任务记录'

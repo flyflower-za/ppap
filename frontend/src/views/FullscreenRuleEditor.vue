@@ -384,6 +384,7 @@ import { ElMessage } from 'element-plus'
 import { filesApi } from '@/api/files'
 import { dryRunRule, createRule, updateRule, getRules } from '@/api/rules'
 import { getOperators, type OperatorRegistry } from '@/api/operators'
+import { getErrorMessage } from '@/utils/formatters'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -928,10 +929,9 @@ async function handleSave() {
     // Navigate back with refresh flag to trigger rules list reload
     console.log('[FullscreenEditor] Navigating back to rules page')
     router.push({ name: 'Rules', query: { refresh: 'true' } })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[FullscreenEditor] Save failed:', error)
-    console.error('[FullscreenEditor] Error response:', error.response)
-    ElMessage.error(error.response?.data?.detail || error.message || '保存失败')
+    ElMessage.error(getErrorMessage(error, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -1000,8 +1000,8 @@ const runSimulation = async () => {
         consoleBoxRef.value.scrollTop = consoleBoxRef.value.scrollHeight
       }
     })
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '模拟测试运行失败')
+  } catch (e: unknown) {
+    ElMessage.error(getErrorMessage(e, '模拟测试运行失败'))
   } finally {
     dryRunning.value = false
   }

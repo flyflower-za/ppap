@@ -510,6 +510,7 @@ import {
   type RuleTemplate
 } from '../api/operators'
 import { verificationModulesApi, type VerificationModule } from '../api/verificationModules'
+import { getErrorMessage } from '@/utils/formatters'
 
 const router = useRouter()
 const route = useRoute()
@@ -1011,9 +1012,9 @@ const applyTemplate = async (template: RuleTemplate) => {
 
     // 记录审计日志
     console.log('[Template Applied]', result)
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error(e.response?.data?.detail || '应用模板失败')
+      ElMessage.error(getErrorMessage(e, '应用模板失败'))
     }
   }
 }
@@ -1030,7 +1031,7 @@ const handleRollback = async (ver: RuleVersion) => {
     ElMessage.success('规则回滚成功')
     versionsDrawerVisible.value = false
     await fetchRules()
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel') {
       ElMessage.error('规则回滚失败')
     }

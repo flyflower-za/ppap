@@ -37,8 +37,11 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import client from '@/api/client'
-import type { Notification } from '@/types'
+import { useNotificationStore } from '@/stores/notification'
+import type { Notification, NotificationListResponse } from '@/types'
 import { SuccessFilled, CircleCloseFilled, WarningFilled, InfoFilled } from '@element-plus/icons-vue'
+
+const notificationStore = useNotificationStore()
 
 const props = defineProps<{
   unreadOnly: boolean
@@ -62,7 +65,7 @@ function getIcon(type: string) {
 async function fetchNotifications() {
   loading.value = true
   try {
-    const res: any = await client.get('/notifications')
+    const res = await client.get('/notifications') as NotificationListResponse
     const items = res.items || []
     if (props.unreadOnly) {
       notifications.value = items.filter((n: Notification) => !n.is_read)
@@ -84,6 +87,7 @@ async function markAsRead(item: Notification) {
   try {
     await client.post(`/notifications/mark-read`, { notification_ids: [item.id] })
     item.is_read = true
+    notificationStore.decrementUnread()
     if (props.unreadOnly) {
       notifications.value = notifications.value.filter(n => n.id !== item.id)
     }

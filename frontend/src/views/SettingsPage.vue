@@ -1395,6 +1395,7 @@ import {
 } from '@element-plus/icons-vue'
 import type { EmailTemplate, FileRetentionSettings, AiModelConfig, ModelProfile } from '@/api/settings'
 import type { LDAPConfig, UserInfo } from '@/api/ldap'
+import { getErrorMessage } from '@/utils/formatters'
 
 const authStore = useAuthStore()
 
@@ -1811,8 +1812,8 @@ async function handleSaveNotification() {
     setTimeout(() => {
       notifSaveSuccess.value = false
     }, 3000)
-  } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '保存失败'))
   } finally {
     savingNotif.value = false
   }
@@ -1838,8 +1839,8 @@ async function handleSaveSmtp() {
       setTimeout(() => {
         saveSuccess.value = false
       }, 3000)
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       saving.value = false
     }
@@ -1859,8 +1860,8 @@ async function handleTestEmail() {
       await settingsApi.testSmtpConfig(smtpConfig)
 
       ElMessage.success('测试邮件已发送，请检查收件箱')
-    } catch (error: any) {
-      ElMessage.error(error.message || '发送失败，请检查配置')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '发送失败，请检查配置'))
     } finally {
       testing.value = false
     }
@@ -1923,8 +1924,8 @@ async function handleSaveTemplate() {
 
       templateDialogVisible.value = false
       await loadEmailTemplates()
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存模板失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存模板失败'))
     } finally {
       savingTemplate.value = false
     }
@@ -1937,8 +1938,8 @@ async function handleDeleteTemplate(templateId: string) {
     await settingsApi.deleteEmailTemplate(templateId)
     ElMessage.success('模板删除成功')
     await loadEmailTemplates()
-  } catch (error: any) {
-    ElMessage.error(error.message || '删除模板失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '删除模板失败'))
   }
 }
 
@@ -1975,8 +1976,8 @@ async function handlePreviewTemplate(template: EmailTemplate) {
 
     previewHtml.value = result.html_content
     previewDialogVisible.value = true
-  } catch (error: any) {
-    ElMessage.error(error.message || '预览模板失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '预览模板失败'))
   }
 }
 
@@ -2031,8 +2032,8 @@ async function handleSaveLDAP() {
     setTimeout(() => {
       ldapSaveSuccess.value = false
     }, 3000)
-  } catch (error: any) {
-    ElMessage.error(error.message || '保存失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '保存失败'))
   } finally {
     savingLDAP.value = false
   }
@@ -2045,8 +2046,8 @@ async function handleTestLDAP() {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.testLDAPConnection()
     ElMessage.success('LDAP 连接测试成功')
-  } catch (error: any) {
-    ElMessage.error(error.message || '连接测试失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '连接测试失败'))
   } finally {
     testingLDAP.value = false
   }
@@ -2102,8 +2103,8 @@ async function handleRoleChange(user: UserInfo) {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.updateUserRole(user.id, user.role as 'ADMIN' | 'MANAGER' | 'USER')
     ElMessage.success(`用户 ${user.full_name} 的角色已更新为 ${user.role}`)
-  } catch (error: any) {
-    ElMessage.error(error.message || '更新角色失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '更新角色失败'))
     // Revert the change
     await loadUsers()
   }
@@ -2115,8 +2116,8 @@ async function handleToggleUserStatus(user: UserInfo) {
     await ldapApi.toggleUserStatus(user.id)
     const status = user.is_active ? '启用' : '禁用'
     ElMessage.success(`用户 ${user.full_name} 已${status}`)
-  } catch (error: any) {
-    ElMessage.error(error.message || '操作失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '操作失败'))
     // Revert the change
     await loadUsers()
   }
@@ -2188,8 +2189,8 @@ async function handleSaveUser() {
 
       userDialogVisible.value = false
       await loadUsers()
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       savingUser.value = false
     }
@@ -2202,8 +2203,8 @@ async function handleDeleteUser(user: UserInfo) {
     await ldapApi.deleteUser(user.id)
     ElMessage.success('用户已删除')
     await loadUsers()
-  } catch (error: any) {
-    ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '删除失败'))
   }
 }
 
@@ -2238,8 +2239,8 @@ async function handleResetPassword() {
     await ldapApi.resetUserPassword(resetPasswordUser.value.id, resetPasswordForm.password)
     ElMessage.success(`用户 ${resetPasswordUser.value.email} 的密码已重置`)
     resetPasswordDialogVisible.value = false
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || error.message || '重置密码失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '重置密码失败'))
   } finally {
     resettingPassword.value = false
   }
@@ -2272,8 +2273,8 @@ async function handleChangePassword() {
     await authApi.changePassword(changePasswordForm.oldPassword, changePasswordForm.newPassword)
     ElMessage.success('密码修改成功')
     changePasswordDialogVisible.value = false
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || error.message || '修改密码失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '修改密码失败'))
   } finally {
     changingPassword.value = false
   }
@@ -2356,8 +2357,8 @@ async function handleSaveGroup() {
 
       groupDialogVisible.value = false
       await loadUserGroups()
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       savingGroup.value = false
     }
@@ -2370,8 +2371,8 @@ async function handleDeleteGroup(group: UserGroup) {
     await ldapApi.deleteUserGroup(group.id)
     ElMessage.success('权限组已删除')
     await loadUserGroups()
-  } catch (error: any) {
-    ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '删除失败'))
   }
 }
 
@@ -2390,8 +2391,8 @@ async function handleSaveUserGroups() {
     ElMessage.success('用户权限组已更新')
     userGroupAssignDialogVisible.value = false
     await loadUsers()
-  } catch (error: any) {
-    ElMessage.error(error.message || '更新失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '更新失败'))
   } finally {
     savingUserGroups.value = false
   }
@@ -2431,8 +2432,8 @@ async function handleSaveFileRetention() {
       setTimeout(() => {
         fileRetentionSaveSuccess.value = false
       }, 3000)
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       savingFileRetention.value = false
     }
@@ -2454,8 +2455,8 @@ async function handleTriggerCleanup() {
     setTimeout(() => {
       cleanupTriggerSuccess.value = false
     }, 5000)
-  } catch (error: any) {
-    ElMessage.error(error.message || '启动清理任务失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '启动清理任务失败'))
   } finally {
     triggeringCleanup.value = false
   }
@@ -2525,8 +2526,8 @@ async function handleSaveProfile() {
       }
       profileDialogVisible.value = false
       await loadModelProfiles()
-    } catch (error: any) {
-      ElMessage.error(error.message || '保存失败')
+    } catch (error: unknown) {
+      ElMessage.error(getErrorMessage(error, '保存失败'))
     } finally {
       savingProfile.value = false
     }
@@ -2539,8 +2540,8 @@ async function handleDeleteProfile(profile: ModelProfile) {
     await settingsApi.deleteModelProfile(profile.id)
     ElMessage.success('配置已删除')
     await loadModelProfiles()
-  } catch (error: any) {
-    ElMessage.error(error.message || '删除失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '删除失败'))
   }
 }
 
@@ -2550,8 +2551,8 @@ async function handleSetDefaultProfile(profileId: string, forType: 'text' | 'vis
     await settingsApi.setDefaultModelProfile(profileId, forType)
     ElMessage.success(`已设为默认${forType}模型`)
     await loadModelProfiles()
-  } catch (error: any) {
-    ElMessage.error(error.message || '设置失败')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '设置失败'))
   }
 }
 
@@ -2568,9 +2569,8 @@ async function handleTestProfile(profileId: string) {
     } else {
       ElMessage.warning('连接测试失败')
     }
-  } catch (error: any) {
-    const detail = error?.response?.data?.detail
-    const message = detail || error?.message || '连接测试失败，请检查网络或配置'
+  } catch (error: unknown) {
+    const message = getErrorMessage(error, '连接测试失败，请检查网络或配置')
     testResult.value = { id: profileId, success: false, message }
     ElMessage.error(message)
   } finally {

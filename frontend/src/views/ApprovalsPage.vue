@@ -210,8 +210,8 @@ const handleReview = async (cr: ChangeRequest, action: 'approve' | 'reject') => 
     await reviewChangeRequest(cr.id, action, comment || undefined)
     ElMessage.success(`已${actionName}`)
     await fetchRequests()
-  } catch (e: any) {
-    if (e !== 'cancel' && e?.message !== 'cancel') {
+  } catch (e: unknown) {
+    if (e !== 'cancel') {
       ElMessage.error(`${actionName}操作失败`)
     }
   }
@@ -223,8 +223,8 @@ const handleDeploy = async (cr: ChangeRequest) => {
     await deployChangeRequest(cr.id)
     ElMessage.success('变更已成功部署生效')
     await fetchRequests()
-  } catch (e: any) {
-    if (e !== 'cancel' && e?.message !== 'cancel') {
+  } catch (e: unknown) {
+    if (e !== 'cancel') {
       ElMessage.error('部署失败')
     }
   }

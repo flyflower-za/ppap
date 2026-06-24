@@ -22,8 +22,10 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import NotificationList from '@/components/NotificationList.vue'
+import { useNotificationStore } from '@/stores/notification'
 import client from '@/api/client'
 
+const notificationStore = useNotificationStore()
 const activeTab = ref('all')
 const hasUnread = ref(true)
 const markingAll = ref(false)
@@ -35,6 +37,7 @@ async function handleMarkAllRead() {
     await client.post('/notifications/mark-all-read')
     ElMessage.success('已全部标记为已读')
     hasUnread.value = false
+    notificationStore.markAllRead()
     refreshKey.value++
   } catch {
     ElMessage.error('操作失败，请重试')
@@ -45,6 +48,7 @@ async function handleMarkAllRead() {
 
 function onUnreadChange(count: number) {
   hasUnread.value = count > 0
+  notificationStore.setUnreadCount(count)
 }
 </script>
 

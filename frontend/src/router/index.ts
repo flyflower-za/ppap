@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { cancelPendingRequests } from '@/api/client'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -95,6 +96,7 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach(async (to, _from, next) => {
+  cancelPendingRequests()
   const authStore = useAuthStore()
 
   // Auto-fetch user details on page refresh / initialization if authenticated

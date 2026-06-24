@@ -900,7 +900,7 @@ const getAvatarStyle = (name: string | null) => {
   }
 }
 
-let pollTimer: any = null
+let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 async function renderPdf(downloadUrl: string, verificationResult: any) {
   if (!pdfContainerRef.value) return
@@ -1256,7 +1256,7 @@ async function handleReviewResolution(action: 'approve' | 'reject') {
     await fetchFileDetail(true)
     await fetchNotes(true)
     
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e !== 'cancel') {
       ElMessage.error('仲裁提交失败，请重试')
     }

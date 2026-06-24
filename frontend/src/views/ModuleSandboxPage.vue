@@ -213,6 +213,7 @@ import { ElMessage } from 'element-plus'
 import { filesApi } from '@/api/files'
 import { modulesApi } from '@/api/modules'
 import { settingsApi, PublicModelProfile } from '@/api/settings'
+import { getErrorMessage } from '@/utils/formatters'
 
 const historyFiles = ref<any[]>([])
 const availableModules = ref<any[]>([])
@@ -311,8 +312,8 @@ async function runTest() {
     } else {
       ElMessage.error(`执行失败: ${res.message}`)
     }
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || e.message || '网络或接口请求错误')
+  } catch (e: unknown) {
+    ElMessage.error(getErrorMessage(e, '网络或接口请求错误'))
   } finally {
     testing.value = false
   }

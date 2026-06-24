@@ -529,6 +529,7 @@ import { getOperators, type OperatorRegistry } from '@/api/operators'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
+import { getErrorMessage } from '@/utils/formatters'
 
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
@@ -1260,8 +1261,8 @@ const runSimulation = async () => {
         consoleBoxRef.value.scrollTop = consoleBoxRef.value.scrollHeight
       }
     })
-  } catch (e: any) {
-    const errorMsg = e.response?.data?.detail || '模拟测试运行失败'
+  } catch (e: unknown) {
+    const errorMsg = getErrorMessage(e, '模拟测试运行失败')
     ElMessage.error(errorMsg)
   } finally {
     dryRunning.value = false

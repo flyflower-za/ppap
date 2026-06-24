@@ -123,3 +123,76 @@ export interface NoteCreate {
   file_id: string
   content: string
 }
+
+// Audit
+export interface AuditLogEntry {
+  id: string
+  user_id: string
+  user_email: string
+  action: string
+  resource_type: string
+  resource_id?: string
+  details?: Record<string, unknown>
+  ip_address?: string
+  created_at: string
+}
+
+export interface AuditLogResponse {
+  total: number
+  page: number
+  page_size: number
+  items: AuditLogEntry[]
+}
+
+// Approval
+export interface ApprovalItem {
+  id: string
+  file_id: string
+  filename: string
+  rule_name: string
+  proposed_rule_data?: Record<string, unknown>
+  status: 'pending' | 'approved' | 'rejected'
+  reviewer_id?: string
+  reviewer_comment?: string
+  test_results?: Record<string, unknown>
+  created_at: string
+  reviewed_at?: string
+}
+
+export interface ApprovalListResponse {
+  total: number
+  items: ApprovalItem[]
+}
+
+// Verification execution
+export interface ExecutionTrajectoryEntry {
+  operator: string
+  status: string
+  duration_ms?: number
+  message?: string
+  result?: Record<string, unknown>
+}
+
+export interface ExecutionLog {
+  timestamp: string
+  message: string
+  level?: string
+}
+
+// Stats / Dashboard
+export interface DashboardStats {
+  total_files: number
+  completed_files: number
+  failed_files: number
+  pending_files: number
+  avg_processing_time: number
+  top_failing_rules: { rule_name: string; count: number }[]
+  daily_trend: { date: string; total: number; passed: number; failed: number }[]
+}
+
+// Task (file with verification progress)
+export interface TaskFile extends File {
+  institution?: string
+  ref_count?: number
+  failed_checks?: { title?: string; rule_name?: string; message?: string; severity?: string }[]
+}
