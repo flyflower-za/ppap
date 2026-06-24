@@ -21,7 +21,7 @@
     `reportno=(?P<report_id>[^&\s]+)&randomno=(?P<verify_code>[^&\s]+)`
 
 ### 方式 B：占位符 + `*` 通配符语法
-适合提取的参数**不相邻**、中间夹杂了其他无关参数的场景。使用 `*` 来代表“跳过中间任意字符”（系统会自动将其转换为 `.*?` 非贪婪匹配）。
+适合提取的参数**不相邻**、中间夹杂了其他无关参数的场景。使用 `*` 来代表"跳过中间任意字符"（系统会自动将其转换为 `.*?` 非贪婪匹配）。
 
 *   **二维码 URL 示例**：
     `https://example.com/verify?reportno=A225097&type=pdf&lang=zh&randomno=198641`
@@ -29,6 +29,22 @@
     `reportno={report_id}*randomno={verify_code}`
 *   **系统自动转换后的正则**：
     `reportno=(?P<report_id>[^&\s]+).*?randomno=(?P<verify_code>[^&\s]+)`
+
+**另一个常见场景 — 从 URL 路径末尾提取 UUID：**
+
+*   **二维码 URL 示例**：
+    `https://qrcode.sgsonline.com.cn/openreport/viewreport/294798e3-5f8c-47de-b6ad-8c7e63927a92`
+*   **提取规则填写**：
+    `*/{report_uuid}`
+*   **系统自动转换后的正则**：
+    `.*?\/(?P<report_uuid>[^&\s]+)`
+*   **提取结果**：`report_uuid = 294798e3-5f8c-47de-b6ad-8c7e63927a92`
+*   **请求 URL 模板**：
+    `https://api.example.com/report/{report_uuid}`
+*   **解析生成的真实 URL**：
+    `https://api.example.com/report/294798e3-5f8c-47de-b6ad-8c7e63927a92`
+
+> **提示**：变量名可以自定义（如 `{report_uuid}`、 `{doc_id}` 等），只要在提取规则和请求模板中保持一致即可。请求模板中 `{变量名}` 和 `{{变量名}}` 两种写法均支持。
 
 ### 方式 C：原生正则表达式（高级）
 如果您熟悉正则表达式，可以直接编写包含命名捕获组 `(?P<name>...)` 的原生正则。当检测到输入包含 `(?P<` 时，系统会跳过转换，直接将其作为正则表达式编译。
@@ -38,18 +54,21 @@
 
 ---
 
-## 2. 支持提取的预设变量
+## 2. 变量命名与请求模板
 
-提取出的变量将用于构造“目标 URL (Target URL)”。系统支持且**必须**提取出以下两个变量：
+提取出的变量将用于构造"请求 URL 模板"。变量名可以**自由定义**（如 `{report_id}`、`{verify_code}`、`{report_uuid}`、`{doc_id}` 等），只需在提取规则和请求模板中保持一致即可。
 
-1.  `{report_id}`：报告编号/证书编号。
-2.  `{verify_code}`：验证码/随机码/查询码。
+请求模板中支持两种占位符写法：
+- **单花括号** `{变量名}` — 简洁直观
+- **双花括号** `{{变量名}}` — 与部分模板引擎风格一致
+
+两种写法效果相同，系统会自动识别并替换。
 
 ---
 
 ## 3. 目标 URL 构造示例
 
-提取出上述变量后，您可以在“目标 URL”输入框中，使用 `{report_id}` 和 `{verify_code}` 占位符来动态构造请求地址。
+提取出变量后，在"请求 URL 模板"中使用 `{变量名}` 或 `{{变量名}}` 占位符来动态构造请求地址。
 
 *   **配置的目标 URL**：
     `https://myctiapi.cti-soft.com:58443/api/HomeQuery/PreviewReportH5?ReportNo={report_id};{verify_code}`

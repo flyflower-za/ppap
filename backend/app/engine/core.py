@@ -339,20 +339,38 @@ class VerificationEngine:
 
         if categories:
             await emit_log(f"分类嗅探结果: {sniffed_inst}。正在通过关键字匹配文档分类...")
+            sniffed_norm = normalize_institution_name(sniffed_inst)
+
+            # Phase 1: 优先用嗅探机构名匹配分类名称（最可靠）
             for cat in categories:
-                cat_keywords = cat.keywords if hasattr(cat, 'keywords') else (cat.get('keywords', []) if isinstance(cat, dict) else [])
-                cat_id = cat.id if hasattr(cat, 'id') else (cat.get('id') if isinstance(cat, dict) else None)
                 cat_name = cat.name if hasattr(cat, 'name') else (cat.get('name', '') if isinstance(cat, dict) else '')
                 cat_active = cat.is_active if hasattr(cat, 'is_active') else (cat.get('is_active', True) if isinstance(cat, dict) else True)
-                if not cat_active or not cat_keywords:
+                if not cat_active or not cat_name:
                     continue
-                for kw in cat_keywords:
-                    if kw and (kw.lower() in full_text.lower() or kw.lower() in file_path.lower()):
-                        matched_category_id = str(cat_id) if cat_id else None
-                        matched_category_name = cat_name
-                        break
-                if matched_category_id:
+                cat_name_norm = normalize_institution_name(cat_name)
+                # 分类名是嗅探结果的子串，或嗅探结果是分类名的子串
+                if cat_name_norm in sniffed_norm or sniffed_norm in cat_name_norm:
+                    matched_category_id = str(cat.id) if hasattr(cat, 'id') else (cat.get('id') if isinstance(cat, dict) else None)
+                    matched_category_name = cat_name
+                    await emit_log(f"嗅探机构 [{sniffed_inst}] 与分类 [{cat_name}] 名称匹配")
                     break
+
+            # Phase 2: 名称未命中，退回关键字扫描
+            if not matched_category_id:
+                for cat in categories:
+                    cat_keywords = cat.keywords if hasattr(cat, 'keywords') else (cat.get('keywords', []) if isinstance(cat, dict) else [])
+                    cat_id = cat.id if hasattr(cat, 'id') else (cat.get('id') if isinstance(cat, dict) else None)
+                    cat_name = cat.name if hasattr(cat, 'name') else (cat.get('name', '') if isinstance(cat, dict) else '')
+                    cat_active = cat.is_active if hasattr(cat, 'is_active') else (cat.get('is_active', True) if isinstance(cat, dict) else True)
+                    if not cat_active or not cat_keywords:
+                        continue
+                    for kw in cat_keywords:
+                        if kw and (kw.lower() in full_text.lower() or kw.lower() in file_path.lower()):
+                            matched_category_id = str(cat_id) if cat_id else None
+                            matched_category_name = cat_name
+                            break
+                    if matched_category_id:
+                        break
 
         # Determine which rules to apply based on category matching
         if matched_category_id:

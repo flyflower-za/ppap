@@ -6,7 +6,9 @@ from celery.utils.log import get_task_logger
 from sqlalchemy import select
 
 from app.tasks.celery_app import celery_app
-from app.core.database import async_session_maker
+from app.core.config import settings
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from app.models.file import File
 from app.models.setting import Setting
 from app.core.minio_client import minio_client
@@ -28,105 +30,108 @@ def cleanup_expired_files():
     logger.info("Starting file cleanup task")
 
     async def _async_cleanup():
-        async with async_session_maker() as db:
-            # Get retention settings from database
-            setting = await db.get(Setting, "file_retention_settings")
+        task_engine = create_async_engine(
+            settings.DATABASE_URL, echo=settings.DEBUG,
+            pool_pre_ping=True, pool_size=5, max_overflow=10,
+        )
+        task_session_maker = sessionmaker(
+            task_engine, class_=AsyncSession, expire_on_commit=False
+        )
+        try:
+            async with task_session_maker() as db:
+                # Get retention settings from database
+                setting = await db.get(Setting, "file_retention_settings")
 
-            # Default values if not configured
-            retention_days = 30
-            auto_cleanup_enabled = True
+                # Default values if not configured
+                retention_days = 30
+                auto_cleanup_enabled = True
 
-            if setting:
-                try:
-                    import json
-                    settings_dict = json.loads(setting.value)
-                    retention_days = settings_dict.get('retention_days', 30)
-                    auto_cleanup_enabled = settings_dict.get('auto_cleanup_enabled', True)
-                    logger.info(f"Loaded retention settings: {retention_days} days, auto_cleanup={auto_cleanup_enabled}")
-                except Exception as e:
-                    logger.warning(f"Failed to parse retention settings, using defaults: {e}")
+                if setting:
+                    try:
+                        import json
+                        settings_dict = json.loads(setting.value)
+                        retention_days = settings_dict.get('retention_days', 30)
+                        auto_cleanup_enabled = settings_dict.get('auto_cleanup_enabled', True)
+                        logger.info(f"Loaded retention settings: {retention_days} days, auto_cleanup={auto_cleanup_enabled}")
+                    except Exception as e:
+                        logger.warning(f"Failed to parse retention settings, using defaults: {e}")
 
-            if not auto_cleanup_enabled:
-                logger.info("Auto cleanup is disabled, skipping cleanup task")
-                return {
-                    "status": "skipped",
-                    "reason": "Auto cleanup disabled",
-                    "deleted_count": 0,
-                    "failed_count": 0
-                }
+                if not auto_cleanup_enabled:
+                    logger.info("Auto cleanup is disabled, skipping cleanup task")
+                    return {
+                        "status": "skipped",
+                        "reason": "Auto cleanup disabled",
+                        "deleted_count": 0,
+                        "failed_count": 0
+                    }
 
-            # Calculate cutoff date
-            cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+                # Calculate cutoff date
+                cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
 
-            # Find files that should be deleted
-            # Files are eligible for deletion if:
-            # 1. They are not already deleted
-            # 2. Their will_delete_at is in the past, OR
-            # 3. They were uploaded more than retention_days ago
-            query = select(File).where(
-                File.is_deleted == False,
-                (
-                    (File.will_delete_at < datetime.utcnow()) |
-                    (File.uploaded_at < cutoff_date)
+                # Find files that should be deleted
+                query = select(File).where(
+                    File.is_deleted == False,
+                    (
+                        (File.will_delete_at < datetime.utcnow()) |
+                        (File.uploaded_at < cutoff_date)
+                    )
                 )
-            )
 
-            result = await db.execute(query)
-            files_to_delete = result.scalars().all()
+                result = await db.execute(query)
+                files_to_delete = result.scalars().all()
 
-            if not files_to_delete:
-                logger.info("No files to clean up")
+                if not files_to_delete:
+                    logger.info("No files to clean up")
+                    return {
+                        "status": "success",
+                        "deleted_count": 0,
+                        "failed_count": 0,
+                        "retention_days": retention_days
+                    }
+
+                logger.info(f"Found {len(files_to_delete)} files to delete")
+
+                deleted_count = 0
+                failed_count = 0
+                total_freed_space = 0
+
+                for file in files_to_delete:
+                    try:
+                        if file.file_path:
+                            success = minio_client.delete_file(file.file_path)
+                            if success:
+                                logger.info(f"Deleted file from MinIO: {file.file_path}")
+                            else:
+                                logger.warning(f"Failed to delete from MinIO (file may not exist): {file.file_path}")
+
+                        file.is_deleted = True
+                        file.deleted_at = datetime.utcnow()
+
+                        deleted_count += 1
+                        total_freed_space += file.file_size or 0
+
+                        logger.info(f"Marked file as deleted: {file.id} - {file.original_filename}")
+
+                    except Exception as e:
+                        failed_count += 1
+                        logger.error(f"Failed to delete file {file.id}: {e}")
+
+                await db.commit()
+
+                logger.info(
+                    f"Cleanup completed: {deleted_count} files deleted, "
+                    f"{failed_count} failed, {total_freed_space} bytes freed"
+                )
+
                 return {
                     "status": "success",
-                    "deleted_count": 0,
-                    "failed_count": 0,
+                    "deleted_count": deleted_count,
+                    "failed_count": failed_count,
+                    "total_freed_space": total_freed_space,
                     "retention_days": retention_days
                 }
-
-            logger.info(f"Found {len(files_to_delete)} files to delete")
-
-            deleted_count = 0
-            failed_count = 0
-            total_freed_space = 0
-
-            for file in files_to_delete:
-                try:
-                    # Delete from MinIO
-                    if file.file_path:
-                        success = minio_client.delete_file(file.file_path)
-                        if success:
-                            logger.info(f"Deleted file from MinIO: {file.file_path}")
-                        else:
-                            logger.warning(f"Failed to delete from MinIO (file may not exist): {file.file_path}")
-
-                    # Mark as deleted in database
-                    file.is_deleted = True
-                    file.deleted_at = datetime.utcnow()
-
-                    deleted_count += 1
-                    total_freed_space += file.file_size or 0
-
-                    logger.info(f"Marked file as deleted: {file.id} - {file.original_filename}")
-
-                except Exception as e:
-                    failed_count += 1
-                    logger.error(f"Failed to delete file {file.id}: {e}")
-
-            # Commit all changes
-            await db.commit()
-
-            logger.info(
-                f"Cleanup completed: {deleted_count} files deleted, "
-                f"{failed_count} failed, {total_freed_space} bytes freed"
-            )
-
-            return {
-                "status": "success",
-                "deleted_count": deleted_count,
-                "failed_count": failed_count,
-                "total_freed_space": total_freed_space,
-                "retention_days": retention_days
-            }
+        finally:
+            await task_engine.dispose()
 
     # Run the async operations
     try:

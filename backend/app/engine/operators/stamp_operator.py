@@ -63,33 +63,36 @@ class StampDetectionOperator(BaseOperator):
                 hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
 
                 # Red color wraps around in HSV
-                # Lower red range
-                lower_red1 = np.array([0, 50, 50])
-                upper_red1 = np.array([10, 255, 255])
+                # Lower red range — widened saturation/value floors for faded seals
+                lower_red1 = np.array([0, 30, 30])
+                upper_red1 = np.array([12, 255, 255])
                 # Upper red range
-                lower_red2 = np.array([160, 50, 50])
+                lower_red2 = np.array([156, 30, 30])
                 upper_red2 = np.array([180, 255, 255])
 
                 mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
                 mask = mask1 + mask2
 
-                # Morphological operations to remove noise
-                kernel = np.ones((5, 5), np.uint8)
+                # Morphological operations — smaller kernel to preserve thin stamp edges
+                kernel = np.ones((3, 3), np.uint8)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
                 # Find contours
                 contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+                red_pixel_count = cv2.countNonZero(mask)
+                logger.info(f"Stamp detection page {page_idx + 1}: red pixels={red_pixel_count}, contours={len(contours)}")
+
                 for cnt in contours:
                     area = cv2.contourArea(cnt)
-                    # Filter out very small red text/noise and extremely large red blocks
-                    if 1000 < area < 500000:
+                    # Wider area range: catch small stamps and large official seals
+                    if 300 < area < 1500000:
                         x, y, w, h = cv2.boundingRect(cnt)
                         aspect_ratio = float(w) / h
                         # Stamps are usually circular/elliptical/square
-                        if 0.5 < aspect_ratio < 2.0:
+                        if 0.3 < aspect_ratio < 3.0:
                             total_stamps += 1
                             stamps_info.append({
                                 "page": page_idx + 1,

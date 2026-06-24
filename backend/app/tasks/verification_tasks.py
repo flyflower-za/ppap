@@ -7,7 +7,10 @@ from datetime import datetime
 from celery.utils.log import get_task_logger
 
 from app.tasks.celery_app import celery_app
-from app.core.database import async_session_maker
+from app.core.database import engine as _global_engine
+from app.core.config import settings
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from app.core.minio_client import minio_client
 from app.models.file import File, FileStatus, FileType
 from app.models.task import Task, TaskStatus
@@ -38,8 +41,8 @@ def queue_verification_task(self, file_id: str):
     """
     logger.info(f"Triggered background verification task for File ID: {file_id}")
 
-    async def _async_verification():
-        async with async_session_maker() as db:
+    async def _async_verification(task_session_maker):
+        async with task_session_maker() as db:
             # 1. Fetch file record
             file_record = await db.get(File, file_id)
             if not file_record:
@@ -331,17 +334,26 @@ def queue_verification_task(self, file_id: str):
             logger.info(f"Verification complete for PDF File {file_id}. Status: {final_status.value}, Pass Rate: {pass_rate}%")
 
     # Run the async operations inside the sync Celery context.
-    # The engine is a shared resource — do NOT dispose it per-task.
-    # Each task uses its own session via async_session_maker(), which
-    # handles connection cleanup automatically when the context exits.
+    # Each Celery task call creates a new event loop via asyncio.run(),
+    # so we must create a fresh engine per task to avoid cross-loop errors.
     async def _run_all():
+        task_engine = create_async_engine(
+            settings.DATABASE_URL,
+            echo=settings.DEBUG,
+            pool_pre_ping=True,
+            pool_size=5,
+            max_overflow=10,
+        )
+        task_session_maker = sessionmaker(
+            task_engine, class_=AsyncSession, expire_on_commit=False
+        )
         try:
-            await _async_verification()
+            await _async_verification(task_session_maker)
         except Exception as global_err:
             logger.error(f"Global verification task crash: {global_err}")
             # On crash, try to log audit event
             try:
-                async with async_session_maker() as db:
+                async with task_session_maker() as db:
                     from app.core.audit_logger import log_audit_event
                     from app.models.file import File
                     from app.models.user import User
@@ -370,5 +382,7 @@ def queue_verification_task(self, file_id: str):
             except Exception as inner_err:
                 logger.warning(f"Failed to log crashed RUN_VERIFICATION: {inner_err}")
             raise global_err
+        finally:
+            await task_engine.dispose()
 
     asyncio.run(_run_all())

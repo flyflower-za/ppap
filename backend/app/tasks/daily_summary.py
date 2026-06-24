@@ -6,7 +6,9 @@ from celery.utils.log import get_task_logger
 from sqlalchemy import func, select, case
 
 from app.tasks.celery_app import celery_app
-from app.core.database import async_session_maker
+from app.core.config import settings
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
 from app.models.file import File, FileStatus
 from app.models.setting import Setting
 from app.models.user import User
@@ -26,138 +28,144 @@ def send_daily_summary_report():
     logger.info("Starting daily summary report task")
 
     async def _async_send_report():
-        async with async_session_maker() as db:
-            # Calculate yesterday's date range
-            yesterday = datetime.utcnow() - timedelta(days=1)
-            start_of_yesterday = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_of_yesterday = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
+        task_engine = create_async_engine(
+            settings.DATABASE_URL, echo=settings.DEBUG,
+            pool_pre_ping=True, pool_size=5, max_overflow=10,
+        )
+        task_session_maker = sessionmaker(
+            task_engine, class_=AsyncSession, expire_on_commit=False
+        )
+        try:
+            async with task_session_maker() as db:
+                # Calculate yesterday's date range
+                yesterday = datetime.utcnow() - timedelta(days=1)
+                start_of_yesterday = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+                end_of_yesterday = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
 
-            # Get all users who have daily_summary enabled
-            # For now, we'll get all users and check their notification settings
-            users_result = await db.execute(
-                func.select(User.email)
-            )
-            users = users_result.scalars().all()
+                # Get all users who have daily_summary enabled
+                users_result = await db.execute(
+                    func.select(User.email)
+                )
+                users = users_result.scalars().all()
 
-            recipient_count = 0
+                recipient_count = 0
 
-            for user_email in users:
-                # Get user's notification settings
-                setting = await db.get(Setting, f"notification_settings_{user_email}")
-                if not setting:
-                    continue
-
-                try:
-                    import json
-                    notif_settings = json.loads(setting.value)
-                    if not notif_settings.get('daily_summary', False):
+                for user_email in users:
+                    # Get user's notification settings
+                    setting = await db.get(Setting, f"notification_settings_{user_email}")
+                    if not setting:
                         continue
 
-                    if not notif_settings.get('email_enabled', False):
+                    try:
+                        import json
+                        notif_settings = json.loads(setting.value)
+                        if not notif_settings.get('daily_summary', False):
+                            continue
+
+                        if not notif_settings.get('email_enabled', False):
+                            continue
+                    except Exception:
                         continue
-                except Exception:
-                    continue
 
-                # Get statistics for yesterday
-                stats_result = await db.execute(
-                    select(
-                        func.count(File.id).label('total'),
-                        func.sum(case({File.status == 'completed': 1}, else_=0)).label('completed'),
-                        func.sum(case({File.status == 'warning': 1}, else_=0)).label('warnings'),
-                        func.sum(case({File.status == 'failed': 1}, else_=0)).label('failed')
-                    ).where(
-                        File.uploaded_at >= start_of_yesterday,
-                        File.uploaded_at <= end_of_yesterday,
-                        File.is_deleted == False
+                    # Get statistics for yesterday
+                    stats_result = await db.execute(
+                        select(
+                            func.count(File.id).label('total'),
+                            func.sum(case({File.status == 'completed': 1}, else_=0)).label('completed'),
+                            func.sum(case({File.status == 'warning': 1}, else_=0)).label('warnings'),
+                            func.sum(case({File.status == 'failed': 1}, else_=0)).label('failed')
+                        ).where(
+                            File.uploaded_at >= start_of_yesterday,
+                            File.uploaded_at <= end_of_yesterday,
+                            File.is_deleted == False
+                        )
                     )
-                )
-                stats = stats_result.first()
+                    stats = stats_result.first()
 
-                if not stats or stats.total == 0:
-                    # No files processed yesterday, skip this user
-                    continue
+                    if not stats or stats.total == 0:
+                        continue
 
-                # Get recent files for the report
-                files_result = await db.execute(
-                    func.select(File)
-                    .where(
-                        File.uploaded_at >= start_of_yesterday,
-                        File.uploaded_at <= end_of_yesterday,
-                        File.is_deleted == False
+                    # Get recent files for the report
+                    files_result = await db.execute(
+                        func.select(File)
+                        .where(
+                            File.uploaded_at >= start_of_yesterday,
+                            File.uploaded_at <= end_of_yesterday,
+                            File.is_deleted == False
+                        )
+                        .order_by(File.uploaded_at.desc())
+                        .limit(10)
                     )
-                    .order_by(File.uploaded_at.desc())
-                    .limit(10)
-                )
-                recent_files = files_result.scalars().all()
+                    recent_files = files_result.scalars().all()
 
-                # Generate HTML report using template
-                from app.services.email_template_service import template_service
+                    # Generate HTML report using template
+                    from app.services.email_template_service import template_service
 
-                total = stats.total or 0
-                completed = stats.completed or 0
-                warnings = stats.warnings or 0
-                failed = stats.failed or 0
+                    total = stats.total or 0
+                    completed = stats.completed or 0
+                    warnings = stats.warnings or 0
+                    failed = stats.failed or 0
 
-                # Generate recent files list HTML
-                files_html = ""
-                for file in recent_files:
-                    status_emoji = "✅" if file.status == "completed" else ("⚠️" if file.status == "warning" else "❌")
-                    status_text = "通过" if file.status == "completed" else ("有警告" if file.status == "warning" else "失败")
-                    status_class = "status-completed" if file.status == "completed" else ("status-warning" if file.status == "warning" else "status-failed")
+                    # Generate recent files list HTML
+                    files_html = ""
+                    for file in recent_files:
+                        status_emoji = "✅" if file.status == "completed" else ("⚠️" if file.status == "warning" else "❌")
+                        status_text = "通过" if file.status == "completed" else ("有警告" if file.status == "warning" else "失败")
+                        status_class = "status-completed" if file.status == "completed" else ("status-warning" if file.status == "warning" else "status-failed")
 
-                    files_html += f"""
-                    <div class="file-item">
-                        <div class="file-name">{status_emoji} {file.original_filename or file.filename}</div>
-                        <div class="file-meta">
-                            状态: <span class="status-badge {status_class}">{status_text}</span>
-                            通过率: {file.pass_rate or 0}%
+                        files_html += f"""
+                        <div class="file-item">
+                            <div class="file-name">{status_emoji} {file.original_filename or file.filename}</div>
+                            <div class="file-meta">
+                                状态: <span class="status-badge {status_class}">{status_text}</span>
+                                通过率: {file.pass_rate or 0}%
+                            </div>
                         </div>
-                    </div>
-                    """
+                        """
 
-                # Prepare template context
-                context = {
-                    "date": yesterday.strftime('%Y年%m月%d日'),
-                    "total_count": total,
-                    "completed_count": completed,
-                    "warning_count": warnings,
-                    "failed_count": failed,
-                    "file_list_html": files_html
-                }
+                    # Prepare template context
+                    context = {
+                        "date": yesterday.strftime('%Y年%m月%d日'),
+                        "total_count": total,
+                        "completed_count": completed,
+                        "warning_count": warnings,
+                        "failed_count": failed,
+                        "file_list_html": files_html
+                    }
 
-                # Try to use template
-                rendered = await template_service.render_email_template("daily_summary", context)
+                    # Try to use template
+                    rendered = await template_service.render_email_template("daily_summary", context)
 
-                # Send email
-                try:
-                    if rendered:
-                        # Use template
-                        await email_service.send_email(
-                            to_email=user_email,
-                            subject=rendered["subject"],
-                            html_body=rendered["html_content"],
-                            smtp_config=None  # Will load from database
-                        )
-                    else:
-                        # Fallback to old method
-                        html_report = _generate_daily_summary_html(
-                            yesterday,
-                            stats,
-                            recent_files,
-                            user_email
-                        )
-                        await email_service.send_email(
-                            to_email=user_email,
-                            subject=f"文件校验平台 - 每日汇总报告 ({yesterday.strftime('%Y-%m-%d')})",
-                            html_body=html_report,
-                            smtp_config=None
-                        )
-                    recipient_count += 1
-                    logger.info(f"Daily summary sent to {user_email}")
-                except Exception as e:
-                    logger.error(f"Failed to send daily summary to {user_email}: {e}")
+                    # Send email
+                    try:
+                        if rendered:
+                            await email_service.send_email(
+                                to_email=user_email,
+                                subject=rendered["subject"],
+                                html_body=rendered["html_content"],
+                                smtp_config=None
+                            )
+                        else:
+                            html_report = _generate_daily_summary_html(
+                                yesterday,
+                                stats,
+                                recent_files,
+                                user_email
+                            )
+                            await email_service.send_email(
+                                to_email=user_email,
+                                subject=f"文件校验平台 - 每日汇总报告 ({yesterday.strftime('%Y-%m-%d')})",
+                                html_body=html_report,
+                                smtp_config=None
+                            )
+                        recipient_count += 1
+                        logger.info(f"Daily summary sent to {user_email}")
+                    except Exception as e:
+                        logger.error(f"Failed to send daily summary to {user_email}: {e}")
 
-            logger.info(f"Daily summary report completed. Sent to {recipient_count} users")
+                logger.info(f"Daily summary report completed. Sent to {recipient_count} users")
+        finally:
+            await task_engine.dispose()
 
     # Run the async operations
     try:

@@ -65,8 +65,8 @@ class OnlineVerificationOperator(BaseOperator):
         # 4. 转义剩余的正则特殊字符（保护字面量）
         temp_pattern = re.escape(temp_pattern)
         
-        # 5. 将通配符标记还原为 .*?（非贪婪匹配任意内容）
-        temp_pattern = temp_pattern.replace(re.escape('__WILDCARD__'), '.*?')
+        # 5. 将通配符标记还原为 .*（贪婪匹配，确保 URL 路径场景下匹配到最后一个分隔符）
+        temp_pattern = temp_pattern.replace(re.escape('__WILDCARD__'), '.*')
         
         # 6. 将占位符标记还原为命名捕获组
         for i, ph in enumerate(placeholders):
