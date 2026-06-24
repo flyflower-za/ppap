@@ -78,13 +78,12 @@ services:
   minio-init:
     image: minio/mc:latest
     container_name: ppap-minio-init
+    entrypoint: ["sh", "-c"]
     command: >
-      sh -c "
-      mc alias set ppapminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+      "mc alias set ppapminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
       mc mb ppapminio/ppap-files --ignore-existing &&
       mc anonymous set download ppapminio/ppap-files &&
-      echo 'MinIO bucket ppap-files initialized'
-      "
+      echo 'MinIO bucket ppap-files initialized'"
     depends_on:
       minio:
         condition: service_healthy
