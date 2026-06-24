@@ -225,8 +225,13 @@ class VerificationEngine:
             # Map pass_status to passed
             passed = op_result.pass_status if hasattr(op_result, 'pass_status') else op_result.passed
 
+            # Check if the operator signaled a skip (e.g. no QR code for online verification)
+            is_skipped = getattr(op_result, 'skipped', False)
+
             # Determine status based on module severity and result
-            if module.severity == ModuleSeverity.info:
+            if is_skipped:
+                status = "info"
+            elif module.severity == ModuleSeverity.info:
                 status = "info"
             elif module.severity == ModuleSeverity.warning:
                 status = "warning" if not passed else "pass"
@@ -237,6 +242,7 @@ class VerificationEngine:
                 "name": module.name,
                 "status": status,
                 "passed": passed,
+                "skipped": is_skipped,
                 "message": op_result.message if hasattr(op_result, 'message') else "执行完成",
                 "severity": module.severity.value,
                 "module_id": module.id,
@@ -499,8 +505,12 @@ class VerificationEngine:
                 for mr in module_res_list:
                     mr_sev = mr.get("severity", "warning")
                     mr_pass = mr.get("passed", False)
-                    
-                    if mr_sev == "info":
+                    mr_skipped = mr.get("skipped", False)
+
+                    if mr_skipped:
+                        reference_count += 1
+                        mr_status = "info"
+                    elif mr_sev == "info":
                         reference_count += 1
                         mr_status = "info"
                     elif mr_pass:

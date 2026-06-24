@@ -8,6 +8,7 @@ class OperatorResult(BaseModel):
     pass_status: bool = True
     confidence: float = 1.0
     message: str = ""
+    skipped: bool = False
     # Store any operator-specific outputs (like extracted text, coordinates, bounding boxes)
     extracted_data: Dict[str, Any] = Field(default_factory=dict)
 

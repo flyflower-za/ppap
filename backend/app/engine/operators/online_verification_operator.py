@@ -86,18 +86,22 @@ class OnlineVerificationOperator(BaseOperator):
         if not qr_data:
             return OperatorResult(
                 operator_name=self.name,
-                pass_status=False,
-                message="在线防伪失败：文档中未检测到二维码。"
+                pass_status=True,
+                skipped=True,
+                message="文档中未检测到二维码，已跳过在线防伪比对。",
+                extracted_data={"skipped_reason": "no_qr_code"}
             )
 
         # 获取第一个二维码内容
         qr_content = qr_data[0].get("data", "") if isinstance(qr_data[0], dict) else str(qr_data[0])
-        
+
         if not qr_content:
             return OperatorResult(
                 operator_name=self.name,
-                pass_status=False,
-                message="在线防伪失败：二维码内容为空。"
+                pass_status=True,
+                skipped=True,
+                message="二维码内容为空，已跳过在线防伪比对。",
+                extracted_data={"skipped_reason": "empty_qr_content"}
             )
 
         # 2. 正则提取参数（支持简化占位符语法自动转换）
