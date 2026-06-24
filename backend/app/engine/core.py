@@ -100,7 +100,7 @@ class VerificationEngine:
         """
         Analyze the AST/rule dependencies to figure out which operators must run.
         """
-        required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck", "StampDetection"])
+        required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck"])
         
         # Collect modules to see if their operators are needed
         if rule_to_modules:
@@ -447,6 +447,23 @@ class VerificationEngine:
 
         # Flatten any newly added shared_state values
         self._flatten_shared_state(context)
+
+        # ---------------------------------------------------------
+        # STAGE 2.5: Default fallback operators
+        # If key detection operators were not triggered by any rule,
+        # run them as default checks to ensure baseline coverage.
+        # ---------------------------------------------------------
+        default_operator_keys = ["StampDetection"]
+        for op_key in default_operator_keys:
+            op = self._available_operators.get(op_key)
+            if op and op.name not in operator_results:
+                await emit_log(f"默认校验：执行 [{op_key}]（未被规则触发，自动兜底）")
+                try:
+                    res = await op.execute(context)
+                    operator_results[op.name] = res.dict()
+                except Exception as e:
+                    logger.error(f"[Engine] Default operator {op.name} crashed: {e}")
+                    operator_results[op.name] = {"pass_status": False, "message": str(e)}
 
         # ---------------------------------------------------------
         # STAGE 3: Execute Verification Modules (legacy global modules input)
