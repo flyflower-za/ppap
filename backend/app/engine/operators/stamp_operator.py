@@ -83,14 +83,9 @@ class StampDetectionOperator(BaseOperator):
                 red_pixel_count = cv2.countNonZero(mask)
                 logger.info(f"Stamp detection page {page_idx + 1}: red_pixels={red_pixel_count}, raw_contours={len(contours)}")
 
-                page_h, page_w = img_bgr.shape[:2]
-                page_area = page_w * page_h
-
                 for cnt in contours:
                     area = cv2.contourArea(cnt)
-                    # Area filter: minimum 1000px (~250px² at 2x zoom = ~1.2cm stamp)
-                    # Maximum 40% of page area to exclude full-page red backgrounds
-                    if area < 1000 or area > page_area * 0.4:
+                    if area < 500:
                         continue
 
                     x, y, w, h = cv2.boundingRect(cnt)
@@ -98,17 +93,22 @@ class StampDetectionOperator(BaseOperator):
                     if aspect_ratio < 0.3 or aspect_ratio > 3.0:
                         continue
 
-                    # Circularity filter: real stamps are circular/elliptical
-                    # Circle ≈ 1.0, square ≈ 0.78, text/lines < 0.3
+                    # Circularity: 4π·A / P²
+                    # Circle ≈ 1.0, square ≈ 0.78, irregular stamp ≈ 0.3-0.6
+                    # Text chars / lines typically < 0.2
                     perimeter = cv2.arcLength(cnt, True)
                     if perimeter == 0:
                         continue
                     circularity = 4 * np.pi * area / (perimeter * perimeter)
-                    if circularity < 0.4:
-                        logger.debug(f"  Rejected contour: area={area}, aspect={aspect_ratio:.2f}, circularity={circularity:.3f}")
+
+                    logger.info(
+                        f"  contour: area={area}, aspect={aspect_ratio:.2f}, "
+                        f"circularity={circularity:.3f}, bbox=({x},{y},{w},{h})"
+                    )
+
+                    if circularity < 0.2:
                         continue
 
-                    logger.info(f"  Stamp found: area={area}, aspect={aspect_ratio:.2f}, circularity={circularity:.3f}")
                     total_stamps += 1
                     stamps_info.append({
                         "page": page_idx + 1,
