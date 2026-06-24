@@ -80,7 +80,7 @@ class SmtpTestRequest(BaseModel):
 
 @router.get("/notifications")
 async def get_notification_settings(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -88,7 +88,6 @@ async def get_notification_settings(
 
     Only admin users can access this endpoint.
     """
-    # TODO: Check if user is admin
     from app.models.setting import Setting
 
     # Try to load from database
@@ -115,7 +114,6 @@ async def update_notification_settings(
 
     Only admin users can access this endpoint.
     """
-    # TODO: Check if user is admin
     from app.models.setting import Setting
 
     # Convert Pydantic model to JSON string
@@ -147,7 +145,6 @@ async def get_smtp_config(
 
     Only admin users can access this endpoint.
     """
-    # TODO: Check if user is admin
     # Try to load from database
     result = await db.get(Setting, "smtp_config")
     if result:
@@ -184,8 +181,6 @@ async def update_smtp_config(
 
     Only admin users can access this endpoint.
     """
-    # TODO: Check if user is admin
-
     # Validate configuration when enabled
     if config.enabled:
         if not config.host or not config.username:
@@ -237,7 +232,6 @@ async def test_smtp_config(
 
     Only admin users can access this endpoint.
     """
-    # TODO: Check if user is admin
     from app.services.email_service import email_service
 
     config = request.config
@@ -818,7 +812,7 @@ async def set_default_model_profile(
 
 @router.get("/file-retention")
 async def get_file_retention_settings(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -826,11 +820,6 @@ async def get_file_retention_settings(
 
     Only admin users can access this endpoint.
     """
-    # Check if user is admin
-    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-    if user_role != "ADMIN":
-        raise HTTPException(status_code=403, detail="只有管理员可以访问此设置")
-
     # Try to load from database
     result = await db.get(Setting, "file_retention_settings")
     if result:
@@ -847,7 +836,7 @@ async def get_file_retention_settings(
 @router.post("/file-retention")
 async def update_file_retention_settings(
     settings: FileRetentionSettings,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -855,11 +844,6 @@ async def update_file_retention_settings(
 
     Only admin users can access this endpoint.
     """
-    # Check if user is admin
-    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-    if user_role != "ADMIN":
-        raise HTTPException(status_code=403, detail="只有管理员可以访问此设置")
-
     from app.models.setting import Setting
     import json
 
@@ -892,7 +876,7 @@ async def update_file_retention_settings(
 
 @router.post("/file-retention/cleanup-now")
 async def trigger_cleanup_now(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -900,11 +884,6 @@ async def trigger_cleanup_now(
 
     Only admin users can access this endpoint.
     """
-    # Check if user is admin
-    user_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
-    if user_role != "ADMIN":
-        raise HTTPException(status_code=403, detail="只有管理员可以执行此操作")
-
     from app.tasks.cleanup_tasks import cleanup_expired_files
 
     # Trigger the cleanup task asynchronously

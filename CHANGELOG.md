@@ -2,6 +2,51 @@
 
 All notable changes to the PPAP project will be documented in this file.
 
+## [2026-06-24] - 基础设施加固与代码质量修复
+
+### 功能描述
+- **管理员权限校验修复**：`settings.py` 中所有系统管理类端点统一使用 `get_current_admin` 依赖，消除普通用户可修改系统配置的安全漏洞。
+- **401 跳转优化**：前端 Token 过期后使用 SPA 导航跳转，不再整页刷新，支持登录后自动回跳原页面。
+- **容器资源限制**：6 个 Docker 服务添加内存/CPU 限制，防止单进程耗尽资源导致全部服务崩溃。
+- **健康检查**：backend、frontend、celery-worker 添加健康检查，服务异常时 Docker 可自动感知。
+- **日志轮转**：统一配置 `max-size:10m max-file:3`，防止日志填满磁盘。
+- **Nginx 安全头**：添加 X-Content-Type-Options、X-Frame-Options、X-XSS-Protection、Referrer-Policy。
+- **Nginx 速率限制**：登录接口 5 次/分钟，通用 API 10 次/秒，防御暴力登录和 API 滥用。
+- **JWT 有效期缩短**：从 24 小时缩短至 2 小时，支持通过 `.env` 配置。
+- **PostgreSQL 端口隐藏**：移除宿主机端口映射，仅 Docker 内部网络可访问数据库。
+
+### 详细修改记录
+
+#### 1. 后端 - 权限校验
+- **settings.py** ([settings.py](backend/app/api/settings.py)) [MODIFY]：
+  - `GET /notifications`：`get_current_user` → `get_current_admin`
+  - `GET/POST /file-retention`、`POST /file-retention/cleanup-now`：移除内联角色校验，统一使用 `get_current_admin`
+  - 删除 6 处残留的 `# TODO: Check if user is admin` 注释
+- **test_settings.py** ([test_settings.py](backend/tests/api/test_settings.py)) [MODIFY]：新增 4 个权限校验测试
+
+#### 2. 前端 - 401 处理
+- **client.ts** ([client.ts](frontend/src/api/client.ts)) [MODIFY]：
+  - `window.location.href = '/login'` → `router.push({ name: 'Login', query: { redirect } })`
+  - `localStorage.removeItem('token')` → `useAuthStore().logout()`
+  - 已在登录页时不重复跳转
+
+#### 3. 部署 - 基础设施加固
+- **docker-compose.yml** ([docker-compose.yml](deploy/docker-compose.yml)) [MODIFY]：
+  - 6 个服务添加 `deploy.resources.limits`（内存 128M–1536M，CPU 0.5–1.5）
+  - backend 健康检查：`python urllib → /health`
+  - frontend 健康检查：`wget → localhost:80`
+  - celery-worker 健康检查：`celery inspect ping`
+  - 添加 `x-logging` YAML 锚点统一日志轮转配置
+  - backend 环境变量新增 `ACCESS_TOKEN_EXPIRE_MINUTES`
+  - 移除 PostgreSQL `"5435:5432"` 端口映射
+- **nginx.conf** ([nginx.conf](deploy/nginx.conf) + [nginx.conf](frontend/nginx.conf)) [MODIFY]：
+  - 添加 4 个安全响应头（server 块 + .mjs location）
+  - 添加 `limit_req_zone`：login 5r/min + api 10r/s
+- **config.py** ([config.py](backend/app/core/config.py)) [MODIFY]：`ACCESS_TOKEN_EXPIRE_MINUTES` 默认值 1440 → 120
+- **.env.example** ([.env.example](deploy/.env.example)) [MODIFY]：新增 `ACCESS_TOKEN_EXPIRE_MINUTES=120`
+
+---
+
 ## [2026-06-24] - 安全加固与登录认证修复
 
 ### 功能描述

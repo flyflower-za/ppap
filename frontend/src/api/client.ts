@@ -1,6 +1,8 @@
 import axios from 'axios'
 import type { AxiosInstance, AxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
+import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
 
@@ -32,8 +34,11 @@ client.interceptors.response.use(
     ElMessage.error(message)
 
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      const authStore = useAuthStore()
+      authStore.logout()
+      if (router.currentRoute.value.name !== 'Login') {
+        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+      }
     }
 
     return Promise.reject(error)
