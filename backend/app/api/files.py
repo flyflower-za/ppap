@@ -78,6 +78,7 @@ async def upload_file(
 async def list_files(
     status: FileStatusEnum = Query(default=None),
     file_type: FileTypeEnum = Query(default=None),
+    institution: str = Query(default=None),
     keyword: str = Query(default=None),
     date_from: str = Query(default=None),
     date_to: str = Query(default=None),
@@ -92,6 +93,7 @@ async def list_files(
     filters = FileFilter(
         status=status,
         file_type=file_type,
+        institution=institution,
         keyword=keyword,
         date_from=datetime.fromisoformat(date_from) if date_from else None,
         date_to=datetime.fromisoformat(date_to) if date_to else None,

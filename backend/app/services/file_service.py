@@ -127,6 +127,12 @@ class FileService:
                 query = query.where(File.status == filters.status)
         if filters.file_type:
             query = query.where(File.file_type == filters.file_type)
+        if filters.institution:
+            # verification_result 是 Text 列，需 cast 为 JSONB 后再提取签发机构
+            from sqlalchemy import cast
+            from sqlalchemy.dialects.postgresql import JSONB
+            inst_expr = cast(File.verification_result, JSONB)["summary"]["institution"].astext
+            query = query.where(inst_expr.ilike(f"%{filters.institution}%"))
         if filters.keyword:
             query = query.where(File.original_filename.ilike(f"%{filters.keyword}%"))
         if filters.date_from:

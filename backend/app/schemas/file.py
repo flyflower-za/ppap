@@ -109,6 +109,7 @@ class FileFilter(BaseModel):
     """File filter parameters."""
     status: Optional[FileStatusEnum] = None
     file_type: Optional[FileTypeEnum] = None
+    institution: Optional[str] = None
     keyword: Optional[str] = None
     date_from: Optional[datetime] = None
     date_to: Optional[datetime] = None

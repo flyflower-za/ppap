@@ -25,7 +25,7 @@ export interface TokenResponse {
 }
 
 // File
-export type FileStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'warning'
+export type FileStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'warning' | 'needs_review'
 export type FileType = 'production_plan' | 'quality_report' | 'purchase_order' | 'supplier_qualification' | 'product_specification' | 'other'
 
 export interface File {
@@ -81,7 +81,7 @@ export interface FileListResponse {
 
 export interface FileFilter {
   status?: FileStatus
-  file_type?: FileType
+  institution?: string
   keyword?: string
   date_from?: string
   date_to?: string

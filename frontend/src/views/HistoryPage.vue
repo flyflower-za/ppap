@@ -45,10 +45,10 @@
             <el-row :gutter="20">
               <el-col :xs="24" :sm="8" :md="5">
                 <el-form-item label="校验状态">
-                  <el-select 
-                    v-model="filters.status" 
-                    placeholder="全部状态" 
-                    clearable 
+                  <el-select
+                    v-model="filters.status"
+                    placeholder="全部状态"
+                    clearable
                     class="premium-select"
                     @change="handleSearch"
                   >
@@ -57,26 +57,21 @@
                     <el-option label="已通过 (合规)" value="completed" />
                     <el-option label="有警告 (含风险)" value="warning" />
                     <el-option label="校验失败 (不合格)" value="failed" />
+                    <el-option label="需人工放行" value="needs_review" />
                   </el-select>
                 </el-form-item>
               </el-col>
 
               <el-col :xs="24" :sm="8" :md="5">
-                <el-form-item label="文件类型">
-                  <el-select 
-                    v-model="filters.file_type" 
-                    placeholder="全部类型" 
-                    clearable 
-                    class="premium-select"
-                    @change="handleSearch"
-                  >
-                    <el-option label="生产计划单" value="production_plan" />
-                    <el-option label="质量检测报告" value="quality_report" />
-                    <el-option label="采购订单" value="purchase_order" />
-                    <el-option label="供应商资质" value="supplier_qualification" />
-                    <el-option label="产品规格书" value="product_specification" />
-                    <el-option label="常规合规文件" value="other" />
-                  </el-select>
+                <el-form-item label="签发机构">
+                  <el-input
+                    v-model="filters.institution"
+                    placeholder="输入机构名称"
+                    clearable
+                    class="premium-input"
+                    @clear="handleSearch"
+                    @keyup.enter="handleSearch"
+                  />
                 </el-form-item>
               </el-col>
 
@@ -327,7 +322,7 @@ const isCollapsed = ref(true) // Collapsed by default
 
 const filters = reactive({
   status: '',
-  file_type: '',
+  institution: '',
   keyword: '',
   date_from: '',
   date_to: '',
@@ -439,7 +434,7 @@ const executionLogs = computed(() => {
 })
 
 const hasActiveFilters = computed(() => {
-  return !!(filters.status || filters.file_type || filters.keyword || filters.date_from || filters.date_to)
+  return !!(filters.status || filters.institution || filters.keyword || filters.date_from || filters.date_to)
 })
 
 const pagination = reactive({
@@ -538,7 +533,7 @@ async function fetchData() {
   try {
     const params = {
       status: filters.status || undefined,
-      file_type: filters.file_type || undefined,
+      institution: filters.institution || undefined,
       keyword: filters.keyword || undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,
@@ -564,7 +559,7 @@ function handleSearch() {
 function handleReset() {
   Object.assign(filters, {
     status: '',
-    file_type: '',
+    institution: '',
     keyword: '',
     date_from: '',
     date_to: '',
@@ -706,7 +701,7 @@ async function handleExport() {
   try {
     const params = {
       status: filters.status || undefined,
-      file_type: filters.file_type || undefined,
+      institution: filters.institution || undefined,
       keyword: filters.keyword || undefined,
       date_from: filters.date_from || undefined,
       date_to: filters.date_to || undefined,
