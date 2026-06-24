@@ -140,7 +140,7 @@ services:
       CORS_ORIGINS: '["http://localhost:3000","http://localhost:5173"]'
     ports:
       - "31234:31234"
-    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "31234" ]
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "31234", "--workers", "2" ]
     logging: *default-logging
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:31234/health')" ]
@@ -193,7 +193,7 @@ services:
     image: ppap-backend:latest
     container_name: ppap-celery-worker
     restart: unless-stopped
-    command: celery -A app.tasks.celery_app worker --loglevel=info
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=3
     environment:
       DATABASE_URL: postgresql+asyncpg://ppap:${POSTGRES_PASSWORD}@postgres:5432/ppap
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -209,8 +209,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1536M
-          cpus: '1.5'
+          memory: 2G
+          cpus: '2.0'
     depends_on:
       - postgres
       - redis
