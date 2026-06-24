@@ -970,6 +970,9 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
         if (Array.isArray(stampData)) {
           stampData.forEach((stamp: any) => {
             if (stamp.page === pageNum && stamp.bounding_box) {
+              const [x0, y0, x1, y1] = stamp.bounding_box
+              const scale = viewport.scale || 1.5
+              console.log(`[Stamp Highlight] page=${pageNum}, bbox=[${x0},${y0},${x1},${y1}], scale=${scale}, cssSize=${(x1-x0)*scale}x${(y1-y0)*scale}, viewportSize=${viewport.width}x${viewport.height}`)
               drawHighlightBox(pageWrapper, stamp.bounding_box, viewport, 'rgba(230, 162, 60, 0.2)', '2px solid #E6A23C')
             }
           })
@@ -985,18 +988,15 @@ async function renderPdf(downloadUrl: string, verificationResult: any) {
 
 function drawHighlightBox(wrapper: HTMLElement, rect: number[], viewport: any, bg: string, border: string) {
   const [x0, y0, x1, y1] = rect
-  
-  // PyMuPDF returns coordinates in points (72 DPI) with a Top-Left origin.
-  // PDF.js viewport.convertToViewportPoint expects standard PDF coordinates (Bottom-Left origin).
-  // To avoid flipping or complex viewBox offset math, we can simply scale the Top-Left points
-  // directly by the viewport's scale.
   const scale = viewport.scale || 1.5
-  
+
   const left = x0 * scale
   const top = y0 * scale
   const width = (x1 - x0) * scale
   const height = (y1 - y0) * scale
-  
+
+  console.log(`[drawHighlightBox] raw=[${x0},${y0},${x1},${y1}] → CSS: left=${left.toFixed(1)} top=${top.toFixed(1)} w=${width.toFixed(1)} h=${height.toFixed(1)}, wrapper=${wrapper.style.width}x${wrapper.style.height}`)
+
   const box = document.createElement('div')
   box.style.position = 'absolute'
   box.style.left = `${left}px`
