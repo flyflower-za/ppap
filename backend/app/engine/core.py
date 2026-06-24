@@ -100,7 +100,7 @@ class VerificationEngine:
         """
         Analyze the AST/rule dependencies to figure out which operators must run.
         """
-        required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck"])
+        required_names = set(["PDFInfoExtractor", "InstitutionSniffer", "RevisionCheck", "StampDetection"])
         
         # Collect modules to see if their operators are needed
         if rule_to_modules:
