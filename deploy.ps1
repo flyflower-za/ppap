@@ -57,20 +57,11 @@ function Test-Docker {
 }
 
 function Invoke-DockerCompose {
-    $flatArgs = @()
-    foreach ($arg in $args) {
-        if ($arg -is [array]) {
-            $flatArgs += $arg
-        } else {
-            $flatArgs += $arg
-        }
-    }
-
     if (Test-DockerCompose) {
-        $fullArgs = @("compose") + $flatArgs
+        $fullArgs = @("compose") + $args
         & docker $fullArgs
     } else {
-        & docker-compose $flatArgs
+        & docker-compose $args
     }
 }
 
@@ -101,19 +92,12 @@ if (Test-DockerCompose) {
     exit 1
 }
 
-# Check if Docker daemon is running
-if (-not (Test-Docker)) {
-    Write-Error-Color "Error: Docker daemon is not running."
-    Write-Host "Please start Docker Desktop and try again."
-    exit 1
-}
-
-Write-Success "[+] Docker daemon is running"
 Write-Host ""
 
 # Check if there are code changes that might require rebuild
 $hasChanges = $false
-$projectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
+$projectRoot = $PSScriptRoot
+if (-not $projectRoot) { $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition }
 
 # Only check git if .git directory exists and git is available
 if ((Test-Path "$projectRoot\.git") -and (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -180,14 +164,12 @@ REDIS_PASSWORD=redis-secret-pass
     # P2-5: Generate bcrypt hash for admin password and replace in init-db.sql
     try {
         $pyScript = @"
-from passlib.context import CryptContext
-import sys
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-sys.stdout.write(ctx.hash('$adminPass'))
+import bcrypt, sys
+sys.stdout.write(bcrypt.hashpw(b'$adminPass', bcrypt.gensalt()).decode())
 "@
         $adminHash = python -c $pyScript 2>$null
         if ($adminHash) {
-            $initDbPath = Join-Path $PSScriptRoot "..\deploy\init-db.sql"
+            $initDbPath = Join-Path $PSScriptRoot "deploy/init-db.sql"
             if (-not (Test-Path $initDbPath)) {
                 $initDbPath = "init-db.sql"
             }
@@ -202,7 +184,7 @@ sys.stdout.write(ctx.hash('$adminPass'))
             Add-Content -Path $envFile -Value "ADMIN_PASSWORD_HASH=$adminHash"
             $env:ADMIN_PASSWORD_HASH = $adminHash
         } else {
-            Write-Warning "  ⚠ Python/passlib not available, using default admin password (admin123)"
+            Write-Warning "  ⚠ Python/bcrypt not available, using default admin password (admin123)"
         }
     } catch {
         Write-Warning "  ⚠ Could not generate admin password hash, using default (admin123)"
@@ -214,10 +196,8 @@ sys.stdout.write(ctx.hash('$adminPass'))
     if (-not ($envContent -match 'ADMIN_PASSWORD_HASH')) {
         try {
             $pyScript = @"
-from passlib.context import CryptContext
-import sys
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-sys.stdout.write(ctx.hash('admin123'))
+import bcrypt, sys
+sys.stdout.write(bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode())
 "@
             $adminHash = python -c $pyScript 2>$null
             if ($adminHash) {

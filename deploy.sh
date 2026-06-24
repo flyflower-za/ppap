@@ -102,13 +102,11 @@ EOF
 
         # P2-5: Generate bcrypt hash for admin password and replace in init-db.sql
         ADMIN_HASH=$(python3 -c "
-from passlib.context import CryptContext
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-print(ctx.hash('${GENERATED_ADMIN_PASS}'))
+import bcrypt
+print(bcrypt.hashpw(b'${GENERATED_ADMIN_PASS}', bcrypt.gensalt()).decode())
 " 2>/dev/null || python -c "
-from passlib.context import CryptContext
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-print(ctx.hash('${GENERATED_ADMIN_PASS}'))
+import bcrypt
+print(bcrypt.hashpw(b'${GENERATED_ADMIN_PASS}', bcrypt.gensalt()).decode())
 " 2>/dev/null || echo "")
 
         if [ -n "$ADMIN_HASH" ]; then
@@ -122,7 +120,7 @@ print(ctx.hash('${GENERATED_ADMIN_PASS}'))
             export ADMIN_PASSWORD_HASH="${ADMIN_HASH}"
             echo -e "${GREEN}[+] Admin password set to: ${GENERATED_ADMIN_PASS}${NC}"
         else
-            echo -e "${YELLOW}  ⚠ Python/passlib not available, using default admin password (admin123)${NC}"
+            echo -e "${YELLOW}  ⚠ Python/bcrypt not available, using default admin password (admin123)${NC}"
         fi
     fi
 else
@@ -130,13 +128,11 @@ else
     # Ensure ADMIN_PASSWORD_HASH exists in .env for existing deployments
     if ! grep -q "ADMIN_PASSWORD_HASH" .env; then
         ADMIN_HASH=$(python3 -c "
-from passlib.context import CryptContext
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-print(ctx.hash('admin123'))
+import bcrypt
+print(bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode())
 " 2>/dev/null || python -c "
-from passlib.context import CryptContext
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-print(ctx.hash('admin123'))
+import bcrypt
+print(bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode())
 " 2>/dev/null || echo "")
         if [ -n "$ADMIN_HASH" ]; then
             echo "ADMIN_PASSWORD_HASH=${ADMIN_HASH}" >> .env
