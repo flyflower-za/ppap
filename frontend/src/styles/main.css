@@ -37,7 +37,6 @@ a {
 /* Page layout */
 .page-container {
   min-height: 100vh;
-  min-width: 1200px;
   display: flex;
   flex-direction: column;
 }
@@ -57,12 +56,18 @@ a {
   align-items: center;
   padding: 0 32px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 
 .navbar-left {
   display: flex;
   align-items: center;
   gap: 48px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .navbar-logo {
@@ -72,11 +77,19 @@ a {
   color: white;
   font-size: 18px;
   font-weight: 600;
+  flex-shrink: 0;
 }
 
 .navbar-menu {
   display: flex;
   gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+}
+
+.navbar-menu::-webkit-scrollbar {
+  display: none;
 }
 
 .navbar-menu a {
@@ -85,6 +98,7 @@ a {
   border-radius: 4px;
   transition: all 0.3s;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .navbar-menu a:hover,
