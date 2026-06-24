@@ -148,7 +148,6 @@ import { useRouter } from 'vue-router'
 import { filesApi } from '@/api/files'
 import type { File } from '@/types'
 import { Check, Warning, Close, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
 
 const props = defineProps<{
   status: 'all' | 'processing' | 'completed' | 'failed'
@@ -308,9 +307,7 @@ function goToDetail(id: string) {
   router.push(`/files/${id}`)
 }
 
-function formatTime(timeStr: string) {
-  return dayjs(timeStr).format('YYYY-MM-DD HH:mm')
-}
+import { formatTime } from '@/utils/formatters'
 
 watch(() => props.status, () => {
   stopPolling()

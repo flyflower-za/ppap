@@ -1019,12 +1019,7 @@ function fileTypeLabel(type?: string): string {
   return map[type || ''] || '未归类文档'
 }
 
-function formatFileSize(bytes?: number): string {
-  if (bytes === undefined || bytes === null) return '-'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
+import { formatFileSize } from '@/utils/formatters'
 
 function formatDuration(seconds?: number): string {
   if (seconds === undefined || seconds === null) return '-'

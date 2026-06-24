@@ -7,9 +7,9 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "PPAP File Verification Platform"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
-    APP_BASE_URL: str = "http://localhost"  # 应用对外访问的根 URL，生产环境改为实际域名/IP
+    APP_BASE_URL: str = ""  # 应用对外访问的根 URL，生产环境必须配置
 
     # Server
     HOST: str = "0.0.0.0"

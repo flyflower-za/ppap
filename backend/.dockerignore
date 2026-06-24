@@ -10,3 +10,6 @@ venv/
 .git/
 .gitignore
 check_db_state.py
+tests/
+requirements.txt
+*.md

@@ -8,6 +8,7 @@ import json
 
 from app.models.file import File, FileStatus, FileType
 from app.models.user import User
+from app.core.config import settings
 from app.schemas.file import FileFilter, FileResponse, FileDetailResponse
 from app.core.minio_client import minio_client
 from app.services.aliyun_service import aliyun_service
@@ -58,7 +59,7 @@ class FileService:
             page_count=metadata.get("page_count"),
             status=FileStatus.PENDING,
             uploaded_by=uploaded_by,
-            will_delete_at=datetime.utcnow() + timedelta(days=30),
+            will_delete_at=datetime.utcnow() + timedelta(days=settings.FILE_RETENTION_DAYS),
         )
 
         self.db.add(db_file)

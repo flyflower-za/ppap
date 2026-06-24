@@ -181,12 +181,7 @@ const processingTaskListRef = ref<InstanceType<typeof TaskList> | null>(null)
 const completedTaskListRef = ref<InstanceType<typeof TaskList> | null>(null)
 const failedTaskListRef = ref<InstanceType<typeof TaskList> | null>(null)
 
-function formatFileSize(bytes?: number): string {
-  if (bytes === undefined || bytes === null) return '-'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
+import { formatFileSize } from '@/utils/formatters'
 
 // Handle file addition in drag or selector
 function handleFileChange(uploadFile: any, uploadFiles: any[]) {

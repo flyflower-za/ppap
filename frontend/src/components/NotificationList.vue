@@ -39,7 +39,6 @@ import { ref, onMounted, watch } from 'vue'
 import client from '@/api/client'
 import type { Notification } from '@/types'
 import { SuccessFilled, CircleCloseFilled, WarningFilled, InfoFilled } from '@element-plus/icons-vue'
-import dayjs from 'dayjs'
 
 const props = defineProps<{
   unreadOnly: boolean
@@ -93,9 +92,7 @@ async function markAsRead(item: Notification) {
   }
 }
 
-function formatTime(timeStr: string) {
-  return dayjs(timeStr).format('YYYY-MM-DD HH:mm')
-}
+import { formatTime } from '@/utils/formatters'
 
 watch(() => props.unreadOnly, fetchNotifications)
 watch(() => props.refreshKey, fetchNotifications)

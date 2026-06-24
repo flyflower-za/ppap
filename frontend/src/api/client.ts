@@ -26,6 +26,10 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
+// Debounce duplicate error toasts — same message within 2s shows only once
+let lastErrorMessage = ''
+let lastErrorTime = 0
+
 // Response interceptor
 client.interceptors.response.use(
   (response) => response.data,
@@ -34,7 +38,12 @@ client.interceptors.response.use(
 
     if (!config?.skipGlobalError) {
       const message = error.response?.data?.detail || error.message || '请求失败'
-      ElMessage.error(message)
+      const now = Date.now()
+      if (message !== lastErrorMessage || now - lastErrorTime > 2000) {
+        ElMessage.error(message)
+        lastErrorMessage = message
+        lastErrorTime = now
+      }
     }
 
     if (error.response?.status === 401) {

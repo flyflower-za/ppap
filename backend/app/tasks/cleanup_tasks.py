@@ -43,14 +43,14 @@ def cleanup_expired_files():
                 setting = await db.get(Setting, "file_retention_settings")
 
                 # Default values if not configured
-                retention_days = 30
+                retention_days = settings.FILE_RETENTION_DAYS
                 auto_cleanup_enabled = True
 
                 if setting:
                     try:
                         import json
                         settings_dict = json.loads(setting.value)
-                        retention_days = settings_dict.get('retention_days', 30)
+                        retention_days = settings_dict.get('retention_days', settings.FILE_RETENTION_DAYS)
                         auto_cleanup_enabled = settings_dict.get('auto_cleanup_enabled', True)
                         logger.info(f"Loaded retention settings: {retention_days} days, auto_cleanup={auto_cleanup_enabled}")
                     except Exception as e:

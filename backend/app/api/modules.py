@@ -12,7 +12,6 @@ from app.services.file_service import FileService
 from app.core.audit_logger import log_audit_event
 
 router = APIRouter()
-engine = VerificationEngine()
 
 @router.get("/list", response_model=Dict[str, Any])
 async def list_modules(current_user: User = Depends(get_current_user)):
@@ -113,6 +112,7 @@ async def test_module(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON in params")
         
+    engine = VerificationEngine()
     operator = engine._available_operators.get(operator_name)
     if not operator:
         raise HTTPException(status_code=404, detail=f"Operator {operator_name} not found")

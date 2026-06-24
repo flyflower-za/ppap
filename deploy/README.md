@@ -1,155 +1,138 @@
-# Deployment Guide
+# 部署指南
 
-## Prerequisites
+## 环境要求
 
 - Docker 20.10+
 - Docker Compose 2.0+
 
-## Quick Start
+## 快速开始
 
-### 1. Clone repository
+### 1. 克隆仓库
 
 ```bash
 git clone <repository-url>
 cd ppap
 ```
 
-### 2. Configure environment
+### 2. 部署
 
+使用部署脚本自动完成环境配置、密钥生成和服务启动：
+
+**Linux / macOS:**
 ```bash
-cp deploy/.env.example deploy/.env
-# Edit deploy/.env with your settings
+bash deploy.sh
 ```
 
-### 3. Start services
-
-```bash
-cd deploy
-docker-compose up -d
+**Windows (PowerShell):**
+```powershell
+.\deploy.ps1
 ```
 
-### 4. Initialize database
+脚本会自动：
+- 检查 Docker 环境
+- 生成 `.env` 文件（首次运行时自动生成强密钥）
+- 构建并启动所有服务
+- 初始化数据库和 MinIO bucket
+
+### 3. 访问应用
+
+- **前端**: http://localhost
+- **后端 API**: http://localhost:31234
+- **API 文档**: http://localhost:31234/docs
+- **MinIO 控制台**: http://localhost:9001
+
+## 服务端口
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| Frontend | 80 | Nginx 静态文件 + API 反向代理 |
+| Backend | 31234 | FastAPI 应用 |
+| MinIO API | 9000 | 对象存储 API |
+| MinIO Console | 9001 | MinIO Web 管理界面 |
+
+> PostgreSQL、Redis 仅通过 Docker 内部网络访问，不暴露到宿主机。
+
+## 环境变量
+
+编辑 `deploy/.env`（由部署脚本自动生成）：
 
 ```bash
-# Wait for PostgreSQL to be ready
-docker-compose exec postgres psql -U ppap -d ppap -f /docker-entrypoint-initdb.d/init.sql
-```
+# 安全
+SECRET_KEY=<自动生成>
+ACCESS_TOKEN_EXPIRE_MINUTES=120
 
-### 5. Create MinIO bucket
+# 数据库
+POSTGRES_PASSWORD=<自动生成>
 
-```bash
-# Access MinIO console at http://localhost:9001
-# Login with minioadmin/minioadmin
-# Create bucket named 'ppap-files'
-```
-
-### 6. Access application
-
-- Frontend: http://localhost
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- MinIO Console: http://localhost:9001
-
-## Services
-
-| Service | Port | Description |
-|---------|------|-------------|
-| Frontend | 80 | Nginx serving Vue 3 app |
-| Backend | 8000 | FastAPI application |
-| PostgreSQL | 5432 | Database |
-| Redis | 6379 | Cache & queue |
-| MinIO | 9000 | Object storage |
-| MinIO Console | 9001 | MinIO web UI |
-
-## Production Deployment
-
-### Environment Variables
-
-Edit `deploy/.env`:
-
-```bash
-# Security
-SECRET_KEY=<your-secret-key>
-
-# Database
-POSTGRES_PASSWORD=<strong-password>
+# Redis
+REDIS_PASSWORD=<自动生成>
 
 # MinIO
-MINIO_ROOT_USER=<username>
-MINIO_ROOT_PASSWORD=<strong-password>
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=<自动生成>
 
-# Aliyun
+# 应用
+APP_BASE_URL=http://your-server-ip  # 生产环境必须修改
+
+# Aliyun AI（可选）
 ALIYUN_ACCESS_KEY_ID=<your-key>
 ALIYUN_ACCESS_KEY_SECRET=<your-secret>
 ```
 
+## 生产部署
+
+### 修改 APP_BASE_URL
+
+生产环境务必修改为实际域名或公网 IP：
+
+```bash
+APP_BASE_URL=http://your-domain.com
+```
+
+### 防火墙
+
+```bash
+bash setup_firewall.sh
+```
+
 ### SSL/TLS
 
-1. Use reverse proxy (nginx/traefik)
-2. Configure certificates
+建议使用反向代理（Nginx/Traefik）配置 HTTPS。
 
-```nginx
-server {
-    listen 443 ssl http2;
-    server_name ppap.example.com;
-
-    ssl_certificate /etc/nginx/ssl/cert.pem;
-    ssl_certificate_key /etc/nginx/ssl/key.pem;
-
-    location / {
-        proxy_pass http://frontend;
-    }
-
-    location /api/ {
-        proxy_pass http://backend;
-    }
-}
-```
-
-### Backup
+### 备份
 
 ```bash
-# Database backup
-docker-compose exec postgres pg_dump -U ppap ppap > backup.sql
+# 数据库备份
+docker compose exec postgres pg_dump -U ppap ppap > backup.sql
 
-# MinIO backup
-docker-compose exec minio mc mirror /data /backup/minio
+# MinIO 备份
+docker compose exec minio mc mirror /data /backup/minio
 ```
 
-### Monitoring
+## 常见问题
 
-Consider adding:
-- Prometheus + Grafana for metrics
-- ELK stack for logs
-- Health check endpoint
-
-## Troubleshooting
-
-### Check logs
+### 查看日志
 
 ```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f backend
+docker compose logs -f backend
+docker compose logs -f celery-worker
 ```
 
-### Restart service
+### 重启服务
 
 ```bash
-docker-compose restart backend
+docker compose restart backend
 ```
 
-### Rebuild after code changes
+### 代码更新后重新构建
 
 ```bash
-docker-compose up -d --build backend frontend
+docker compose up -d --build backend frontend celery-worker
 ```
 
-### Reset everything
+### 完全重置
 
 ```bash
-docker-compose down -v
-docker-compose up -d
+docker compose down -v
+bash deploy.sh
 ```
