@@ -164,14 +164,15 @@ class AliyunVerificationService:
         # Comprehensive institution detection patterns
         institution_patterns = {
             "CTI": ["华测", "华测检测", "CTI", "centre testing international"],
-            "SGS": ["SGS", "sgs", "通标标准", "通标"],
-            "TUV": ["TUV", "tuv", "莱茵", "TÜV"],
+            "SGS": ["SGS", "通标标准", "通标"],
+            "TUV": ["TUV", "莱茵", "TÜV"],
             "INTERTEK": ["INTERTEK", "Intertek", "天祥"],
-            "BV": ["BV", "bureau veritas", "必维", "必维国际检验"],
+            "BV": ["bureau veritas", "必维", "必维国际检验"],
             "UL": ["UL", "underwriters laboratories", "保险商实验室"],
             "CSA": ["CSA", "加拿大标准协会"],
             "PONY": ["PONY", "谱尼测试", "谱尼"],
-            "CTI": ["中检", "中国检验认证", "CCIC"],  # Adding CCIC patterns
+            "CCIC": ["中检", "中国检验认证", "CCIC"],
+            "WEIPU": ["微谱", "微谱检测", "WEIPU"],
         }
 
         doc_content_lower = doc_content.lower()

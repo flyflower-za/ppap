@@ -214,7 +214,11 @@ def queue_verification_task(self, file_id: str):
             pass_rate = int((pass_count / total_checks) * 100) if total_checks > 0 else 0
 
             # Determine final status based on engine results
-            if needs_review:
+            if total_checks == 0:
+                # 没有任何检测项执行 — 可能是文档不属于任何已配置分类
+                final_status = FileStatus.NEEDS_REVIEW
+                needs_review = True
+            elif needs_review:
                 final_status = FileStatus.NEEDS_REVIEW
             elif fail_count > 0:
                 final_status = FileStatus.FAILED

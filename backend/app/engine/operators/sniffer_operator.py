@@ -64,12 +64,20 @@ class InstitutionSnifferOperator(BaseOperator):
                             matched_inst = "CTI"
                         elif any(kw in org_name_lower for kw in ["sgs", "通标"]):
                             matched_inst = "SGS"
-                        elif any(kw in org_name_lower for kw in ["中国检验认证", "ccic"]):
+                        elif any(kw in org_name_lower for kw in ["中国检验认证", "ccic", "中检"]):
                             matched_inst = "CCIC"
                         elif any(kw in org_name_lower for kw in ["tuv rheinland", "莱茵", "tüv rheinland"]):
                             matched_inst = "TUV"
                         elif any(kw in org_name_lower for kw in ["tuv sud", "南德", "tüv süd"]):
                             matched_inst = "TUV"
+                        elif any(kw in org_name_lower for kw in ["intertek", "天祥"]):
+                            matched_inst = "Intertek"
+                        elif any(kw in org_name_lower for kw in ["微谱", "weipu"]):
+                            matched_inst = "WEIPU"
+                        elif any(kw in org_name_lower for kw in ["必维", "bureau veritas"]):
+                            matched_inst = "BV"
+                        elif any(kw in org_name_lower for kw in ["谱尼", "pony"]):
+                            matched_inst = "PONY"
                         
                         # B. 【泛化核心】：如果不在高频机构库内，直接原样使用证书提取出的完整企业组织名称！
                         if not matched_inst:
@@ -151,15 +159,20 @@ class InstitutionSnifferOperator(BaseOperator):
 
         # ─── PART 3: 通用泛化大模型文本语义识别（提取任意未知机构） ───
         prompt = f"""
-你是一个严格的数据提取助手。请阅读以下文档第一页的内容，并提取出具、签发或发布该文档的机构全称。
+你是一个严格的数据提取助手。请阅读以下文档第一页的内容，并提取出实际**检测、检验、出具或签发**该文档的机构全称。
+
+重要区分：
+- 你需要提取的是"出具报告/检测报告的机构"（如检测实验室、检验机构、认证机构）。
+- 不要提取"委托单位"、"客户"、"申请方"、"制造商"、"供应商"——这些是报告的委托方，不是出具机构。
+- 通常出具机构会出现在页眉、页脚、报告标题下方、或"检测机构"/"检验机构"/"签发机构"等字段中。
 
 必须且只能返回 JSON 格式数据。
 字段说明：
-"institution": 机构的中英文规范全称。如果文档中明确写了出具单位（如“全国人民代表大会”），提取它。如果文档中没有任何机构名称，必须返回 "UNKNOWN"。
+"institution": 出具/签发机构的中英文规范全称。如果无法确定，返回 "UNKNOWN"。
 "confidence": 提取的置信度 (0.0 - 1.0)。
 
 示例 1:
-{{"institution": "全国人民代表大会", "confidence": 0.95}}
+{{"institution": "上海微谱检测科技集团股份有限公司", "confidence": 0.95}}
 
 示例 2 (找不到时):
 {{"institution": "UNKNOWN", "confidence": 0.0}}
@@ -192,12 +205,20 @@ class InstitutionSnifferOperator(BaseOperator):
                 institution = "CTI"
             elif "sgs" in inst_lower or "通标" in inst_lower:
                 institution = "SGS"
-            elif "中检" in inst_lower or "ccic" in inst_lower:
+            elif "中检" in inst_lower or "ccic" in inst_lower or "中国检验认证" in inst_lower:
                 institution = "CCIC"
             elif "莱茵" in inst_lower or "rheinland" in inst_lower:
                 institution = "TUV"
             elif "南德" in inst_lower or "sud" in inst_lower:
                 institution = "TUV"
+            elif "intertek" in inst_lower or "天祥" in inst_lower:
+                institution = "Intertek"
+            elif "微谱" in inst_lower or "weipu" in inst_lower:
+                institution = "WEIPU"
+            elif "必维" in inst_lower or "bureau veritas" in inst_lower:
+                institution = "BV"
+            elif "谱尼" in inst_lower or "pony" in inst_lower:
+                institution = "PONY"
 
             context.shared_state["institution"] = institution
             

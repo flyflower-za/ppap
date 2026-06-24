@@ -31,6 +31,14 @@ def normalize_institution_name(name: str) -> str:
         return "ccic"
     if any(kw in name_lower for kw in ["莱茵", "rheinland", "tuv rhe", "tüv rhe", "南德", "sud", "tuv sud", "tüv süd", "tuv"]):
         return "tuv"
+    if any(kw in name_lower for kw in ["intertek", "天祥"]):
+        return "intertek"
+    if any(kw in name_lower for kw in ["微谱", "weipu"]):
+        return "weipu"
+    if any(kw in name_lower for kw in ["必维", "bureau veritas"]):
+        return "bv"
+    if any(kw in name_lower for kw in ["谱尼", "pony"]):
+        return "pony"
     return name_lower
 
 class VerificationEngine:
