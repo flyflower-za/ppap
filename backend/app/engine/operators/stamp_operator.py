@@ -109,12 +109,20 @@ class StampDetectionOperator(BaseOperator):
                     if circularity < 0.2:
                         continue
 
+                    # Expand bounding box by 15% on each side for visual margin
+                    pad_x = int(w * 0.15)
+                    pad_y = int(h * 0.15)
+                    x0 = max(0, x - pad_x)
+                    y0 = max(0, y - pad_y)
+                    x1 = x + w + pad_x
+                    y1 = y + h + pad_y
+
                     total_stamps += 1
                     stamps_info.append({
                         "page": page_idx + 1,
                         "area": int(area),
                         "circularity": round(circularity, 3),
-                        "bounding_box": [int(x/zoom), int(y/zoom), int((x+w)/zoom), int((y+h)/zoom)]
+                        "bounding_box": [int(x0/zoom), int(y0/zoom), int(x1/zoom), int(y1/zoom)]
                     })
 
             doc.close()
