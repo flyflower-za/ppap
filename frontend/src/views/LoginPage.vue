@@ -1,5 +1,6 @@
 <template>
   <div class="login-page">
+    <img src="/logo.png" alt="Logo" class="top-logo" onerror="this.style.display='none'">
     <!-- 左侧品牌展示区域 -->
     <div class="login-left">
       <div class="left-content">
@@ -24,26 +25,6 @@
           <div class="login-header">
             <h2>{{ $t('auth.welcomeBack') }}</h2>
             <p>{{ $t('auth.loginSubtitle') }}</p>
-            <span class="locale-switcher">
-              <el-dropdown trigger="click" @command="handleLocaleChange">
-                <span class="locale-btn">
-                  {{ currentLocaleLabel }}
-                  <el-icon class="el-icon--right"><arrow-down /></el-icon>
-                </span>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item
-                      v-for="loc in availableLocales"
-                      :key="loc.value"
-                      :command="loc.value"
-                      :class="{ 'is-active': loc.value === currentLocale }"
-                    >
-                      {{ loc.label }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </span>
           </div>
 
           <!-- SSO Login Button -->
@@ -101,6 +82,16 @@
               <a href="#" class="forgot-link">{{ $t('auth.forgotPassword') }}</a>
             </div>
 
+            <div class="locale-toggle">
+              <span
+                v-for="loc in availableLocales"
+                :key="loc.value"
+                class="locale-option"
+                :class="{ active: loc.value === currentLocale }"
+                @click="handleLocaleChange(loc.value)"
+              >{{ loc.label }}</span>
+            </div>
+
             <el-button
               type="primary"
               :loading="loading"
@@ -128,7 +119,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { User, Lock, ArrowDown } from '@element-plus/icons-vue'
+import { User, Lock } from '@element-plus/icons-vue'
 import { getErrorMessage } from '@/utils/formatters'
 import { useI18n } from 'vue-i18n'
 import { availableLocales, getLocale, setLocale } from '@/locales'
@@ -136,7 +127,6 @@ import { availableLocales, getLocale, setLocale } from '@/locales'
 const { t } = useI18n()
 
 const currentLocale = computed(() => getLocale())
-const currentLocaleLabel = computed(() => availableLocales.find(l => l.value === currentLocale.value)?.label || '中文')
 
 function handleLocaleChange(locale: string) {
   setLocale(locale)
@@ -310,6 +300,16 @@ async function handleLogin() {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative;
+}
+
+.top-logo {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  height: 40px;
+  width: auto;
+  z-index: 10;
 }
 
 .login-left {
@@ -361,28 +361,36 @@ async function handleLogin() {
   padding: 40px;
 }
 
-.locale-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid #dcdfe6;
-  border-radius: 6px;
+.locale-toggle {
+  display: flex;
+  margin-bottom: 16px;
+  margin-top: -8px;
+}
+
+.locale-option {
+  padding: 6px 20px;
   font-size: 13px;
-  color: #606266;
   cursor: pointer;
-  background: white;
+  color: #909399;
+  background: #f5f7fa;
+  border: 1px solid #e4e7ed;
   transition: all 0.2s;
+  user-select: none;
 }
 
-.locale-btn:hover {
-  color: #409eff;
+.locale-option:first-child {
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+
+.locale-option:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.locale-option.active {
+  color: #fff;
+  background: #409eff;
   border-color: #409eff;
-}
-
-:deep(.is-active) {
-  color: #409eff;
-  font-weight: 600;
 }
 
 .login-card-wrapper {
@@ -400,10 +408,6 @@ async function handleLogin() {
 .login-header {
   text-align: center;
   margin-bottom: 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
 }
 
 .login-header h2 {
