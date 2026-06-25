@@ -28,8 +28,6 @@ PPAP 项目共有 **5 个功能场景** 调用 LLM，涉及 **2 个核心算子 
 - 未配置 AI 时自动降级为 Mock 响应（confidence=0.95）
 - 输出通过 `LLMOutputSchema` Pydantic 模型验证
 
----
-
 ### 2. VisionLLMOperator — 视觉大模型算子
 
 - **文件**: `backend/app/engine/operators/vision_llm_operator.py`
@@ -70,8 +68,6 @@ PPAP 项目共有 **5 个功能场景** 调用 LLM，涉及 **2 个核心算子 
 
 **降级链**: LLM 失败后降级为本地正则匹配算法（内置 CTI/SGS/TUV/INTERTEK/BV/UL/CSA/PONY/CCIC/WEIPU 等机构模式库）
 
----
-
 ### 4. 规则引擎调度 — `llm_prompt` 类型规则
 
 - **文件**: `backend/app/engine/core.py`
@@ -88,8 +84,6 @@ PPAP 项目共有 **5 个功能场景** 调用 LLM，涉及 **2 个核心算子 
   - 从节点 `data` 中读取 `prompt` 和 `operation_mode`
   - 动态实例化对应算子并执行
   - 结果存入 `node_llm_data`，用于后续字段映射和展示
-
----
 
 ### 5. 算子沙盒测试
 
