@@ -12,7 +12,6 @@
           <router-link to="/tasks">{{ $t('nav.taskCenter') }}</router-link>
           <router-link to="/history">{{ $t('nav.history') }}</router-link>
           <router-link v-if="authStore.user?.is_admin" to="/rules">{{ $t('nav.rules') }}</router-link>
-          <router-link v-if="authStore.user?.is_admin" to="/approvals">{{ $t('nav.approvals') }}</router-link>
           <router-link v-if="authStore.user?.is_admin" to="/sandbox">{{ $t('nav.sandbox') }}</router-link>
           <router-link v-if="authStore.user?.is_admin" to="/audit">{{ $t('nav.audit') }}</router-link>
           <router-link to="/settings">{{ $t('nav.settings') }}</router-link>

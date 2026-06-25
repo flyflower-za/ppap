@@ -144,26 +144,6 @@ export interface AuditLogResponse {
   items: AuditLogEntry[]
 }
 
-// Approval
-export interface ApprovalItem {
-  id: string
-  file_id: string
-  filename: string
-  rule_name: string
-  proposed_rule_data?: Record<string, unknown>
-  status: 'pending' | 'approved' | 'rejected'
-  reviewer_id?: string
-  reviewer_comment?: string
-  test_results?: Record<string, unknown>
-  created_at: string
-  reviewed_at?: string
-}
-
-export interface ApprovalListResponse {
-  total: number
-  items: ApprovalItem[]
-}
-
 // Verification execution
 export interface ExecutionTrajectoryEntry {
   operator: string
@@ -177,17 +157,6 @@ export interface ExecutionLog {
   timestamp: string
   message: string
   level?: string
-}
-
-// Stats / Dashboard
-export interface DashboardStats {
-  total_files: number
-  completed_files: number
-  failed_files: number
-  pending_files: number
-  avg_processing_time: number
-  top_failing_rules: { rule_name: string; count: number }[]
-  daily_trend: { date: string; total: number; passed: number; failed: number }[]
 }
 
 // Task (file with verification progress)

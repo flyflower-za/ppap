@@ -35,11 +35,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/HistoryPage.vue'),
       },
       {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/DashboardPage.vue'),
-      },
-      {
         path: 'files/:id',
         name: 'FileDetail',
         component: () => import('@/views/FileDetailPage.vue'),
@@ -76,12 +71,6 @@ const routes: RouteRecordRaw[] = [
         path: 'audit',
         name: 'Audit',
         component: () => import('@/views/AuditLogPage.vue'),
-        meta: { requiresAdmin: true },
-      },
-      {
-        path: 'approvals',
-        name: 'Approvals',
-        component: () => import('@/views/ApprovalsPage.vue'),
         meta: { requiresAdmin: true },
       },
     ],
