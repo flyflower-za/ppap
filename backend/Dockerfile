@@ -49,14 +49,18 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ \
 
 # Copy application code (only runtime-needed files)
 COPY app/ app/
+COPY scripts/ scripts/
 COPY migrations/ migrations/
 COPY alembic.ini .
+COPY start.sh .
 COPY start_celery.sh .
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
+RUN chmod +x start.sh start_celery.sh
+
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./start.sh"]

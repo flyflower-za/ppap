@@ -1,6 +1,6 @@
 # 问题修复清单
 
-> 最后更新: 2026-06-25
+> 最后更新: 2026-06-26
 
 ## 已修复问题
 
@@ -28,6 +28,8 @@
 | 2.6 | URLFetchOperator 临时文件未清理 | `mkstemp` 创建后未删除 | 记录到 `_temp_files` 列表，任务完成后清理 | ✅ | 2026-06-24 |
 | 2.7 | Note 模型缺少 author_name 列 | 模型定义缺失字段，file_service.py 传入的 author_name 被静默丢弃 | 模型新增 `author_name` 列 + 迁移脚本 | ✅ | 2026-06-25 |
 | 2.8 | 人工仲裁后未更新通知和 verification_result | resolve_review 只改 status，旧仲裁通知仍为未读，verification_result.needs_review 仍为 true | 标记旧通知已读+创建结果通知；更新 needs_review 为 false | ✅ | 2026-06-25 |
+| 2.9 | 存量用户 password_hash 为空，登录 401 死锁 | db_migrations.sql 只添加列未设值，存量用户 password_hash 为 NULL | 首次登录自动 hash 密码并写入数据库 | ✅ | 2026-06-26 |
+| 2.10 | 安全漏洞：任意密码可登录 NULL password_hash 账号 | 修复 #2.9 时允许任意密码登录并抢占账号 | 拒绝 NULL password_hash 通过密码登录；bootstrap 只为本地账号设 fallback 密码 | ✅ | 2026-06-26 |
 
 ### 🟡 部署期间发现的运行时问题（已修复 15/15）
 

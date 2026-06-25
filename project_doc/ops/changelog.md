@@ -1,6 +1,23 @@
 # 变更日志
 
-> 最后更新: 2026-06-25
+> 最后更新: 2026-06-26
+
+---
+
+## [2026-06-26] - 数据库字段同步与任务中心稳定性修复
+
+### 功能描述
+- **Note 模型新增 author_name**：补充迁移脚本，修复仲裁记录用户名丢失问题
+- **上传队列持久化**：MainLayout 添加 KeepAlive 缓存 TaskCenterPage，切换页面不再丢失文件队列
+- **登录兼容修复**：存量用户 password_hash 为 NULL 时首次登录自动设置密码，避免死锁
+- **安全漏洞修复**：拒绝 password_hash 为 NULL 的用户通过密码登录，防止任意密码抢占账号；bootstrap 脚本只为本地账号（无 SSO/LDAP 标记）设置 fallback 密码
+- **人工仲裁通知闭环**：resolve_review 后标记旧通知已读+创建结果通知；更新 verification_result 中 needs_review 标志
+- **用户引导脚本**：新增 `scripts/bootstrap_users.py`，每次部署自动确保存在 admin 用户且 password_hash 不空；集成到 Docker entrypoint 中 backend 启动前自动运行
+
+### 影响范围
+- ✅ TaskCenterPage 切换页面不丢失上传队列状态
+- ✅ 存量用户首次登录自动设密码（避免 401 死锁）
+- ✅ 引导脚本：后台启动前自动 bootstrap 用户（Docker entrypoint）
 
 ---
 

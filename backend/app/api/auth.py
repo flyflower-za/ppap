@@ -84,8 +84,8 @@ async def login(
                 detail="Incorrect password",
             )
     else:
-        # Legacy user (migrated, no password_hash set)
-        # Allow login but require user to set a password
+        # User without password_hash (SSO/LDAP-only user or not initialized)
+        # Reject password login - should use SSO/LDAP or contact admin to set password
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Password not set. Please contact administrator to set your password.",
