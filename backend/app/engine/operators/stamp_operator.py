@@ -136,10 +136,11 @@ class StampDetectionOperator(BaseOperator):
                 mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
                 mask = mask1 + mask2
 
-                # Morphological: dilate first to merge nearby red fragments into
-                # a single connected region, then clean up noise
-                dilate_kernel = np.ones((7, 7), np.uint8)
-                mask = cv2.dilate(mask, dilate_kernel, iterations=2)
+                # Morphological: dilate to merge tiny stamp fragments
+                # (border arcs, text strokes) that belong to the same seal.
+                # Keep kernel small so separate stamps don't fuse together.
+                dilate_kernel = np.ones((5, 5), np.uint8)
+                mask = cv2.dilate(mask, dilate_kernel, iterations=1)
 
                 kernel = np.ones((3, 3), np.uint8)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
@@ -185,7 +186,7 @@ class StampDetectionOperator(BaseOperator):
             # survived contour detection get merged here.
             # Cross-page seam stamps (骑缝章) are unaffected — they live on
             # different pages and are never merged together.
-            merged = self._merge_nearby(page_candidates, merge_gap=40)
+            merged = self._merge_nearby(page_candidates, merge_gap=15)
 
             for det in merged:
                 x, y, w, h = det["x"], det["y"], det["w"], det["h"]
