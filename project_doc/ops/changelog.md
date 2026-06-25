@@ -15,6 +15,7 @@
 - **用户引导脚本**：新增 `scripts/bootstrap_users.py`，每次部署自动确保存在 admin 用户且 password_hash 不空；集成到 Docker entrypoint 中 backend 启动前自动运行
 - **用户管理 CLI 工具**：新增 `backend/scripts/user_cli.py` 和 `manage_users.sh` wrapper 脚本，支持列出/创建/重置密码/激活/停用/提升管理员操作
 - **数据安全文档**：在 `deployment_flow.md` 新增"数据安全与备份策略"章节，分析重新部署对用户的影响，确认正常部署无需备份
+- **密码策略完善**：补充用户创建端点密码验证（`ldap.py:371` 和 `user_cli.py`），新增 `password_policy.md` 文档记录当前要求和安全建议
 
 ### 影响范围
 - ✅ TaskCenterPage 切换页面不丢失上传队列状态

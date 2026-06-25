@@ -367,6 +367,10 @@ async def create_user(
 
     # Set password hash if password is provided
     if user_data.password:
+        # Validate password length
+        if len(user_data.password) < 6:
+            raise HTTPException(status_code=400, detail="密码长度至少 6 位")
+
         from app.core.security import get_password_hash
         new_user.password_hash = get_password_hash(user_data.password)
 

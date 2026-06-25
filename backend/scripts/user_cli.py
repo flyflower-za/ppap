@@ -78,6 +78,9 @@ def _dsn():
 
 
 def _hash_password(password: str) -> str:
+    # 密码长度验证
+    if len(password) < 6:
+        raise ValueError("Password must be at least 6 characters long")
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
