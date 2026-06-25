@@ -24,22 +24,43 @@ async def login(
     """
     Login endpoint with password verification.
 
+    Supports login via email OR username.
     For SSO integration, this will verify the SSO token
     and create/update the user record.
     """
     # TODO: Implement SSO verification
-    # For now, simple email + password lookup
 
-    result = await db.execute(select(User).where(User.email == credentials.email))
+    login_id = credentials.login_id.strip().lower()
+
+    # First try email exact match, then username exact match
+    result = await db.execute(select(User).where(User.email == login_id))
     user = result.scalar_one_or_none()
 
     if not user:
+        result = await db.execute(select(User).where(User.username == login_id))
+        user = result.scalar_one_or_none()
+
+    if not user:
         # Auto-create user for demo (in production, this would come from SSO)
-        # New users default to USER role (no email-based role inference)
+        # username is auto-derived from email prefix (with conflict resolution)
+        email = login_id if "@" in login_id else f"{login_id}@unknown.local"
+        base_username = email.split("@")[0]
+        username = base_username
+
+        # Resolve username conflicts
+        suffix = 2
+        while True:
+            existing = await db.execute(select(User).where(User.username == username))
+            if not existing.scalar_one_or_none():
+                break
+            username = f"{base_username}{suffix}"
+            suffix += 1
+
         user = User(
             id=str(uuid.uuid4()),
-            email=credentials.email,
-            full_name=credentials.email.split("@")[0],
+            username=username,
+            email=email,
+            full_name=email.split("@")[0],
             is_active=True,
             is_admin=False,
             role=UserRole.USER,
@@ -72,13 +93,13 @@ async def login(
 
     # Update last login
     user.last_login_at = datetime.utcnow()
-    
+
     await log_audit_event(
         db=db,
         action="LOGIN",
         user=user,
         resource_type="SYSTEM",
-        details={"email": credentials.email},
+        details={"login_id": login_id, "email": user.email},
         request=request
     )
     

@@ -12,6 +12,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     """User creation schema."""
+    username: Optional[str] = None  # Auto-derived from email if not provided
     sso_provider: Optional[str] = None
     sso_id: Optional[str] = None
 
@@ -31,6 +32,7 @@ class UserResponse(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    username: str
     avatar_url: Optional[str] = None
     role: Literal["ADMIN", "MANAGER", "USER"] = "USER"
     is_active: bool
@@ -45,7 +47,7 @@ class UserResponse(UserBase):
 
 class UserLogin(BaseModel):
     """User login schema."""
-    email: EmailStr
+    login_id: str
     password: str
     sso_token: Optional[str] = None
 

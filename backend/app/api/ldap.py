@@ -262,6 +262,7 @@ async def get_all_users(
     return [
         {
             "id": user.id,
+            "username": user.username,
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,
@@ -306,6 +307,7 @@ async def update_user_role(
 
 class UserCreateModel(BaseModel):
     """User creation schema for admins"""
+    username: Optional[str] = None  # Auto-derived from email if not provided
     email: EmailStr
     full_name: str
     department: Optional[str] = None
@@ -340,8 +342,21 @@ async def create_user(
         raise HTTPException(status_code=400, detail="该邮箱已被注册")
 
     import uuid
+
+    # Auto-derive username from email prefix if not provided
+    base_username = (user_data.username or user_data.email.split("@")[0]).strip().lower()
+    username = base_username
+    suffix = 2
+    while True:
+        existing_username = await db.execute(select(User).where(User.username == username))
+        if not existing_username.scalar_one_or_none():
+            break
+        username = f"{base_username}{suffix}"
+        suffix += 1
+
     new_user = User(
         id=str(uuid.uuid4()),
+        username=username,
         email=user_data.email,
         full_name=user_data.full_name,
         department=user_data.department,
@@ -363,6 +378,7 @@ async def create_user(
         "message": "用户创建成功",
         "user": {
             "id": new_user.id,
+            "username": new_user.username,
             "email": new_user.email,
             "full_name": new_user.full_name,
             "department": new_user.department,
@@ -408,6 +424,7 @@ async def update_user(
         "message": "用户信息已更新",
         "user": {
             "id": user.id,
+            "username": user.username,
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,
@@ -747,6 +764,7 @@ async def get_all_users(
     for user in users:
         users_data[user.id] = {
             "id": user.id,
+            "username": user.username,
             "email": user.email,
             "full_name": user.full_name,
             "department": user.department,

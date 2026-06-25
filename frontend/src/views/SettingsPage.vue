@@ -60,6 +60,7 @@
 
           <el-descriptions :column="1" border>
             <el-descriptions-item :label="$t('settings.loginName')">{{ authStore.user?.email }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('settings.username')">{{ authStore.user?.username || '-' }}</el-descriptions-item>
             <el-descriptions-item :label="$t('settings.fullName')">{{ authStore.user?.full_name }}</el-descriptions-item>
             <el-descriptions-item :label="$t('settings.department')">{{ authStore.user?.department || '-' }}</el-descriptions-item>
             <el-descriptions-item :label="$t('settings.email')">{{ authStore.user?.email }}</el-descriptions-item>
@@ -853,8 +854,8 @@
                   </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'text')" :disabled="row.model_type === 'vision'">{{ $t('settings.setDefaultText') }}</el-dropdown-item>
-                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'vision')" :disabled="row.model_type === 'text'">{{ $t('settings.setDefaultVision') }}</el-dropdown-item>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'text')" :disabled="row.model_type === 'vision'">{{ $t('settings.setDefaultSuccessText') }}</el-dropdown-item>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'vision')" :disabled="row.model_type === 'text'">{{ $t('settings.setDefaultSuccessVision') }}</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
@@ -959,6 +960,7 @@
 
             <el-table :data="filteredUsers" style="width: 100%">
               <el-table-column prop="email" :label="$t('settings.email')" min-width="200" />
+              <el-table-column prop="username" :label="$t('settings.username')" width="130" />
               <el-table-column prop="full_name" :label="$t('settings.fullName')" width="120" />
               <el-table-column prop="department" :label="$t('settings.department')" width="140" />
               <el-table-column :label="$t('settings.userGroups')" width="140">
@@ -1084,6 +1086,14 @@
             :rules="userRules"
             label-width="80px"
           >
+            <el-form-item label="用户名" prop="username">
+              <el-input
+                v-model="userForm.username"
+                placeholder="留空则从邮箱前缀自动生成"
+                :disabled="!!editingUser?.id"
+                clearable
+              />
+            </el-form-item>
             <el-form-item :label="$t('settings.email')" prop="email">
               <el-input
                 v-model="userForm.email"
@@ -1614,6 +1624,7 @@ interface UserGroup {
 }
 
 const userForm = reactive({
+  username: '',
   email: '',
   full_name: '',
   department: '',
@@ -2038,6 +2049,7 @@ function filterUsers() {
   }
   filteredUsers.value = users.value.filter(user =>
     user.email.toLowerCase().includes(query) ||
+    (user.username && user.username.toLowerCase().includes(query)) ||
     user.full_name.toLowerCase().includes(query) ||
     (user.department && user.department.toLowerCase().includes(query))
   )
@@ -2071,6 +2083,7 @@ async function handleToggleUserStatus(user: UserInfo) {
 function handleCreateUser() {
   editingUser.value = null
   Object.assign(userForm, {
+    username: '',
     email: '',
     full_name: '',
     department: '',
@@ -2084,6 +2097,7 @@ function handleCreateUser() {
 function handleEditUser(user: UserInfo) {
   editingUser.value = user
   Object.assign(userForm, {
+    username: user.username || '',
     email: user.email,
     full_name: user.full_name,
     department: user.department || '',
@@ -2125,6 +2139,7 @@ async function handleSaveUser() {
       } else {
         // Create new user
         const result = await ldapApi.createUser({
+          username: userForm.username || undefined,
           email: userForm.email,
           full_name: userForm.full_name,
           department: userForm.department || undefined,
@@ -2500,7 +2515,7 @@ async function handleSetDefaultProfile(profileId: string, forType: 'text' | 'vis
   try {
     const { settingsApi } = await import('@/api/settings')
     await settingsApi.setDefaultModelProfile(profileId, forType)
-    ElMessage.success(t('settings.setDefaultSuccess', { type: forType === 'text' ? t('settings.setDefaultText') : t('settings.setDefaultVision') }))
+    ElMessage.success(t('settings.setDefaultSuccess', { type: forType === 'text' ? t('settings.setDefaultSuccessText') : t('settings.setDefaultSuccessVision') }))
     await loadModelProfiles()
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, t('settings.setDefaultFailed')))

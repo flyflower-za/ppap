@@ -78,10 +78,9 @@
             label-position="top"
             class="login-form"
           >
-            <el-form-item :label="$t('auth.account')" prop="email">
+            <el-form-item :label="$t('auth.account')" prop="login_id">
               <el-input
-                v-model="form.email"
-                type="email"
+                v-model="form.login_id"
                 :placeholder="$t('auth.enterAccount')"
                 size="large"
                 clearable
@@ -164,14 +163,13 @@ const ssoConfig = ref({
 })
 
 const form = reactive({
-  email: '',
+  login_id: '',
   password: ''
 })
 
 const rules: FormRules = {
-  email: [
-    { required: true, message: t('auth.enterAccount'), trigger: 'blur' },
-    { type: 'email', message: t('auth.enterValidEmail'), trigger: 'blur' }
+  login_id: [
+    { required: true, message: t('auth.enterAccount'), trigger: 'blur' }
   ],
   password: [
     { required: true, message: t('auth.enterPassword'), trigger: 'blur' },
@@ -291,7 +289,7 @@ async function handleLogin() {
     loading.value = true
     try {
       await authStore.login({
-        email: form.email,
+        login_id: form.login_id,
         password: form.password
       })
 

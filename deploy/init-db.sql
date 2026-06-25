@@ -15,6 +15,7 @@ CREATE TYPE severity AS ENUM ('warning', 'fail', 'reference');
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    username VARCHAR(255) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     full_name VARCHAR(255) NOT NULL,
     department VARCHAR(255),
@@ -36,6 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TIMESTAMP
 );
 
+CREATE UNIQUE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_sso_id ON users(sso_id);
 
@@ -122,9 +124,10 @@ CREATE INDEX idx_notes_author_id ON notes(author_id);
 
 -- Insert default admin user (password: admin123)
 -- Password hash is bcrypt hash of 'admin123'
-INSERT INTO users (id, email, full_name, is_active, is_admin, role, password_hash)
+INSERT INTO users (id, username, email, full_name, is_active, is_admin, role, password_hash)
 VALUES (
     '01234567-0123-0123-0123-0123456789ab',
+    'admin',
     'admin@example.com',
     'System Administrator',
     true,

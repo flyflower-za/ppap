@@ -23,6 +23,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=False), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    username = Column(String(255), unique=True, index=True, nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     full_name = Column(String(255), nullable=False)
     department = Column(String(255))

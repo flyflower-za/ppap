@@ -1,6 +1,7 @@
 // User & Auth
 export interface User {
   id: string
+  username: string
   email: string
   full_name: string
   department?: string
@@ -15,7 +16,8 @@ export interface User {
 }
 
 export interface LoginRequest {
-  email: string
+  login_id: string
+  password: string
   sso_token?: string
 }
 

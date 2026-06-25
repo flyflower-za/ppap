@@ -249,10 +249,33 @@ async def create_or_update_user(db: AsyncSession, userinfo: dict, config: dict) 
         user.role = user_role
         user.is_admin = is_admin
         user.last_login_at = datetime.utcnow()
+        # Ensure existing user has username
+        if not user.username:
+            base_username = email.split("@")[0].strip().lower()
+            username = base_username
+            suffix = 2
+            while True:
+                existing = await db.execute(select(User).where(User.username == username, User.id != user.id))
+                if not existing.scalar_one_or_none():
+                    break
+                username = f"{base_username}{suffix}"
+                suffix += 1
+            user.username = username
     else:
-        # Create new user
+        # Create new user — auto-derive username from email
+        base_username = email.split("@")[0].strip().lower()
+        username = base_username
+        suffix = 2
+        while True:
+            existing = await db.execute(select(User).where(User.username == username))
+            if not existing.scalar_one_or_none():
+                break
+            username = f"{base_username}{suffix}"
+            suffix += 1
+
         user = User(
             id=str(uuid.uuid4()),
+            username=username,
             email=email,
             full_name=userinfo.get("name") or email.split("@")[0],
             is_active=True,

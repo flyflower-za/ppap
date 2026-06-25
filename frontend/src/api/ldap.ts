@@ -34,6 +34,7 @@ export interface LDAPConfig {
 
 export interface UserInfo {
   id: string
+  username: string
   email: string
   full_name: string
   department: string | null
@@ -171,6 +172,7 @@ export const ldapApi = {
 }
 
 export interface CreateUserDto {
+  username?: string
   email: string
   full_name: string
   department?: string
