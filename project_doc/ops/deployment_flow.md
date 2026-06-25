@@ -461,6 +461,224 @@ docker compose restart
 
 ---
 
+## 数据安全与备份策略
+
+### 部署操作安全性分析
+
+#### 当前部署命令
+
+```bash
+docker compose up -d --build --remove-orphans
+```
+
+**参数说明**：
+- `--build`: 重建镜像（不影响数据）
+- `--remove-orphans`: 删除孤立容器（不影响数据卷）
+- **没有 `--force-recreate` 或 `-v` 参数**（不会删除卷）
+
+---
+
+#### 数据持久化架构
+
+**Docker Compose 卷配置**：
+```yaml
+volumes:
+  postgres_data:  # PostgreSQL 数据（命名卷）
+  redis_data:     # Redis 持久化（命名卷）
+  minio_data:     # MinIO 对象存储（命名卷）
+```
+
+**关键特性**：
+- ✅ **命名卷（Named Volumes）**：数据独立于容器生命周期
+- ✅ **容器删除时数据保留**：`docker compose down` 不会删除卷
+- ❌ **手动删除卷才会丢失数据**：`docker volume rm ppap_postgres_data`
+
+---
+
+#### 风险评估矩阵
+
+| 操作 | 是否会删除数据 | 风险等级 | 说明 |
+|------|-----------------|---------|------|
+| **正常重新部署** `up -d --build` | ❌ 否 | 🟢 无风险 | 最常见的操作，数据完全保留 |
+| **停止所有服务** `down` | ❌ 否 | 🟢 无风险 | 命名卷保留 |
+| **强制重建容器** `up -d --force-recreate` | ❌ 否 | 🟢 无风险 | 删除容器但卷保留 |
+| **删除并重建卷** `down -v` + `up -d` | ✅ **是** | 🔴 高风险 | 所有数据丢失 |
+| **手动删除卷** `docker volume rm` | ✅ **是** | 🔴 高风险 | 数据无法恢复 |
+| **磁盘故障/数据损坏** | ✅ **是** | 🔴 高风险 | 不可抗力 |
+
+---
+
+### 备份建议
+
+#### 1. 正常重新部署：不需要备份 ✅
+
+```bash
+# 每次代码更新后的正常部署
+./deploy.sh
+# 或
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+**原因**：
+- 数据存储在命名卷中，独立于容器
+- 部署脚本不会删除卷
+- SQL 迁移脚本都有保护措施（`IF NOT EXISTS`、`ON CONFLICT DO NOTHING`）
+- `bootstrap_users.py` 只处理 `password_hash IS NULL` 的用户，不修改现有密码
+
+---
+
+#### 2. 以下场景需要备份
+
+| 场景 | 是否需要备份 | 建议方式 |
+|------|-------------|---------|
+| **数据库结构变更**（如 `db_migrations.sql` 更新） | ✅ **建议备份** | 部署前 `pg_dump` 备份 |
+| **重要业务数据变更前**（如大量数据导入） | ✅ **建议备份** | 导出关键表数据 |
+| **生产环境首次部署** | ✅ **建议备份** | 建立基线备份 |
+| **开发/测试环境** | ❌ 不需要 | 数据可随意丢弃 |
+| **灾难恢复** | ✅ **必须备份** | 定期备份策略 |
+
+---
+
+#### 3. 生产环境最佳实践
+
+**推荐策略：定期备份 + 版本化备份**
+
+```bash
+# 方案 A：自动备份脚本（每日）- 添加到 crontab
+0 2 * * * docker compose exec postgres pg_dump -U ppap ppap | gzip > /backup/ppap_$(date +\%Y\%m\%d).sql.gz
+
+# 方案 B：PostgreSQL WAL 归档（持续）- 修改 postgres 配置
+archive_mode = on
+archive_command = 'cp %p /var/lib/postgresql/wal/%f'
+```
+
+**不需要每次部署前备份**，理由：
+- 部署不是破坏性操作（不会删除卷）
+- 备份频率应该基于数据变更频率（不是部署频率）
+- 每次部署都备份会拖慢部署速度
+
+---
+
+#### 4. 现有用户重新部署影响分析
+
+**结论：重新部署不会导致已有用户无法登录** ✅
+
+##### 分析流程
+
+1. **db-init 阶段**（已有数据库）：
+   ```sql
+   -- 执行 db_migrations.sql（只添加新列）
+   ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255);
+   -- 更新 admin 密码 hash（只针对 admin@example.com）
+   UPDATE users SET password_hash = '$HASH' WHERE email = 'admin@example.com';
+   ```
+   - ✅ 不影响其他用户
+
+2. **bootstrap_users.py 阶段**（backend 启动）：
+   ```python
+   # 只处理 password_hash IS NULL 的用户
+   null_pwd_users = await conn.fetch("""
+       SELECT id, email FROM users
+       WHERE password_hash IS NULL
+         AND sso_provider IS NULL
+         AND ldap_dn IS NULL
+   """)
+   ```
+   - ✅ **所有现有用户都有 password_hash**，不会触发更新
+   - ✅ 不修改现有密码
+
+3. **登录验证**：
+   ```python
+   # auth.py 登录逻辑
+   if user.password_hash:
+       if not verify_password(credentials.password, user.password_hash):
+           raise 401
+   else:
+       raise 401  # 拒绝 NULL password_hash 用户登录
+   ```
+   - ✅ 已有 password_hash 的用户正常验证
+   - ✅ 不会被重置密码
+
+##### 影响矩阵
+
+| 用户类型 | 当前状态 | 重新部署后能否登录 | 原因 |
+|----------|----------|-------------------|------|
+| **所有现有用户** | ✅ password_hash 不为 NULL | ✅ **可以登录** | password_hash 不被修改 |
+| **admin@example.com** | ✅ 有密码 | ✅ 可以登录 | password_hash 可能被更新，但能正常验证 |
+| **新用户（无密码）** | ❌ password_hash 为 NULL | ❌ 不可登录 | 需等待 bootstrap 设置密码或管理员重置 |
+
+---
+
+### 快速备份命令
+
+#### 完整数据库备份
+
+```bash
+# 备份整个数据库
+docker compose exec postgres pg_dump -U ppap ppap > backup_$(date +%Y%m%d).sql
+
+# 压缩备份
+docker compose exec postgres pg_dump -U ppap ppap | gzip > backup_$(date +%Y%m%d).sql.gz
+```
+
+#### 导出用户表（不含敏感密码）
+
+```bash
+docker compose exec postgres psql -U ppap -d ppap -c "
+  COPY (
+    SELECT id, email, username, full_name, role, is_active, created_at
+    FROM users
+  ) TO stdout WITH CSV HEADER
+" > users_backup_$(date +%Y%m%d).csv
+```
+
+#### 恢复数据库（紧急情况）
+
+⚠️ **仅在数据丢失紧急情况下使用**：
+
+```bash
+# 停止所有服务
+docker compose down
+
+# 删除并重建卷（⚠️ 会丢失所有数据）
+docker volume rm ppap_postgres_data ppap_redis_data ppap_minio_data
+
+# 重新启动（空数据库）
+docker compose up -d
+
+# 恢复数据
+docker compose exec -T postgres psql -U ppap ppap < backup_20260626.sql
+```
+
+---
+
+### 风险控制措施总结
+
+| 保护层级 | 措施 | 状态 |
+|---------|------|------|
+| **部署脚本保护** | SQL 迁移使用 `IF NOT EXISTS`、`ON CONFLICT DO NOTHING` | ✅ 已实现 |
+| **用户数据保护** | bootstrap_users.py 只处理 NULL 密码用户 | ✅ 已实现 |
+| **登录安全** | 拒绝 NULL password_hash 用户登录 | ✅ 已实现 |
+| **数据持久化** | 使用命名卷而非容器卷 | ✅ 已实现 |
+| **备份策略** | 生产环境定期备份（非每次部署前） | 🟡 建议实施 |
+
+---
+
+### 最终结论
+
+| 环境 | 是否需要每次部署前备份 | 理由 |
+|------|------------------------|------|
+| **开发/测试环境** | ❌ **不需要** | 数据可丢弃，快速迭代 |
+| **生产环境** | ❌ **不需要每次部署前** | 部署不破坏数据，但应有**定期备份计划** |
+| **关键变更前** | ✅ **建议备份** | 数据库结构变更、重大业务上线前 |
+
+**推荐做法**：
+- ✅ 建立定期备份计划（如每日自动备份）
+- ✅ 关键操作前手动备份（如数据库迁移）
+- ❌ 每次正常部署不需要备份（浪费时间）
+
+---
+
 ## 附录：环境变量清单
 
 | 变量名 | 默认值 | 说明 |
