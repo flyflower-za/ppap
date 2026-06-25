@@ -120,7 +120,7 @@ async def get_statistics(
     """Retrieve macro-level compliance statistics for the dashboard."""
     from app.models.file import File, FileStatus
     from sqlalchemy import select, func, case, Date, text
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     # 1. Overview counts
     total_stmt = select(func.count(File.id))
@@ -147,7 +147,7 @@ async def get_statistics(
     pass_rate = int(((completed_count + warning_count) / max(1, decided_total)) * 100)
 
     # 2. Trend statistics (Last 14 days)
-    end_date = datetime.utcnow()
+    end_date = datetime.now(timezone.utc).replace(tzinfo=None)
     start_date = end_date - timedelta(days=14)
     
     trend_stmt = (

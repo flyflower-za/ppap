@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.core.database import Base
@@ -16,6 +16,6 @@ class AuditLog(Base):
     resource_id = Column(String, nullable=True)
     details = Column(JSONB, default=dict) # JSON payload of changes or results
     ip_address = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User", backref="audit_logs")

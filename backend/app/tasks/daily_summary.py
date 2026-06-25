@@ -1,7 +1,7 @@
 """
 Daily summary report scheduled task
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from celery.utils.log import get_task_logger
 from sqlalchemy import func, select, case
 
@@ -38,7 +38,7 @@ def send_daily_summary_report():
         try:
             async with task_session_maker() as db:
                 # Calculate yesterday's date range
-                yesterday = datetime.utcnow() - timedelta(days=1)
+                yesterday = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
                 start_of_yesterday = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
                 end_of_yesterday = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
 

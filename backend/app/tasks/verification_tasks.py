@@ -3,7 +3,7 @@ import json
 import os
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from celery.utils.log import get_task_logger
 
 from app.tasks.celery_app import celery_app
@@ -67,7 +67,7 @@ def queue_verification_task(self, file_id: str):
                     logger.warning(f"Failed to publish progress to Redis: {pub_err}")
 
             # Initialize timing
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
             # Create Task status tracking record
             task_record = Task(
@@ -139,7 +139,7 @@ def queue_verification_task(self, file_id: str):
 
             async def engine_progress_cb(msg: str):
                 log_entry = {
-                    "time": datetime.utcnow().isoformat() + "Z",
+                    "time": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     "message": msg
                 }
                 trajectory_logs.append(log_entry)
@@ -248,7 +248,7 @@ def queue_verification_task(self, file_id: str):
                 "execution_trajectory": trajectory_logs
             }
 
-            end_time = datetime.utcnow()
+            end_time = datetime.now(timezone.utc).replace(tzinfo=None)
             duration = int((end_time - start_time).total_seconds())
 
             # Update File Row
@@ -297,7 +297,7 @@ def queue_verification_task(self, file_id: str):
                 message=notif_msg,
                 link=f"/files/{file_record.id}",
                 is_read=False,
-                created_at=datetime.utcnow()
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None)
             )
             db.add(notification)
 

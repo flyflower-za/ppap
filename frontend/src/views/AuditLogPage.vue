@@ -170,7 +170,12 @@ import { Refresh, Platform } from '@element-plus/icons-vue'
 import { getAuditLogs, type AuditLog, type GetAuditLogsParams } from '@/api/audit'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import { useI18n } from 'vue-i18n'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const { t } = useI18n()
 
@@ -231,7 +236,7 @@ const viewDetails = (log: AuditLog) => {
 // Formatters
 const formatTime = (isoStr: string) => {
   if (!isoStr) return '-'
-  return dayjs(isoStr).format('YYYY-MM-DD HH:mm:ss')
+  return dayjs.utc(isoStr).tz(dayjs.tz.guess()).format('YYYY-MM-DD HH:mm:ss')
 }
 
 const formatJson = (obj: any) => {

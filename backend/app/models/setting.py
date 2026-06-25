@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, DateTime
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 class Setting(Base):
@@ -9,4 +9,4 @@ class Setting(Base):
 
     key = Column(String(255), primary_key=True, index=True)
     value = Column(String(4000), nullable=False)  # JSON or simple string
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

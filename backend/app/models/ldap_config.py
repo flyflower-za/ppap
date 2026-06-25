@@ -2,7 +2,7 @@
 LDAP/SSO Configuration model
 """
 from sqlalchemy import Column, String, DateTime, Text
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import Base
 
 
@@ -47,5 +47,5 @@ class LDAPConfig(Base):
     auto_create_users = Column(String(10), default="true")  # Auto-create users on first login
     default_role = Column(String(50), default="user")  # Default role for new users
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))

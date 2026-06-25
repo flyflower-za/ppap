@@ -4,7 +4,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.core.database import Base
 from app.models.rule import RuleType, Severity
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class RuleVersion(Base):
     __tablename__ = "rule_versions"
@@ -18,7 +18,7 @@ class RuleVersion(Base):
     severity = Column(Enum(Severity), nullable=False)
     is_active = Column(Boolean, default=True)
     logic_config = Column(JSONB, default=dict)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), nullable=False)
     created_by = Column(String, nullable=True)  # Full name or email of editor
 
     # P3: Version management enhancements

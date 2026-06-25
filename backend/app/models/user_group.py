@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, DateTime, ForeignKey, Table, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app.core.database import Base
 
@@ -12,7 +12,7 @@ user_group_association = Table(
     Base.metadata,
     Column('user_id', UUID(as_uuid=False), ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
     Column('group_id', String(255), ForeignKey('user_groups.id', ondelete='CASCADE'), primary_key=True),
-    Column('joined_at', DateTime, default=datetime.utcnow)
+    Column('joined_at', DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 )
 
 
@@ -32,8 +32,8 @@ class UserGroup(Base):
     role = Column(String(50), nullable=False, default="USER")
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # Relationships
     members = relationship("User", secondary=user_group_association, back_populates="groups")

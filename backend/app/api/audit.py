@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.core.database import get_db
 from app.api.deps import get_current_user, get_current_admin
@@ -42,7 +42,7 @@ async def get_audit_logs(
     if resource_type:
         query = query.where(AuditLog.resource_type == resource_type)
     if days is not None:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
         query = query.where(AuditLog.created_at >= cutoff)
 
     # Ordering and Pagination

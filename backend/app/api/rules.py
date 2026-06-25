@@ -16,7 +16,7 @@ from app.schemas.rule import (
 )
 from app.core.audit_logger import log_audit_event
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -444,7 +444,7 @@ async def rule_dry_run(
     engine_logs = []
     async def progress_cb(msg: str):
         engine_logs.append({
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "message": msg
         })
 

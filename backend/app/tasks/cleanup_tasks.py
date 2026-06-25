@@ -1,7 +1,7 @@
 """
 File cleanup scheduled tasks
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from celery.utils.log import get_task_logger
 from sqlalchemy import select
 
@@ -66,13 +66,13 @@ def cleanup_expired_files():
                     }
 
                 # Calculate cutoff date
-                cutoff_date = datetime.utcnow() - timedelta(days=retention_days)
+                cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=retention_days)
 
                 # Find files that should be deleted
                 query = select(File).where(
                     File.is_deleted == False,
                     (
-                        (File.will_delete_at < datetime.utcnow()) |
+                        (File.will_delete_at < datetime.now(timezone.utc).replace(tzinfo=None)) |
                         (File.uploaded_at < cutoff_date)
                     )
                 )
@@ -105,7 +105,7 @@ def cleanup_expired_files():
                                 logger.warning(f"Failed to delete from MinIO (file may not exist): {file.file_path}")
 
                         file.is_deleted = True
-                        file.deleted_at = datetime.utcnow()
+                        file.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
                         deleted_count += 1
                         total_freed_space += file.file_size or 0

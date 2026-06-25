@@ -5,7 +5,7 @@ Rule Templates - 规则模板模型
 from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app.core.database import Base
 
@@ -29,7 +29,7 @@ class RuleTemplate(Base):
 
     # 创建者
     created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     # 是否公开（其他用户可见）
     is_public = Column(Boolean, default=False)

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Integer, BigInteger, DateTime, ForeignKey, Enum, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 import uuid
 import json
@@ -54,7 +54,7 @@ class File(Base):
     pass_rate = Column(Integer)  # percentage
 
     # Timing
-    uploaded_at = Column(DateTime, default=datetime.utcnow, index=True)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     completed_at = Column(DateTime)
     duration_seconds = Column(Integer)
 

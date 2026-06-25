@@ -11,6 +11,7 @@ services:
     container_name: ppap-postgres
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       POSTGRES_DB: ppap
       POSTGRES_USER: ppap
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -33,6 +34,8 @@ services:
     image: redis:7-alpine
     container_name: ppap-redis
     restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
@@ -55,6 +58,7 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
+      TZ: Asia/Shanghai
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
@@ -129,6 +133,7 @@ services:
     container_name: ppap-backend
     restart: unless-stopped
     environment:
+      TZ: Asia/Shanghai
       PORT: "31234"
       DATABASE_URL: postgresql+asyncpg://ppap:${POSTGRES_PASSWORD}@postgres:5432/ppap
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -169,6 +174,8 @@ services:
       dockerfile: Dockerfile
     container_name: ppap-frontend
     restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
     ports:
       - "80:80"
     healthcheck:
@@ -194,6 +201,7 @@ services:
     restart: unless-stopped
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=3
     environment:
+      TZ: Asia/Shanghai
       DATABASE_URL: postgresql+asyncpg://ppap:${POSTGRES_PASSWORD}@postgres:5432/ppap
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       MINIO_ENDPOINT: minio:9000

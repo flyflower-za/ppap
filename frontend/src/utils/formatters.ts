@@ -1,7 +1,12 @@
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 export function formatTime(timeStr: string): string {
-  return dayjs(timeStr).format('YYYY-MM-DD HH:mm')
+  return dayjs.utc(timeStr).tz(dayjs.tz.guess()).format('YYYY-MM-DD HH:mm')
 }
 
 export function formatFileSize(bytes?: number): string {

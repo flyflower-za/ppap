@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.models.notification import Notification, NotificationType
@@ -77,7 +77,7 @@ class NotificationService:
             return False
 
         notification.is_read = True
-        notification.read_at = datetime.utcnow()
+        notification.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await self.db.commit()
         return True
@@ -94,7 +94,7 @@ class NotificationService:
         count = 0
         for notification in notifications:
             notification.is_read = True
-            notification.read_at = datetime.utcnow()
+            notification.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
             count += 1
 
         await self.db.commit()
@@ -104,7 +104,7 @@ class NotificationService:
         """Delete notifications older than specified days."""
         from sqlalchemy import delete, func
 
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
         # Use delete directly for better performance
         stmt = delete(Notification).where(Notification.created_at < cutoff_date)

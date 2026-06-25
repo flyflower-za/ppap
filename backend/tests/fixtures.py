@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models.user import User, UserRole
 
 mock_normal_user = User(
@@ -13,7 +13,7 @@ mock_normal_user = User(
     notification_on_complete=True,
     notification_on_failure=True,
     daily_summary_enabled=False,
-    created_at=datetime.utcnow()
+    created_at=datetime.now(timezone.utc).replace(tzinfo=None)
 )
 
 mock_admin_user = User(
@@ -27,5 +27,5 @@ mock_admin_user = User(
     notification_on_complete=True,
     notification_on_failure=True,
     daily_summary_enabled=False,
-    created_at=datetime.utcnow()
+    created_at=datetime.now(timezone.utc).replace(tzinfo=None)
 )

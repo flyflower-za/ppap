@@ -5,7 +5,7 @@ Supports any OIDC provider: Keycloak, Auth0, Okta, Azure AD, Google, etc.
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import httpx
 import json
@@ -248,7 +248,7 @@ async def create_or_update_user(db: AsyncSession, userinfo: dict, config: dict) 
         user.is_active = True
         user.role = user_role
         user.is_admin = is_admin
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = datetime.now(timezone.utc).replace(tzinfo=None)
         # Ensure existing user has username
         if not user.username:
             base_username = email.split("@")[0].strip().lower()
@@ -281,7 +281,7 @@ async def create_or_update_user(db: AsyncSession, userinfo: dict, config: dict) 
             is_active=True,
             is_admin=is_admin,
             role=user_role,
-            last_login_at=datetime.utcnow()
+            last_login_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         db.add(user)
 

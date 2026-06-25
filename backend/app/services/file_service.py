@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import json
 
@@ -30,7 +30,7 @@ class FileService:
     ) -> File:
         """Create a new file record and upload to storage."""
         file_id = str(uuid.uuid4())
-        file_path = f"files/{uploaded_by}/{datetime.utcnow().strftime('%Y%m')}/{file_id}.pdf"
+        file_path = f"files/{uploaded_by}/{datetime.now(timezone.utc).replace(tzinfo=None).strftime('%Y%m')}/{file_id}.pdf"
 
         # Detect file type if not provided
         if not file_type:
@@ -59,7 +59,7 @@ class FileService:
             page_count=metadata.get("page_count"),
             status=FileStatus.PENDING,
             uploaded_by=uploaded_by,
-            will_delete_at=datetime.utcnow() + timedelta(days=settings.FILE_RETENTION_DAYS),
+            will_delete_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=settings.FILE_RETENTION_DAYS),
         )
 
         self.db.add(db_file)
@@ -186,7 +186,7 @@ class FileService:
             file.verification_result = json.dumps({"error": error_message})
 
         if status in [FileStatus.COMPLETED, FileStatus.FAILED, FileStatus.WARNING]:
-            file.completed_at = datetime.utcnow()
+            file.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
             if file.uploaded_at:
                 duration = int((file.completed_at - file.uploaded_at).total_seconds())
                 file.duration_seconds = duration
@@ -203,7 +203,7 @@ class FileService:
             return False
 
         file.is_deleted = True
-        file.deleted_at = datetime.utcnow()
+        file.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await self.db.commit()
         return True
@@ -226,7 +226,7 @@ class FileService:
         count = 0
         for file in files:
             file.is_deleted = True
-            file.deleted_at = datetime.utcnow()
+            file.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
             count += 1
 
         await self.db.commit()
@@ -250,7 +250,7 @@ class FileService:
 
         new_status = FileStatus.COMPLETED if action == 'approve' else FileStatus.FAILED
         file.status = new_status
-        file.completed_at = datetime.utcnow()
+        file.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
         if file.uploaded_at:
             duration = int((file.completed_at - file.uploaded_at).total_seconds())
             file.duration_seconds = duration

@@ -5,7 +5,7 @@ Operator Registry - 算子注册表模型
 from sqlalchemy import Column, String, Boolean, ForeignKey, Text, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from app.core.database import Base
 
@@ -53,8 +53,8 @@ class OperatorRegistry(Base):
     # 版本信息
     version = Column(String(20), default="1.0.0")
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 class OperatorTemplate(Base):
@@ -75,7 +75,7 @@ class OperatorTemplate(Base):
     is_system = Column(Boolean, default=False)
 
     created_by = Column(UUID, ForeignKey("users.id"))
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
 
 # 预置算子注册数据 (初始化脚本使用)

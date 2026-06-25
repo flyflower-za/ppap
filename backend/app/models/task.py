@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Enum, Text, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import enum
 import uuid
 from app.core.database import Base
@@ -35,7 +35,7 @@ class Task(Base):
     celery_task_id = Column(String(255), index=True)
 
     # Timing
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None), index=True)
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
 
