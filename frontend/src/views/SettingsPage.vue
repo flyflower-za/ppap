@@ -3,7 +3,7 @@
     <h2 class="mb-4">{{ $t('settings.title') }}</h2>
 
     <el-row :gutter="32">
-      <el-col :span="6">
+      <el-col :span="7">
         <el-menu :default-active="activeMenu" @select="handleMenuSelect">
           <el-menu-item index="profile">
             <el-icon><User /></el-icon>
@@ -40,7 +40,7 @@
         </el-menu>
       </el-col>
 
-      <el-col :span="18">
+      <el-col :span="17">
         <!-- Profile Section -->
         <el-card v-if="activeMenu === 'profile'" shadow="never">
           <template #header>
@@ -154,7 +154,7 @@
             ref="fileRetentionFormRef"
             :model="fileRetentionSettings"
             :rules="fileRetentionRules"
-            label-width="180px"
+            label-width="200px"
             class="file-retention-form"
           >
             <el-form-item :label="$t('settings.enableAutoCleanup')" prop="auto_cleanup_enabled">
@@ -250,7 +250,7 @@
             ref="smtpFormRef"
             :model="smtpConfig"
             :rules="smtpRules"
-            label-width="140px"
+            label-width="180px"
             class="smtp-form"
           >
             <el-form-item :label="$t('settings.enableSmtp')" prop="enabled">
@@ -533,7 +533,7 @@
             ref="ldapFormRef"
             :model="ldapConfig"
             :rules="ldapRules"
-            label-width="160px"
+            label-width="220px"
             class="ldap-form"
           >
             <!-- LDAP Configuration Block -->
@@ -2610,7 +2610,7 @@ onMounted(() => {
 }
 
 .smtp-form {
-  max-width: 600px;
+  max-width: 720px;
 }
 
 .form-tip {
@@ -2652,7 +2652,7 @@ onMounted(() => {
 }
 
 .file-retention-form {
-  max-width: 700px;
+  max-width: 800px;
 }
 
 .ai-model-form {
