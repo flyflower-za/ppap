@@ -1,6 +1,6 @@
 # 问题修复清单
 
-> 最后更新: 2026-06-24
+> 最后更新: 2026-06-25
 
 ## 已修复问题
 
@@ -26,6 +26,7 @@
 | 2.4 | N+1 查询 | 文件详情单独查 User | `selectinload(File.uploaded_by_user)` | ✅ | 2026-06-24 |
 | 2.5 | 前端固定 2 秒轮询 | `setInterval(fetchTasks, 2000)` | 改为指数退避 `setTimeout`（2s→30s） | ✅ | 2026-06-24 |
 | 2.6 | URLFetchOperator 临时文件未清理 | `mkstemp` 创建后未删除 | 记录到 `_temp_files` 列表，任务完成后清理 | ✅ | 2026-06-24 |
+| 2.7 | Note 模型缺少 author_name 列 | 模型定义缺失字段，file_service.py 传入的 author_name 被静默丢弃 | 模型新增 `author_name` 列 + 迁移脚本 | ✅ | 2026-06-25 |
 
 ### 🟡 部署期间发现的运行时问题（已修复 15/15）
 

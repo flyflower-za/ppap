@@ -14,6 +14,7 @@ class Note(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     file_id = Column(UUID(as_uuid=False), ForeignKey("files.id"), nullable=False, index=True)
     author_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+    author_name = Column(String(255), nullable=True)
     content = Column(Text, nullable=False)
 
     # Timestamp
