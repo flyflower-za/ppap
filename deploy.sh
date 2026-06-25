@@ -59,6 +59,12 @@ echo ""
 echo -e "${YELLOW}Setting up environment variables...${NC}"
 cd deploy
 
+# Run env sync if .env.example exists
+if [ -f sync-env.sh ] && [ -f .env.example ]; then
+    echo -e "${BLUE}Syncing .env with .env.example...${NC}"
+    bash sync-env.sh
+fi
+
 if [ ! -f .env ]; then
     if [ -f .env.example ]; then
         cp .env.example .env

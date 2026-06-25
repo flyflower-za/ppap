@@ -1,2 +1,16 @@
 .qwen/
 .claude/
+
+# Environment files (contain sensitive data)
+deploy/.env
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

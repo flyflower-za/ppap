@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPAP 文档验证平台 - 使用流程图</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', Consolas, Monaco, monospace;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            padding: 20px 0 40px;
+            border-bottom: 2px solid #333;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* 流程图容器 */
+        .flow-container {
+            position: relative;
+            padding: 20px;
+        }
+
+        /* 流程分组 */
+        .flow-group {
+            position: relative;
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px dashed #666;
+            background: #fafafa;
+        }
+
+        .group-label {
+            position: absolute;
+            top: -12px;
+            left: 20px;
+            background: #fafafa;
+            padding: 0 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        /* 流程行 */
+        .flow-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        /* 流程节点 */
+        .flow-node {
+            border: 2px solid #333;
+            background: #fff;
+            padding: 12px 18px;
+            min-width: 120px;
+            text-align: center;
+            position: relative;
+        }
+
+        .flow-node.start {
+            border-color: #2e7d32;
+            background: #e8f5e9;
+            border-radius: 20px;
+        }
+
+        .flow-node.process {
+            border-color: #1976d2;
+            background: #e3f2fd;
+        }
+
+        .flow-node.decision {
+            border-color: #f57c00;
+            background: #fff3e0;
+            transform: rotate(45deg);
+        }
+
+        .flow-node.decision .node-content {
+            transform: rotate(-45deg);
+        }
+
+        .flow-node.end {
+            border-color: #c62828;
+            background: #ffebee;
+            border-radius: 20px;
+        }
+
+        .flow-node.parallel {
+            border-color: #7b1fa2;
+            background: #f3e5f5;
+        }
+
+        .node-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+
+        .node-desc {
+            font-size: 11px;
+            color: #666;
+        }
+
+        /* 箭头 */
+        .arrow {
+            font-size: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .arrow-label {
+            font-size: 10px;
+            color: #666;
+            text-align: center;
+            margin-top: -15px;
+            margin-bottom: 5px;
+        }
+
+        /* 条件分支 */
+        .branch {
+            display: flex;
+            gap: 30px;
+            margin: 15px 0;
+        }
+
+        .branch-path {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .branch-label {
+            font-size: 11px;
+            color: #666;
+            background: #fff;
+            padding: 2px 8px;
+            border: 1px solid #ddd;
+            margin-bottom: 8px;
+        }
+
+        /* 并行处理容器 */
+        .parallel-box {
+            border: 2px dashed #7b1fa2;
+            padding: 15px;
+            background: #f8f5fa;
+            margin: 15px 0;
+        }
+
+        .parallel-title {
+            font-size: 12px;
+            color: #7b1fa2;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        /* 子流程 */
+        .sub-flow {
+            border: 1px solid #999;
+            padding: 10px;
+            margin: 10px 0;
+            background: #fff;
+        }
+
+        /* 页面引用 */
+        .page-ref {
+            font-size: 10px;
+            color: #1976d2;
+            font-style: italic;
+            margin-top: 3px;
+        }
+
+        /* 步骤编号 */
+        .step-num {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            background: #333;
+            color: #fff;
+            border-radius: 50%;
+            font-size: 11px;
+            margin-right: 5px;
+        }
+
+        /* 图例 */
+        .legend {
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 2px solid #ddd;
+        }
+
+        .legend-title {
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .legend-items {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .legend-node {
+            width: 40px;
+            height: 30px;
+            border: 2px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+        }
+
+        .legend-node.start { border-color: #2e7d32; background: #e8f5e9; border-radius: 15px; }
+        .legend-node.process { border-color: #1976d2; background: #e3f2fd; }
+        .legend-node.decision { border-color: #f57c00; background: #fff3e0; transform: rotate(45deg); }
+        .legend-node.decision span { transform: rotate(-45deg); }
+        .legend-node.end { border-color: #c62828; background: #ffebee; border-radius: 15px; }
+        .legend-node.parallel { border-color: #7b1fa2; background: #f3e5f5; }
+
+        /* 角色标签 */
+        .role-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 2px;
+            font-size: 10px;
+            border-radius: 3px;
+            background: #666;
+            color: #fff;
+        }
+
+        .role-tag.admin { background: #c62828; }
+        .role-tag.manager { background: #f57c00; }
+        .role-tag.user { background: #1976d2; }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            .flow-row {
+                flex-direction: column;
+                align-items: center;
+            }
+            .branch {
+                flex-direction: column;
+            }
+        }
+
+        /* 连接线 */
+        .connector {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .connector-line {
+            height: 2px;
+            background: #333;
+            flex: 1;
+        }
+
+        .vertical-connector {
+            height: 30px;
+            width: 2px;
+            background: #333;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>PPAP 文档验证平台 - 使用流程图</h1>
+            <p>系统操作流程与业务逻辑流程</p>
+        </div>
+
+        <!-- 主流程：文件验证 -->
+        <div class="flow-container">
+            <h2 style="margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                一、主业务流程：文件验证
+            </h2>
+
+            <div class="flow-group">
+                <div class="group-label">阶段 1：登录与上传</div>
+
+                <div class="flow-row">
+                    <div class="flow-node start">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">1</span>用户登录</div>
+                            <div class="node-desc">LDAP/SSO/本地密码</div>
+                            <div class="page-ref">LoginPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">2</span>上传PDF</div>
+                            <div class="node-desc">拖拽或选择文件</div>
+                            <div class="page-ref">TaskCenterPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">3</span>选择规则</div>
+                            <div class="node-desc">选择验证模块/规则</div>
+                            <div class="page-ref">自动分类</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">阶段 2：验证执行（后端异步处理）</div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">4</span>创建任务</div>
+                            <div class="node-desc">Celery 任务入队</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node parallel">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">5</span>并行验证</div>
+                            <div class="node-desc">13个算子执行</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">6</span>AI分析</div>
+                            <div class="node-desc">GPT-4o 语义/视觉</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="parallel-box">
+                    <div class="parallel-title">并行执行 13 个验证算子</div>
+                    <div class="flow-row" style="justify-content: center;">
+                        <div class="sub-flow">
+                            <div class="node-title">PDFInfoExtractor</div>
+                            <div class="node-desc">PDF元数据提取</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">QRScanner</div>
+                            <div class="node-desc">二维码识别</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">SignatureVerifier</div>
+                            <div class="node-desc">数字签名验证</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">TextLLM</div>
+                            <div class="node-desc">文本语义分析</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">VisionLLM</div>
+                            <div class="node-desc">视觉检查</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">RevisionCheck</div>
+                            <div class="node-desc">篡改检测</div>
+                        </div>
+                    </div>
+                    <div class="flow-row" style="justify-content: center;">
+                        <div class="sub-flow">
+                            <div class="node-title">StampDetection</div>
+                            <div class="node-desc">印章检测</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">TableVerification</div>
+                            <div class="node-desc">表格验证</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">OnlineVerification</div>
+                            <div class="node-desc">在线防伪</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">DocumentDiff</div>
+                            <div class="node-desc">文档对比</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">InstitutionSniffer</div>
+                            <div class="node-desc">机构识别</div>
+                        </div>
+                        <div class="sub-flow">
+                            <div class="node-title">URLFetchOperator</div>
+                            <div class="node-desc">HTTP数据获取</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">阶段 3：结果处理</div>
+
+                <div class="flow-row">
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">置信度<br>判定</div>
+                            <div class="node-desc">是否 ≥85%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">高置信度 (≥85%)</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">自动通过</div>
+                                <div class="node-desc">生成验证报告</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">低置信度 (<85%)</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">人工仲裁</div>
+                                <div class="node-desc">管理员审核</div>
+                                <div class="page-ref">FileDetailPage.vue</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">人工决策</div>
+                                <div class="node-desc">放行/驳回</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 管理员流程 -->
+        <div class="flow-container" style="margin-top: 40px;">
+            <h2 style="margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                二、管理员流程：规则配置与审批
+            </h2>
+
+            <div class="flow-group">
+                <div class="group-label">规则配置流程 <span class="role-tag admin">ADMIN</span> <span class="role-tag manager">MANAGER</span></div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">1</span>进入规则管理</div>
+                            <div class="node-desc">选择文档分类</div>
+                            <div class="page-ref">RulesPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">规则<br>类型</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">基础预置规则</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">开关配置</div>
+                                <div class="node-desc">启用/禁用 + 级别</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">批量保存</div>
+                                <div class="node-desc">一键提交配置</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">自定义高级规则</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">打开流程图编辑器</div>
+                                <div class="page-ref">FullscreenRuleEditor.vue</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">拖拽编排算子</div>
+                                <div class="node-desc">配置节点与连线</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">沙盒测试</div>
+                                <div class="node-desc">模拟执行验证</div>
+                                <div class="page-ref">ModuleSandboxPage.vue</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">规则变更审批流程 <span class="role-tag admin">ADMIN</span></div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title"><span class="step-num">2</span>提交变更请求</div>
+                            <div class="node-desc">填写变更说明</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">风险<br>级别</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">低风险 (P1/P2)</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">直接生效</div>
+                                <div class="node-desc">无需审批</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">高风险 (P3)</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">进入审批队列</div>
+                                <div class="page-ref">ApprovalsPage.vue</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node decision">
+                            <div class="node-content">
+                                <div class="node-title">审批<br>决策</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">通过</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">一键部署</div>
+                                <div class="node-desc">规则生效</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">拒绝</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">变更驳回</div>
+                                <div class="node-desc">保留原版本</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统配置流程 -->
+        <div class="flow-container" style="margin-top: 40px;">
+            <h2 style="margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                三、系统配置流程 <span class="role-tag admin">ADMIN</span>
+            </h2>
+
+            <div class="flow-group">
+                <div class="group-label">系统初始化配置</div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">LDAP 配置</div>
+                            <div class="node-desc">企业目录集成</div>
+                            <div class="page-ref">SettingsPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">SMTP 配置</div>
+                            <div class="node-desc">邮件服务器设置</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">OIDC/SSO 配置</div>
+                            <div class="node-desc">单点登录集成</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">AI 模型配置</div>
+                            <div class="node-desc">OpenAI/阿里云</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">模块管理流程</div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">查看注册模块</div>
+                            <div class="node-desc">13个验证算子</div>
+                            <div class="page-ref">ModulesPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">需要<br>扩展?</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">是</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">创建自定义模块</div>
+                                <div class="node-desc">定义新算子</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">配置元数据</div>
+                                <div class="node-desc">输入输出参数</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">沙盒测试</div>
+                                <div class="node-desc">验证功能</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">否</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">使用现有模块</div>
+                                <div class="node-desc">直接配置规则</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据查询流程 -->
+        <div class="flow-container" style="margin-top: 40px;">
+            <h2 style="margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                四、数据查询与审计流程
+            </h2>
+
+            <div class="flow-group">
+                <div class="group-label">历史数据查询</div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">浏览文件历史</div>
+                            <div class="node-desc">分页列表 + 筛选</div>
+                            <div class="page-ref">HistoryPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">查看文件详情</div>
+                            <div class="node-desc">验证结果 + PDF预览</div>
+                            <div class="page-ref">FileDetailPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">导出报告</div>
+                            <div class="node-desc">PDF/Excel 格式</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">审计与通知 <span class="role-tag admin">ADMIN</span></div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">查看审计日志</div>
+                            <div class="node-desc">所有操作记录</div>
+                            <div class="page-ref">AuditLogPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">查看通知</div>
+                            <div class="node-desc">系统通知推送</div>
+                            <div class="page-ref">NotificationsPage.vue</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">查看仪表盘</div>
+                            <div class="node-desc">合规统计数据</div>
+                            <div class="page-ref">DashboardPage.vue</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 异常处理流程 -->
+        <div class="flow-container" style="margin-top: 40px;">
+            <h2 style="margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                五、异常处理流程
+            </h2>
+
+            <div class="flow-group">
+                <div class="group-label">验证失败处理</div>
+
+                <div class="flow-row">
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">验证<br>结果</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">通过</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">正常归档</div>
+                                <div class="node-desc">标记为合规</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">失败</div>
+                        <div class="flow-node decision">
+                            <div class="node-content">
+                                <div class="node-title">失败<br>原因</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">规则不匹配</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">调整规则配置</div>
+                                <div class="node-desc">修改规则参数</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">重新验证</div>
+                                <div class="node-desc">再次提交任务</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">文档问题</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">人工仲裁</div>
+                                <div class="node-desc">管理员审核</div>
+                            </div>
+                        </div>
+                        <div class="arrow">→</div>
+                        <div class="flow-node end">
+                            <div class="node-content">
+                                <div class="node-title">人工决策</div>
+                                <div class="node-desc">最终裁定</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flow-group">
+                <div class="group-label">系统异常处理 <span class="role-tag admin">ADMIN</span></div>
+
+                <div class="flow-row">
+                    <div class="flow-node process">
+                        <div class="node-content">
+                            <div class="node-title">检测到异常</div>
+                            <div class="node-desc">任务失败/超时</div>
+                        </div>
+                    </div>
+                    <div class="arrow">→</div>
+                    <div class="flow-node decision">
+                        <div class="node-content">
+                            <div class="node-title">异常<br>类型</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch">
+                    <div class="branch-path">
+                        <div class="branch-label">AI服务异常</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">切换备用AI</div>
+                                <div class="node-desc">阿里云 Agent</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">存储异常</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">检查 MinIO</div>
+                                <div class="node-desc">存储服务状态</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="branch-path">
+                        <div class="branch-label">任务队列异常</div>
+                        <div class="flow-node process">
+                            <div class="node-content">
+                                <div class="node-title">重启 Celery</div>
+                                <div class="node-desc">恢复任务处理</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图例 -->
+        <div class="legend">
+            <div class="legend-title">图例说明 (Legend)</div>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-node start">开始</div>
+                    <span>开始节点</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node process">处理</div>
+                    <span>处理节点</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node decision"><span>判断</span></div>
+                    <span>决策节点</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node parallel">并行</div>
+                    <span>并行处理</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-node end">结束</div>
+                    <span>结束节点</span>
+                </div>
+            </div>
+            <div style="margin-top: 15px; display: flex; gap: 20px; flex-wrap: wrap;">
+                <div class="legend-item">
+                    <span class="role-tag admin">ADMIN</span>
+                    <span>管理员操作</span>
+                </div>
+                <div class="legend-item">
+                    <span class="role-tag manager">MANAGER</span>
+                    <span>经理操作</span>
+                </div>
+                <div class="legend-item">
+                    <span class="role-tag user">USER</span>
+                    <span>普通用户操作</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 流程统计 -->
+        <div style="margin-top: 30px; padding: 20px; background: #f5f5f5; border: 1px solid #ddd;">
+            <div style="text-align: center; font-weight: bold; margin-bottom: 15px;">流程统计</div>
+            <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px;">
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">5</div>
+                    <div style="font-size: 12px; color: #666;">主要流程</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #1976d2;">13</div>
+                    <div style="font-size: 12px; color: #666;">验证算子</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #7b1fa2;">8</div>
+                    <div style="font-size: 12px; color: #666;">决策节点</div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="font-size: 24px; font-weight: bold; color: #f57c00;">15</div>
+                    <div style="font-size: 12px; color: #666;">页面视图</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
