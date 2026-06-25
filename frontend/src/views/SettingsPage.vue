@@ -1,9 +1,9 @@
 <template>
-  <div>
+  <div class="settings-container">
     <h2 class="mb-4">{{ $t('settings.title') }}</h2>
 
-    <el-row :gutter="32">
-      <el-col :span="5">
+    <el-row :gutter="32" type="flex" class="settings-row">
+      <el-col :span="5" class="settings-menu-col">
         <el-menu :default-active="activeMenu" @select="handleMenuSelect" class="settings-menu">
           <!-- 个人设置组 -->
           <el-menu-item-group title="个人设置">
@@ -1117,7 +1117,7 @@
                 clearable
               />
             </el-form-item>
-            <el-form-item v-if="!editingUser?.id" :label="$t('auth.password')" prop="password">
+            <el-form-item v-if="!editingUser?.id" :label="$t('auth.password')" prop="password" required>
               <el-input
                 v-model="userForm.password"
                 type="password"
@@ -2547,6 +2547,40 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Page container */
+.settings-container {
+  min-width: 900px;
+  overflow-x: auto;
+}
+
+/* Layout container */
+.settings-row {
+  flex-wrap: nowrap !important;
+  min-width: 900px;
+  align-items: stretch;
+}
+
+.settings-row > .el-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-row > .el-col:first-child {
+  flex-shrink: 0;
+}
+
+.settings-row > .el-col:last-child {
+  flex-shrink: 1;
+  overflow: auto;
+}
+
+/* Make menu stretch to fill column height */
+.settings-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 .notification-setting {
   padding: 16px 0;
 }
@@ -2782,10 +2816,28 @@ code {
 }
 
 /* Settings menu styling */
+.settings-menu-col {
+  min-width: 200px;
+  flex-shrink: 0;
+}
+
+.settings-menu {
+  min-width: 180px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 .settings-menu :deep(.el-menu-item) {
   height: 48px;
   line-height: 48px;
   padding: 0 16px;
+  white-space: nowrap;
+}
+
+.settings-menu :deep(.el-menu-item span) {
+  display: inline;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 .settings-menu :deep(.el-menu-item-group__title) {
