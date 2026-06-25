@@ -979,7 +979,6 @@
                     @change="handleRoleChange(scope.row)"
                   >
                     <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
-                    <el-option :label="$t('settings.roleManager')" value="MANAGER" />
                     <el-option :label="$t('settings.roleUser')" value="USER" />
                   </el-select>
                 </template>
@@ -1119,7 +1118,6 @@
             <el-form-item :label="$t('settings.role')" prop="role">
               <el-select v-model="userForm.role" :placeholder="$t('settings.selectRole')">
                 <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
-                <el-option :label="$t('settings.roleManager')" value="MANAGER" />
                 <el-option :label="$t('settings.roleUser')" value="USER" />
               </el-select>
             </el-form-item>
@@ -1218,72 +1216,6 @@
           <template #footer>
             <el-button @click="userGroupAssignDialogVisible = false">{{ $t('common.cancel') }}</el-button>
             <el-button type="primary" :loading="savingUserGroups" @click="handleSaveUserGroups">
-              {{ $t('common.save') }}
-            </el-button>
-          </template>
-        </el-dialog>
-
-        <!-- User Edit/Create Dialog -->
-        <el-dialog
-          v-model="userDialogVisible"
-          :title="editingUser?.id ? $t('settings.editUserTitle') : $t('settings.addUserTitle')"
-          width="500px"
-          :close-on-click-modal="false"
-        >
-          <el-form
-            ref="userFormRef"
-            :model="userForm"
-            :rules="userRules"
-            label-width="80px"
-          >
-            <el-form-item :label="$t('settings.email')" prop="email">
-              <el-input
-                v-model="userForm.email"
-                :placeholder="$t('settings.enterEmail')"
-                :disabled="!!editingUser?.id"
-                clearable
-              />
-            </el-form-item>
-            <el-form-item :label="$t('settings.fullName')" prop="full_name">
-              <el-input
-                v-model="userForm.full_name"
-                :placeholder="$t('settings.enterName')"
-                clearable
-              />
-            </el-form-item>
-            <el-form-item :label="$t('settings.department')" prop="department">
-              <el-input
-                v-model="userForm.department"
-                :placeholder="$t('settings.enterDepartment')"
-                clearable
-              />
-            </el-form-item>
-            <el-form-item v-if="!editingUser?.id" :label="$t('auth.password')" prop="password">
-              <el-input
-                v-model="userForm.password"
-                type="password"
-                :placeholder="$t('settings.enterInitialPassword')"
-                show-password
-                clearable
-              />
-            </el-form-item>
-            <el-form-item :label="$t('settings.role')" prop="role">
-              <el-select v-model="userForm.role" :placeholder="$t('settings.selectRole')">
-                <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
-                <el-option :label="$t('settings.roleManager')" value="MANAGER" />
-                <el-option :label="$t('settings.roleUser')" value="USER" />
-              </el-select>
-            </el-form-item>
-          </el-form>
-
-          <template #footer>
-            <el-button @click="userDialogVisible = false">{{ $t('common.cancel') }}</el-button>
-            <el-button
-              type="primary"
-              :icon="Check"
-              :loading="savingUser"
-              @click="handleSaveUser"
-            >
               {{ $t('common.save') }}
             </el-button>
           </template>
@@ -1402,9 +1334,19 @@ import { getErrorMessage } from '@/utils/formatters'
 const authStore = useAuthStore()
 const { t } = useI18n()
 
-// Restore active menu from localStorage
+// Restore active menu from localStorage (with permission check)
 const savedMenu = localStorage.getItem('settingsActiveMenu')
-const activeMenu = ref(savedMenu || 'profile')
+
+// Helper to check if user can access a setting section (inline version for init)
+function canAccessMenuSection(section: string): boolean {
+  const user = authStore.user
+  const role = user?.role || 'USER'
+  const adminSections = ['file-retention', 'smtp', 'templates', 'ldap', 'ai-model', 'users']
+  return !adminSections.includes(section) || role === 'ADMIN'
+}
+
+// Use saved menu only if user has access, otherwise default to 'profile'
+const activeMenu = ref((savedMenu && canAccessMenuSection(savedMenu)) ? savedMenu : 'profile')
 
 // Auto-fix user role on mount (in case of stale data)
 async function ensureUserRole() {
@@ -2158,6 +2100,12 @@ async function handleSaveUser() {
   await userFormRef.value.validate(async (valid) => {
     if (!valid) return
 
+    // For new users, password is required
+    if (!editingUser.value?.id && !userForm.password) {
+      ElMessage.error(t('settings.enterInitialPassword'))
+      return
+    }
+
     savingUser.value = true
 
     try {
@@ -2181,7 +2129,7 @@ async function handleSaveUser() {
           full_name: userForm.full_name,
           department: userForm.department || undefined,
           role: userForm.role,
-          password: userForm.password || undefined
+          password: userForm.password
         })
         userId = result.user.id
         ElMessage.success(t('settings.userCreated'))
