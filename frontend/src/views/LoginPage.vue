@@ -9,25 +9,45 @@
               <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M13,13H11V18A2,2 0 0,1 9,20H7A2,2 0 0,1 5,18V4H13V13Z"/>
             </svg>
           </div>
-          <h1>文件校验平台</h1>
+          <h1>{{ $t('auth.platformTitle') }}</h1>
           <p class="brand-desc">PPAP File Verification Platform</p>
-          <p class="brand-feature">智能化文件校验，提升质量管理效率</p>
+          <p class="brand-feature">{{ $t('auth.platformTagline') }}</p>
         </div>
       </div>
     </div>
 
     <!-- 右侧登录操作区域 -->
     <div class="login-right">
-      <!-- 右上角Logo -->
-      <div class="top-logo">
+      <!-- 右上角工具栏 -->
+      <div class="top-toolbar">
         <img src="/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
+        <span class="locale-switcher">
+          <el-dropdown trigger="click" @command="handleLocaleChange">
+            <span class="locale-btn">
+              {{ currentLocaleLabel }}
+              <el-icon class="el-icon--right"><arrow-down /></el-icon>
+            </span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="loc in availableLocales"
+                  :key="loc.value"
+                  :command="loc.value"
+                  :class="{ 'is-active': loc.value === currentLocale }"
+                >
+                  {{ loc.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </span>
       </div>
 
       <div class="login-card-wrapper">
         <div class="login-container">
           <div class="login-header">
-            <h2>欢迎回来</h2>
-            <p>登录您的账户以继续</p>
+            <h2>{{ $t('auth.welcomeBack') }}</h2>
+            <p>{{ $t('auth.loginSubtitle') }}</p>
           </div>
 
           <!-- SSO Login Button -->
@@ -42,11 +62,11 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="sso-icon">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
               </svg>
-              {{ ssoLoading ? 'SSO登录中...' : `${ssoConfig.provider === 'generic' ? 'SSO登录' : ssoConfig.provider.toUpperCase() + ' 登录'} (${ssoConfig.environment === 'test' ? '测试环境' : '正式环境'})` }}
+              {{ ssoLoading ? $t('auth.ssoLogging') : `${ssoConfig.provider === 'generic' ? $t('auth.ssoLogin') : ssoConfig.provider.toUpperCase() + ' ' + $t('auth.login')} (${$t(ssoConfig.environment === 'test' ? 'auth.testEnv' : 'auth.prodEnv')})` }}
             </el-button>
             <div class="divider-section">
               <div class="divider-line"></div>
-              <span class="divider-text">或使用账号密码登录</span>
+              <span class="divider-text">{{ $t('auth.orPasswordLogin') }}</span>
               <div class="divider-line"></div>
             </div>
           </div>
@@ -58,22 +78,22 @@
             label-position="top"
             class="login-form"
           >
-            <el-form-item label="账号" prop="email">
+            <el-form-item :label="$t('auth.account')" prop="email">
               <el-input
                 v-model="form.email"
                 type="email"
-                placeholder="请输入账号"
+                :placeholder="$t('auth.enterAccount')"
                 size="large"
                 clearable
                 :prefix-icon="User"
               />
             </el-form-item>
 
-            <el-form-item label="密码" prop="password">
+            <el-form-item :label="$t('auth.password')" prop="password">
               <el-input
                 v-model="form.password"
                 type="password"
-                placeholder="请输入密码"
+                :placeholder="$t('auth.enterPassword')"
                 size="large"
                 show-password
                 :prefix-icon="Lock"
@@ -82,8 +102,8 @@
             </el-form-item>
 
             <div class="form-options">
-              <el-checkbox v-model="rememberMe">记住我</el-checkbox>
-              <a href="#" class="forgot-link">忘记密码？</a>
+              <el-checkbox v-model="rememberMe">{{ $t('auth.rememberMe') }}</el-checkbox>
+              <a href="#" class="forgot-link">{{ $t('auth.forgotPassword') }}</a>
             </div>
 
             <el-button
@@ -93,13 +113,13 @@
               class="login-button"
               @click="handleLogin"
             >
-              {{ loading ? '登录中...' : '登录' }}
+              {{ loading ? $t('auth.logging') : $t('auth.login') }}
             </el-button>
           </el-form>
 
 
           <div class="login-footer">
-            <p>还没有账户？<a href="#" class="register-link">联系管理员开通</a></p>
+            <p>{{ $t('auth.noAccount') }}<a href="#" class="register-link">{{ $t('auth.contactAdmin') }}</a></p>
           </div>
         </div>
       </div>
@@ -108,13 +128,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
+import { User, Lock, ArrowDown } from '@element-plus/icons-vue'
 import { getErrorMessage } from '@/utils/formatters'
+import { useI18n } from 'vue-i18n'
+import { availableLocales, getLocale, setLocale } from '@/locales'
+
+const { t } = useI18n()
+
+const currentLocale = computed(() => getLocale())
+const currentLocaleLabel = computed(() => availableLocales.find(l => l.value === currentLocale.value)?.label || '中文')
+
+function handleLocaleChange(locale: string) {
+  setLocale(locale)
+}
 
 const router = useRouter()
 const route = useRoute()
@@ -139,12 +170,12 @@ const form = reactive({
 
 const rules: FormRules = {
   email: [
-    { required: true, message: '请输入账号', trigger: 'blur' },
-    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' }
+    { required: true, message: t('auth.enterAccount'), trigger: 'blur' },
+    { type: 'email', message: t('auth.enterValidEmail'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+    { required: true, message: t('auth.enterPassword'), trigger: 'blur' },
+    { min: 6, message: t('auth.passwordMinLength'), trigger: 'blur' }
   ]
 }
 
@@ -185,7 +216,7 @@ async function handleSSOLogin() {
     // Get authorization URL from backend
     const response = await fetch('/api/v1/oidc/auth-url')
     if (!response.ok) {
-      throw new Error('获取SSO授权URL失败')
+      throw new Error(t('auth.ssoAuthUrlFailed'))
     }
 
     const data = await response.json()
@@ -197,7 +228,7 @@ async function handleSSOLogin() {
     window.location.href = data.auth_url
 
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, 'SSO登录失败'))
+    ElMessage.error(getErrorMessage(error, t('auth.ssoFailed')))
     ssoLoading.value = false
   }
 }
@@ -208,7 +239,7 @@ async function handleSSOCallback(code: string, state: string) {
     // Verify state to prevent CSRF attacks
     const storedState = sessionStorage.getItem('sso_state')
     if (state !== storedState) {
-      throw new Error('安全验证失败，请重新登录')
+      throw new Error(t('auth.ssoVerifyFailed'))
     }
 
     // Exchange code for token with backend
@@ -225,7 +256,7 @@ async function handleSSOCallback(code: string, state: string) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.detail || 'SSO认证失败')
+      throw new Error(error.detail || t('auth.ssoCallbackFailed'))
     }
 
     const data = await response.json()
@@ -234,7 +265,7 @@ async function handleSSOCallback(code: string, state: string) {
     await authStore.setToken(data.access_token)
     await authStore.setUser(data.user)
 
-    ElMessage.success('SSO登录成功')
+    ElMessage.success(t('auth.ssoSuccess'))
 
     // Clear state
     sessionStorage.removeItem('sso_state')
@@ -244,7 +275,7 @@ async function handleSSOCallback(code: string, state: string) {
     router.push(redirect)
 
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, 'SSO认证失败'))
+    ElMessage.error(getErrorMessage(error, t('auth.ssoCallbackFailed')))
     router.push('/login')
   } finally {
     ssoLoading.value = false
@@ -264,14 +295,14 @@ async function handleLogin() {
         password: form.password
       })
 
-      ElMessage.success('登录成功')
+      ElMessage.success(t('auth.loginSuccess'))
 
       // Redirect to dashboard or originally requested page
       const redirect = route.query.redirect as string || '/'
       router.push(redirect)
 
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '登录失败'))
+      ElMessage.error(getErrorMessage(error, t('auth.loginFailed')))
     } finally {
       loading.value = false
     }
@@ -336,15 +367,51 @@ async function handleLogin() {
   padding: 40px;
 }
 
-.top-logo {
+.top-toolbar {
   position: absolute;
   top: 20px;
-  right: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .logo-img {
   height: 40px;
   width: auto;
+}
+
+.locale-switcher {
+  display: flex;
+  align-items: center;
+}
+
+.locale-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: 1px solid #dcdfe6;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #606266;
+  cursor: pointer;
+  background: white;
+  transition: all 0.2s;
+}
+
+.locale-btn:hover {
+  color: #409eff;
+  border-color: #409eff;
+}
+
+.locale-btn .el-icon--right {
+  font-size: 12px;
+}
+
+:deep(.is-active) {
+  color: #409eff;
+  font-weight: 600;
 }
 
 .login-card-wrapper {

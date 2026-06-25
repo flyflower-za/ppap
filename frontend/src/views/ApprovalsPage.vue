@@ -2,15 +2,15 @@
   <div class="approvals-page" v-loading="loading">
     <div class="page-header">
       <div class="title-section">
-        <h2 class="page-title">审批中心</h2>
-        <p class="page-subtitle">规则变更审批流程管理与策略配置</p>
+        <h2 class="page-title">{{ $t('approvals.title') }}</h2>
+        <p class="page-subtitle">{{ $t('approvals.subtitle') }}</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" plain :icon="Setting" @click="showPolicies = true">
-          审批策略
+          {{ $t('approvals.policies') }}
         </el-button>
         <el-button type="success" plain @click="handleInitPolicies">
-          初始化预置策略
+          {{ $t('approvals.initPolicies') }}
         </el-button>
       </div>
     </div>
@@ -22,7 +22,7 @@
           <div class="stat-icon">⏳</div>
           <div class="stat-info">
             <span class="stat-value">{{ pendingCount }}</span>
-            <span class="stat-label">待审批</span>
+            <span class="stat-label">{{ $t('approvals.pending') }}</span>
           </div>
         </div>
       </el-col>
@@ -31,7 +31,7 @@
           <div class="stat-icon">✅</div>
           <div class="stat-info">
             <span class="stat-value">{{ approvedCount }}</span>
-            <span class="stat-label">已批准</span>
+            <span class="stat-label">{{ $t('approvals.approved') }}</span>
           </div>
         </div>
       </el-col>
@@ -40,7 +40,7 @@
           <div class="stat-icon">🚀</div>
           <div class="stat-info">
             <span class="stat-value">{{ deployedCount }}</span>
-            <span class="stat-label">已部署</span>
+            <span class="stat-label">{{ $t('approvals.deployed') }}</span>
           </div>
         </div>
       </el-col>
@@ -49,7 +49,7 @@
           <div class="stat-icon">❌</div>
           <div class="stat-info">
             <span class="stat-value">{{ rejectedCount }}</span>
-            <span class="stat-label">已拒绝</span>
+            <span class="stat-label">{{ $t('approvals.rejected') }}</span>
           </div>
         </div>
       </el-col>
@@ -57,17 +57,17 @@
 
     <!-- Tab Filter -->
     <el-tabs v-model="activeTab" @tab-change="handleTabChange" class="mb-4">
-      <el-tab-pane label="待审批" name="pending" />
-      <el-tab-pane label="全部" name="all" />
-      <el-tab-pane label="已批准" name="approved" />
-      <el-tab-pane label="已部署" name="deployed" />
-      <el-tab-pane label="已拒绝" name="rejected" />
+      <el-tab-pane :label="$t('approvals.pending')" name="pending" />
+      <el-tab-pane :label="$t('common.all')" name="all" />
+      <el-tab-pane :label="$t('approvals.approved')" name="approved" />
+      <el-tab-pane :label="$t('approvals.deployed')" name="deployed" />
+      <el-tab-pane :label="$t('approvals.rejected')" name="rejected" />
     </el-tabs>
 
     <!-- Change Requests List -->
     <div class="requests-list">
-      <el-empty v-if="filteredRequests.length === 0" description="暂无审批记录" />
-      
+      <el-empty v-if="filteredRequests.length === 0" :description="$t('approvals.emptyRecords')" />
+
       <div v-for="cr in filteredRequests" :key="cr.id" class="request-card glass-card">
         <div class="request-header">
           <div class="request-meta">
@@ -85,24 +85,24 @@
         </div>
 
         <div class="request-body">
-          <h4 class="rule-name">{{ cr.proposed_rule_data?.rule_name || '新规则' }}</h4>
+          <h4 class="rule-name">{{ cr.proposed_rule_data?.rule_name || $t('approvals.newRule') }}</h4>
           <p class="request-reason" v-if="cr.reason">
-            <span class="label">变更原因：</span>{{ cr.reason }}
+            <span class="label">{{ $t('approvals.changeReason') }}</span>{{ cr.reason }}
           </p>
           <p class="request-impact" v-if="cr.impact_assessment">
-            <span class="label">影响评估：</span>{{ cr.impact_assessment }}
+            <span class="label">{{ $t('approvals.impactAssessment') }}</span>{{ cr.impact_assessment }}
           </p>
           <div class="request-people">
             <span v-if="cr.requester_name" class="person">
-              <el-icon><User /></el-icon> 申请人: {{ cr.requester_name }}
+              <el-icon><User /></el-icon> {{ $t('approvals.requester') }} {{ cr.requester_name }}
             </span>
             <span v-if="cr.reviewer_name" class="person">
-              <el-icon><Check /></el-icon> 审批人: {{ cr.reviewer_name }}
+              <el-icon><Check /></el-icon> {{ $t('approvals.reviewer') }} {{ cr.reviewer_name }}
             </span>
           </div>
           <div v-if="cr.review_comment" class="review-comment">
             <el-icon><ChatDotRound /></el-icon>
-            审批意见: {{ cr.review_comment }}
+            {{ $t('approvals.reviewComment') }} {{ cr.review_comment }}
           </div>
         </div>
 
@@ -110,15 +110,15 @@
         <div class="request-actions" v-if="cr.status === 'pending' || cr.status === 'approved'">
           <template v-if="cr.status === 'pending'">
             <el-button type="success" size="small" @click="handleReview(cr, 'approve')">
-              批准
+              {{ $t('approvals.approve') }}
             </el-button>
             <el-button type="danger" size="small" @click="handleReview(cr, 'reject')">
-              驳回
+              {{ $t('approvals.reject') }}
             </el-button>
           </template>
           <template v-if="cr.status === 'approved'">
             <el-button type="primary" size="small" @click="handleDeploy(cr)">
-              🚀 部署生效
+              {{ $t('approvals.deployEffect') }}
             </el-button>
           </template>
         </div>
@@ -126,19 +126,19 @@
     </div>
 
     <!-- Policies Dialog -->
-    <el-dialog v-model="showPolicies" title="审批策略配置" width="700px" destroy-on-close>
+    <el-dialog v-model="showPolicies" :title="$t('approvals.policyConfigTitle')" width="700px" destroy-on-close>
       <div v-loading="loadingPolicies">
-        <el-empty v-if="policies.length === 0" description="暂无审批策略，请点击「初始化预置策略」" />
+        <el-empty v-if="policies.length === 0" :description="$t('approvals.emptyPolicies')" />
         <div v-for="policy in policies" :key="policy.id" class="policy-card">
           <div class="policy-header">
             <h4>{{ policy.name }}</h4>
             <el-tag :type="policy.requires_approval ? 'danger' : 'success'" size="small">
-              {{ policy.requires_approval ? '需要审批' : '免审批' }}
+              {{ policy.requires_approval ? $t('approvals.requiresApproval') : $t('approvals.noApproval') }}
             </el-tag>
           </div>
           <p class="policy-desc">{{ policy.description }}</p>
           <div class="policy-conditions">
-            <span class="label">触发条件:</span>
+            <span class="label">{{ $t('approvals.triggerConditions') }}</span>
             <code>{{ JSON.stringify(policy.conditions) }}</code>
           </div>
         </div>
@@ -149,13 +149,17 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Check, ChatDotRound, Setting } from '@element-plus/icons-vue'
+import { getLocale } from '@/locales'
 import {
   getChangeRequests, reviewChangeRequest, deployChangeRequest,
   getApprovalPolicies, initApprovalPolicies,
   type ChangeRequest, type ApprovalPolicy
 } from '../api/approvals'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const requests = ref<ChangeRequest[]>([])
@@ -184,7 +188,7 @@ const fetchRequests = async () => {
   try {
     requests.value = await getChangeRequests()
   } catch (e) {
-    ElMessage.error('加载审批列表失败')
+    ElMessage.error(t('approvals.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -195,37 +199,37 @@ const handleTabChange = () => {
 }
 
 const handleReview = async (cr: ChangeRequest, action: 'approve' | 'reject') => {
-  const actionName = action === 'approve' ? '批准' : '驳回'
+  const actionName = action === 'approve' ? t('approvals.approve') : t('approvals.reject')
   try {
     const { value: comment } = await ElMessageBox.prompt(
-      `请输入审批意见（可选）`,
-      `确认${actionName}`,
+      t('approvals.reviewPrompt'),
+      t('approvals.confirmAction', { action: actionName }),
       {
         confirmButtonText: actionName,
-        cancelButtonText: '取消',
-        inputPlaceholder: '审批意见...',
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('approvals.reviewPlaceholder'),
         type: action === 'approve' ? 'success' : 'warning',
       }
     )
     await reviewChangeRequest(cr.id, action, comment || undefined)
-    ElMessage.success(`已${actionName}`)
+    ElMessage.success(t('approvals.actionSuccess', { action: actionName }))
     await fetchRequests()
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error(`${actionName}操作失败`)
+      ElMessage.error(t('approvals.actionFailed', { action: actionName }))
     }
   }
 }
 
 const handleDeploy = async (cr: ChangeRequest) => {
   try {
-    await ElMessageBox.confirm('确定将此变更部署生效？规则将立即更新。', '确认部署', { type: 'warning' })
+    await ElMessageBox.confirm(t('approvals.deployConfirmMsg'), t('approvals.deployConfirmTitle'), { type: 'warning' })
     await deployChangeRequest(cr.id)
-    ElMessage.success('变更已成功部署生效')
+    ElMessage.success(t('approvals.deploySuccess'))
     await fetchRequests()
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error('部署失败')
+      ElMessage.error(t('approvals.deployFailed'))
     }
   }
 }
@@ -233,10 +237,10 @@ const handleDeploy = async (cr: ChangeRequest) => {
 const handleInitPolicies = async () => {
   try {
     const res = await initApprovalPolicies()
-    ElMessage.success((res as any).message || '预置策略初始化完成')
+    ElMessage.success((res as any).message || t('approvals.initPoliciesSuccess'))
     if (showPolicies.value) await fetchPolicies()
   } catch (e) {
-    ElMessage.error('初始化策略失败')
+    ElMessage.error(t('approvals.initPoliciesFailed'))
   }
 }
 
@@ -245,7 +249,7 @@ const fetchPolicies = async () => {
   try {
     policies.value = await getApprovalPolicies()
   } catch (e) {
-    ElMessage.error('加载策略失败')
+    ElMessage.error(t('approvals.loadPoliciesFailed'))
   } finally {
     loadingPolicies.value = false
   }
@@ -257,7 +261,12 @@ watch(showPolicies, (val) => { if (val) fetchPolicies() })
 
 // Helpers
 const getChangeTypeName = (type: string) => {
-  const map: Record<string, string> = { create: '新建', update: '修改', delete: '删除', deactivate: '停用' }
+  const map: Record<string, string> = {
+    create: t('approvals.changeTypeCreate'),
+    update: t('approvals.changeTypeUpdate'),
+    delete: t('approvals.changeTypeDelete'),
+    deactivate: t('approvals.changeTypeDeactivate'),
+  }
   return map[type] || type
 }
 const getChangeTypeTag = (type: string) => {
@@ -265,7 +274,12 @@ const getChangeTypeTag = (type: string) => {
   return (map[type] || 'info') as any
 }
 const getPriorityName = (p: string) => {
-  const map: Record<string, string> = { low: '低', normal: '普通', high: '高', urgent: '紧急' }
+  const map: Record<string, string> = {
+    low: t('approvals.priorityLow'),
+    normal: t('approvals.priorityNormal'),
+    high: t('approvals.priorityHigh'),
+    urgent: t('approvals.priorityUrgent'),
+  }
   return map[p] || p
 }
 const getPriorityTag = (p: string) => {
@@ -273,7 +287,14 @@ const getPriorityTag = (p: string) => {
   return (map[p] || 'info') as any
 }
 const getStatusName = (s: string) => {
-  const map: Record<string, string> = { draft: '草稿', pending: '待审批', approved: '已批准', rejected: '已拒绝', deployed: '已部署', rolled_back: '已回滚' }
+  const map: Record<string, string> = {
+    draft: t('approvals.statusDraft'),
+    pending: t('approvals.pending'),
+    approved: t('approvals.approved'),
+    rejected: t('approvals.rejected'),
+    deployed: t('approvals.deployed'),
+    rolled_back: t('approvals.statusRolledBack'),
+  }
   return map[s] || s
 }
 const getStatusTag = (s: string) => {
@@ -282,7 +303,7 @@ const getStatusTag = (s: string) => {
 }
 const formatDate = (d: string | null) => {
   if (!d) return ''
-  return new Date(d).toLocaleString('zh-CN')
+  return new Date(d).toLocaleString(getLocale())
 }
 </script>
 

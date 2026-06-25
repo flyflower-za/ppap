@@ -2,12 +2,12 @@
   <div class="detail-page-container" v-loading="loading" element-loading-background="rgba(245, 247, 250, 0.8)">
     <!-- Back Button -->
     <div class="navigation-header mb-4">
-      <el-button 
-        :icon="ArrowLeft" 
-        @click="router.back()" 
+      <el-button
+        :icon="ArrowLeft"
+        @click="router.back()"
         class="back-btn glass-btn"
       >
-        返回历史记录
+        {{ $t('detail.backToHistory') }}
       </el-button>
     </div>
 
@@ -26,23 +26,23 @@
                 <span class="dot-separator">•</span>
                 <span class="file-meta-txt" style="font-size: 13px;">{{ formatFileSize(file.file_size) }}</span>
                 <span class="dot-separator">•</span>
-                <span class="file-meta-txt" style="font-size: 13px;">{{ file.page_count || '-' }} 页</span>
+                <span class="file-meta-txt" style="font-size: 13px;">{{ file.page_count || '-' }} {{ $t('common.page') }}</span>
                 <span class="dot-separator">•</span>
-                <span class="file-meta-txt" style="font-size: 13px;">追踪ID: {{ file.id ? file.id.substring(0, 8) : '-' }}</span>
+                <span class="file-meta-txt" style="font-size: 13px;">{{ $t('detail.trackingId') }}: {{ file.id ? file.id.substring(0, 8) : '-' }}</span>
                 
                 <template v-if="file.status !== 'pending' && file.status !== 'processing'">
                   <span class="dot-separator">•</span>
                   <el-tag :type="digitalSignatures?.signed ? 'success' : 'danger'" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
-                    {{ digitalSignatures?.signed ? '✓ 已数字签名' : '⚠ 无有效签名' }}
+                    {{ digitalSignatures?.signed ? $t('detail.signedDigital') : $t('detail.noValidSignature') }}
                   </el-tag>
                   <el-tag :type="isTextPdf ? 'primary' : 'warning'" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
-                    {{ isTextPdf ? '✓ 矢量文本型' : '⚠ 扫描/图片型' }}
+                    {{ isTextPdf ? $t('detail.vectorText') : $t('detail.scannedImage') }}
                   </el-tag>
                   <el-tag type="info" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
-                    二维码: {{ qrCodeCount }} 个
+                    {{ $t('detail.qrCodeCount', { count: qrCodeCount }) }}
                   </el-tag>
                   <el-tag v-if="stampCount > 0" type="warning" effect="plain" class="feature-tag" style="border-radius: 6px; font-weight: 600; font-size: 13px; height: 32px; line-height: 30px; padding: 0 12px;">
-                    印章: {{ stampCount }} 个
+                    {{ $t('detail.stampCount', { count: stampCount }) }}
                   </el-tag>
                 </template>
               </div>
@@ -72,15 +72,15 @@
               class="download-report-btn"
               style="height: 32px; border-radius: 6px; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center;"
             >
-              下载原文件
+              {{ $t('detail.downloadOriginal') }}
             </el-button>
-            <el-button 
+            <el-button
               @click="trajectoryDrawerVisible = true"
               class="trajectory-btn glass-btn"
               :icon="Tickets"
               style="height: 32px; border-radius: 6px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; margin-left: 0 !important;"
             >
-              执行流水
+              {{ $t('detail.executionLog') }}
             </el-button>
           </div>
         </div>
@@ -91,37 +91,37 @@
         <el-row :gutter="24" class="file-meta-grid">
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">签发机构 (AI 嗅探)</span>
-              <span class="meta-value text-primary font-bold">{{ sniffedInstitution || '未知 / 分析中' }}</span>
+              <span class="meta-label">{{ $t('detail.institutionAiSniff') }}</span>
+              <span class="meta-value text-primary font-bold">{{ sniffedInstitution || $t('detail.unknownAnalyzing') }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">上传账号</span>
+              <span class="meta-label">{{ $t('detail.uploadAccount') }}</span>
               <span class="meta-value">{{ file.uploaded_by || '-' }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">上传时间</span>
+              <span class="meta-label">{{ $t('file.uploadedAt') }}</span>
               <span class="meta-value">{{ formatDate(file.uploaded_at) }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">完成时间</span>
+              <span class="meta-label">{{ $t('file.completedAt') }}</span>
               <span class="meta-value">{{ file.completed_at ? formatDate(file.completed_at) : '-' }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">校验耗时</span>
+              <span class="meta-label">{{ $t('detail.verificationDuration') }}</span>
               <span class="meta-value">{{ file.duration_seconds !== null && file.duration_seconds !== undefined ? formatDuration(file.duration_seconds) : '-' }}</span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="8" :md="4" class="meta-col">
             <div class="meta-cell">
-              <span class="meta-label">最终通过率</span>
+              <span class="meta-label">{{ $t('detail.finalPassRate') }}</span>
               <span class="meta-value pass-rate-highlight" :class="passRateClass(file.pass_rate)">
                 {{ file.pass_rate !== null && file.pass_rate !== undefined ? file.pass_rate + '%' : '-' }}
               </span>
@@ -132,7 +132,7 @@
         <!-- Active Processing Progress Tracker -->
         <div v-if="file.status === 'pending' || file.status === 'processing'" class="live-progress-container mt-4">
           <div class="progress-info-row flex-between mb-2">
-            <span class="progress-status-title">正在执行智能校验引擎分析...</span>
+            <span class="progress-status-title">{{ $t('detail.runningAnalysis') }}</span>
             <span class="progress-percent-val">{{ file.verification_progress }}%</span>
           </div>
           <div class="glowing-progress-track">
@@ -147,7 +147,7 @@
         <el-col :xs="24" :lg="14" class="grid-column" style="display: flex; flex-direction: column;">
           <div class="glass-card section-panel pdf-preview-panel" style="flex: 1; display: flex; flex-direction: column; padding: 0; max-height: 85vh; height: 85vh;">
             <div class="section-title" style="padding: 24px 24px 0 24px;">
-              <h3>文档在线预览</h3>
+              <h3>{{ $t('detail.documentPreview') }}</h3>
             </div>
             <div 
               ref="pdfContainerRef" 
@@ -155,9 +155,9 @@
               v-loading="pdfLoading"
               style="flex: 1; overflow-y: auto; background-color: #e5e7eb; position: relative; padding: 20px; display: flex; flex-direction: column; align-items: center;"
             >
-              <el-empty 
-                v-if="!file || ['pending', 'processing'].includes(file.status)" 
-                description="等待处理或暂无预览..." 
+              <el-empty
+                v-if="!file || ['pending', 'processing'].includes(file.status)"
+                :description="$t('detail.waitingPreview')"
                 :image-size="80"
               />
             </div>
@@ -170,18 +170,18 @@
           <!-- HITL Review Arbitration Panel -->
           <div class="glass-card section-panel mb-4 arbitration-panel" v-if="file?.status === 'needs_review'">
             <div class="section-title text-warning flex-between" style="color: #E6A23C;">
-              <h3 class="flex-align-center"><el-icon class="mr-2"><WarningFilled /></el-icon> 需人工仲裁介入</h3>
+              <h3 class="flex-align-center"><el-icon class="mr-2"><WarningFilled /></el-icon> {{ $t('detail.needsHumanReview') }}</h3>
             </div>
             <div class="arbitration-content mt-2">
               <p class="text-sm text-gray-600 mb-4" style="line-height: 1.5; margin-bottom: 16px;">
-                校验引擎大模型置信度偏低或触发高风险规则拦截，系统已自动挂起此文件。请结合左侧实时预览核实后，在下方作出仲裁决策。
+                {{ $t('detail.humanReviewDesc') }}
               </p>
               <div class="arbitration-actions flex gap-4" style="display: flex; gap: 12px;">
                 <el-button type="success" :icon="Check" style="flex: 1" @click="handleReviewResolution('approve')">
-                  人工放行 (Approve)
+                  {{ $t('detail.approveAction') }}
                 </el-button>
                 <el-button type="danger" :icon="Close" style="flex: 1" @click="handleReviewResolution('reject')">
-                  确认驳回 (Reject)
+                  {{ $t('detail.rejectAction') }}
                 </el-button>
               </div>
             </div>
@@ -190,7 +190,7 @@
           <!-- Verification Results -->
           <div class="glass-card section-panel mb-4">
             <div class="section-title flex-between">
-              <h3>校验规则诊断报告</h3>
+              <h3>{{ $t('detail.diagnosticReport') }}</h3>
               <div class="checks-counters" v-if="file.verification_result_json?.summary" style="align-items: center;">
                 <span 
                   class="counter-badge pass clickable-counter" 
@@ -198,54 +198,54 @@
                   @click="toggleFilter('pass')"
                   style="cursor: pointer; transition: all 0.2s; user-select: none;"
                 >
-                  {{ file.pass_count }} 通过
+                  {{ $t('detail.passLabel', { count: file.pass_count }) }}
                 </span>
                 <span 
-                  class="counter-badge warning clickable-counter" 
+                  class="counter-badge warning clickable-counter"
                   v-if="file.warning_count > 0"
                   :class="{ 'is-active': activeFilter === 'warning' }"
                   @click="toggleFilter('warning')"
                   style="cursor: pointer; transition: all 0.2s; user-select: none;"
                 >
-                  {{ file.warning_count }} 警告
+                  {{ $t('detail.warningLabel', { count: file.warning_count }) }}
                 </span>
                 <span 
-                  class="counter-badge fail clickable-counter" 
+                  class="counter-badge fail clickable-counter"
                   v-if="file.fail_count > 0"
                   :class="{ 'is-active': activeFilter === 'fail' }"
                   @click="toggleFilter('fail')"
                   style="cursor: pointer; transition: all 0.2s; user-select: none;"
                 >
-                  {{ file.fail_count }} 不合规
+                  {{ $t('detail.failLabel', { count: file.fail_count }) }}
                 </span>
-                <el-button 
+                <el-button
                   v-if="activeFilter !== 'all'"
-                  size="small" 
+                  size="small"
                   link
                   type="info"
                   class="ml-2"
                   @click="activeFilter = 'all'"
                   style="font-size: 11px;"
                 >
-                  重置筛选
+                  {{ $t('detail.resetFilter') }}
                 </el-button>
                 <el-button size="small" type="primary" plain class="ml-3 print-btn hide-on-print" @click="handlePrintReport">
-                  导出报告 (PDF)
+                  {{ $t('detail.exportReportPdf') }}
                 </el-button>
               </div>
             </div>
 
             <el-empty
               v-if="!file.verification_result_json || !file.verification_result_json.checks || file.verification_result_json.checks.length === 0"
-              description="校验正在进行中，完成后将自动在此生成详细报告..."
+              :description="$t('detail.verificationInProgress')"
               :image-size="120"
               class="empty-report-state"
             />
 
             <div v-else class="diagnostic-checklist">
-              <el-empty 
-                v-if="filteredChecks.length === 0" 
-                description="无匹配此筛选状态的规则项" 
+              <el-empty
+                v-if="filteredChecks.length === 0"
+                :description="$t('detail.noMatchingFilter')"
                 :image-size="60"
                 style="padding: 20px 0;"
               />
@@ -269,12 +269,12 @@
                     <h4 class="flex-align-center">
                       {{ check.name }}
                       <el-tag v-if="check.page" size="small" type="info" effect="plain" class="ml-2 page-tag">
-                        第 {{ check.page }} 页 <el-icon class="ml-1"><Position /></el-icon>
+                        {{ $t('detail.pageLabel', { page: check.page }) }} <el-icon class="ml-1"><Position /></el-icon>
                       </el-tag>
                     </h4>
                     <div style="display: flex; align-items: center; gap: 8px;">
                       <span v-if="check.confidence !== undefined && check.confidence !== null" class="check-confidence-badge" :class="{ 'low-confidence': check.confidence < 0.85 }">
-                        置信度: {{ (check.confidence * 100).toFixed(0) }}%
+                        {{ $t('detail.confidence', { value: (check.confidence * 100).toFixed(0) }) }}
                         <el-icon v-if="check.confidence < 0.85" class="ml-1"><WarningFilled /></el-icon>
                       </span>
                       <span class="check-status-tag" :class="check.status">{{ checkStatusLabel(check.status) }}</span>
@@ -285,7 +285,7 @@
                   <!-- Visual Positioning Hint -->
                   <div v-if="check.page" class="locate-tip-wrapper" style="display: flex; justify-content: flex-end; margin-top: 8px;">
                     <span class="locate-tip" style="font-size: 11px; font-weight: 600; color: #4285f4; display: inline-flex; align-items: center; gap: 4px; opacity: 0.7; transition: all 0.2s;">
-                      点击在左侧预览中精准定位此问题
+                      {{ $t('detail.clickToLocate') }}
                       <el-icon class="arrow-icon-slide"><Right /></el-icon>
                     </span>
                   </div>
@@ -301,12 +301,12 @@
           >
             <div class="section-title flex-between cursor-pointer" @click="diffDetailsCollapsed = !diffDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
               <h3 class="flex-align-center">
-                <el-icon class="mr-2"><Tickets /></el-icon> 文本版本差异比对 (相似度: {{ diffResults.similarity }}%)
+                <el-icon class="mr-2"><Tickets /></el-icon> {{ $t('detail.textDiffComparison', { similarity: diffResults.similarity }) }}
               </h3>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <el-tag type="danger" size="small">{{ diffResults.changes_count }} 处差异</el-tag>
+                <el-tag type="danger" size="small">{{ $t('detail.differencesCount', { count: diffResults.changes_count }) }}</el-tag>
                 <el-button link type="primary" style="font-size: 13px;">
-                  {{ diffDetailsCollapsed ? '展开' : '收起' }}
+                  {{ diffDetailsCollapsed ? $t('detail.expand') : $t('detail.collapse') }}
                   <el-icon class="ml-1"><component :is="diffDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
                 </el-button>
               </div>
@@ -321,9 +321,9 @@
                     class="diff-change-item"
                   >
                     <div class="diff-change-header flex-between mb-2">
-                      <span class="diff-change-index font-bold">差异位置 #{{ idx + 1 }}</span>
+                      <span class="diff-change-index font-bold">{{ $t('detail.differenceLocation', { idx: idx + 1 }) }}</span>
                       <el-tag :type="change.type === 'delete' || change.type === 'replace' ? 'danger' : 'success'" size="small" effect="dark">
-                        {{ change.type === 'delete' ? '已删除' : (change.type === 'replace' ? '修改' : '新增') }}
+                        {{ change.type === 'delete' ? $t('detail.changeTypeDeleted') : (change.type === 'replace' ? $t('detail.changeTypeModified') : $t('detail.changeTypeAdded')) }}
                       </el-tag>
                     </div>
                     
@@ -349,37 +349,37 @@
           <!-- General Details Card -->
           <div class="glass-card section-panel mb-4 small-card">
             <div class="section-title flex-between cursor-pointer" @click="generalDetailsCollapsed = !generalDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
-              <h3>文件诊断详情</h3>
+              <h3>{{ $t('detail.fileDiagnosticDetails') }}</h3>
               <el-button link type="primary" style="font-size: 13px;">
-                {{ generalDetailsCollapsed ? '展开' : '收起' }}
+                {{ generalDetailsCollapsed ? $t('detail.expand') : $t('detail.collapse') }}
                 <el-icon class="ml-1"><component :is="generalDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
               </el-button>
             </div>
             <el-collapse-transition>
               <div v-show="!generalDetailsCollapsed" class="info-details-list mt-4">
                 <div class="info-detail-item">
-                  <span class="lbl">校验ID</span>
+                  <span class="lbl">{{ $t('detail.verificationId') }}</span>
                   <span class="val text-monospace">#{{ file.id.substring(0, 8) }}</span>
                 </div>
                 <div class="info-detail-item">
-                  <span class="lbl">上传账号</span>
+                  <span class="lbl">{{ $t('detail.uploadAccount') }}</span>
                   <span class="val">{{ file.uploaded_by || '-' }}</span>
                 </div>
                 <div class="info-detail-item">
-                  <span class="lbl">校验模型</span>
-                  <span class="val">{{ file.verification_result_json?.model_version || file.verification_model || '智能校验引擎 2.0' }}</span>
+                  <span class="lbl">{{ $t('detail.verificationModel') }}</span>
+                  <span class="val">{{ file.verification_result_json?.model_version || file.verification_model || $t('detail.smartEngine') }}</span>
                 </div>
                 <div class="info-detail-item">
-                  <span class="lbl">合规项目</span>
-                  <span class="val color-pass">{{ file.pass_count }} 项</span>
+                  <span class="lbl">{{ $t('file.passCount') }}</span>
+                  <span class="val color-pass">{{ $t('detail.passItems', { count: file.pass_count }) }}</span>
                 </div>
                 <div class="info-detail-item">
-                  <span class="lbl">预警项目</span>
-                  <span class="val color-warning">{{ file.warning_count }} 项</span>
+                  <span class="lbl">{{ $t('file.warningCount') }}</span>
+                  <span class="val color-warning">{{ $t('detail.warningItems', { count: file.warning_count }) }}</span>
                 </div>
                 <div class="info-detail-item">
-                  <span class="lbl">异常项目</span>
-                  <span class="val color-fail">{{ file.fail_count }} 项</span>
+                  <span class="lbl">{{ $t('file.failCount') }}</span>
+                  <span class="val color-fail">{{ $t('detail.failItems', { count: file.fail_count }) }}</span>
                 </div>
               </div>
             </el-collapse-transition>
@@ -391,16 +391,16 @@
             class="glass-card section-panel mb-4 small-card"
           >
             <div class="section-title flex-between cursor-pointer" @click="signatureDetailsCollapsed = !signatureDetailsCollapsed" style="user-select: none; margin-bottom: 0;">
-              <h3>数字签名详情</h3>
+              <h3>{{ $t('detail.digitalSignatureDetails') }}</h3>
               <div style="display: flex; align-items: center; gap: 8px;">
                 <el-tag
                   :type="digitalSignatures.signed ? 'success' : 'info'"
                   size="small"
                 >
-                  {{ digitalSignatures.signed ? '已签名' : '未签名' }}
+                  {{ digitalSignatures.signed ? $t('detail.signed') : $t('detail.unsigned') }}
                 </el-tag>
                 <el-button link type="primary" style="font-size: 13px;">
-                  {{ signatureDetailsCollapsed ? '展开' : '收起' }}
+                  {{ signatureDetailsCollapsed ? $t('detail.expand') : $t('detail.collapse') }}
                   <el-icon class="ml-1"><component :is="signatureDetailsCollapsed ? ArrowDown : ArrowUp" /></el-icon>
                 </el-button>
               </div>
@@ -411,7 +411,7 @@
                 <!-- No Signatures -->
                 <el-empty
                   v-if="!digitalSignatures.signed"
-                  description="该文档未包含数字签名"
+                  :description="$t('detail.noDigitalSignatures')"
                   :image-size="60"
                   class="compact-empty"
                 />
@@ -438,14 +438,14 @@
                           size="small"
                           effect="plain"
                         >
-                          {{ sig.integrity ? '完整' : '已篡改' }}
+                          {{ sig.integrity ? $t('detail.intact') : $t('detail.tampered') }}
                         </el-tag>
                         <el-tag
                           :type="sig.expired ? 'danger' : 'success'"
                           size="small"
                           effect="plain"
                         >
-                          {{ sig.expired ? '已过期' : '有效' }}
+                          {{ sig.expired ? $t('detail.expired') : $t('detail.valid') }}
                         </el-tag>
                       </div>
                     </div>
@@ -453,29 +453,29 @@
                     <!-- Signature Details -->
                     <div class="sig-details">
                       <div class="sig-detail-row">
-                        <span class="sig-detail-label">签署主体</span>
+                        <span class="sig-detail-label">{{ $t('detail.signerSubject') }}</span>
                         <span class="sig-detail-value text-bold">{{ sig.signer_cn }}</span>
                       </div>
                       <div class="sig-detail-row" v-if="sig.signing_time">
-                        <span class="sig-detail-label">签署时间</span>
+                        <span class="sig-detail-label">{{ $t('detail.signingTime') }}</span>
                         <span class="sig-detail-value">{{ formatDate(sig.signing_time) }}</span>
                       </div>
                       <div class="sig-detail-row">
-                        <span class="sig-detail-label">数据完整性</span>
+                        <span class="sig-detail-label">{{ $t('detail.dataIntegrity') }}</span>
                         <span
                           class="sig-detail-value"
                           :class="sig.integrity ? 'color-pass' : 'color-fail'"
                         >
-                          {{ sig.integrity ? '未被篡改' : '已遭篡改/损坏' }}
+                          {{ sig.integrity ? $t('detail.notTampered') : $t('detail.dataTampered') }}
                         </span>
                       </div>
                       <div class="sig-detail-row">
-                        <span class="sig-detail-label">证书时效性</span>
+                        <span class="sig-detail-label">{{ $t('detail.certificateValidity') }}</span>
                         <span
                           class="sig-detail-value"
                           :class="!sig.expired ? 'color-pass' : 'color-fail'"
                         >
-                          {{ sig.expired ? '已过期' : '有效期内' }}
+                          {{ sig.expired ? $t('detail.expiredLabel') : $t('detail.validPeriod') }}
                         </span>
                       </div>
 
@@ -488,7 +488,7 @@
                           @click="toggleSigExpand(index)"
                           class="expand-toggle-btn"
                         >
-                          {{ expandedSigs[index] ? '收起证书详情' : '展开详细证书识别信息' }}
+                          {{ expandedSigs[index] ? $t('detail.collapseCertDetails') : $t('detail.expandCertDetails') }}
                           <el-icon class="ml-1">
                             <component :is="expandedSigs[index] ? ArrowUp : ArrowDown" />
                           </el-icon>
@@ -502,51 +502,51 @@
                           
                           <!-- Subject Details -->
                           <div class="cert-sub-group" v-if="sig.cert_info.subject">
-                            <span class="cert-group-title">证书主体识别 (Subject)</span>
+                            <span class="cert-group-title">{{ $t('detail.certSubject') }}</span>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organization_name">
-                              <span class="sig-detail-label">组织 (O)</span>
+                              <span class="sig-detail-label">{{ $t('detail.organization') }}</span>
                               <span class="sig-detail-value">{{ sig.cert_info.subject.organization_name }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.organizational_unit_name">
-                              <span class="sig-detail-label">部门 (OU)</span>
+                              <span class="sig-detail-label">{{ $t('detail.department') }}</span>
                               <span class="sig-detail-value">{{ sig.cert_info.subject.organizational_unit_name }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.user_id">
-                              <span class="sig-detail-label">用户 ID</span>
+                              <span class="sig-detail-label">{{ $t('detail.userId') }}</span>
                               <span class="sig-detail-value text-monospace">{{ sig.cert_info.subject.user_id }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.subject.country_name">
-                              <span class="sig-detail-label">国家 (C)</span>
+                              <span class="sig-detail-label">{{ $t('detail.country') }}</span>
                               <span class="sig-detail-value">{{ sig.cert_info.subject.country_name }}</span>
                             </div>
                           </div>
 
                           <!-- Issuer Details -->
                           <div class="cert-sub-group mt-2" v-if="sig.cert_info.issuer">
-                            <span class="cert-group-title">颁发机构 (Issuer CA)</span>
+                            <span class="cert-group-title">{{ $t('detail.certIssuer') }}</span>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.common_name">
-                              <span class="sig-detail-label">机构 CN</span>
+                              <span class="sig-detail-label">{{ $t('detail.issuerCn') }}</span>
                               <span class="sig-detail-value">{{ sig.cert_info.issuer.common_name }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.issuer.organization_name">
-                              <span class="sig-detail-label">颁发组织</span>
+                              <span class="sig-detail-label">{{ $t('detail.issuerOrg') }}</span>
                               <span class="sig-detail-value">{{ sig.cert_info.issuer.organization_name }}</span>
                             </div>
                           </div>
 
                           <!-- Validity & Serial Details -->
                           <div class="cert-sub-group mt-2">
-                            <span class="cert-group-title">证书有效期与凭证</span>
+                            <span class="cert-group-title">{{ $t('detail.certValidityCredential') }}</span>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_before">
-                              <span class="sig-detail-label">生效时间</span>
+                              <span class="sig-detail-label">{{ $t('detail.validFrom') }}</span>
                               <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_before) }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.validity?.not_after">
-                              <span class="sig-detail-label">失效时间</span>
+                              <span class="sig-detail-label">{{ $t('detail.validUntil') }}</span>
                               <span class="sig-detail-value">{{ formatDate(sig.cert_info.validity.not_after) }}</span>
                             </div>
                             <div class="sig-detail-row small-txt" v-if="sig.cert_info.serial_number">
-                              <span class="sig-detail-label">证书序列号</span>
+                              <span class="sig-detail-label">{{ $t('detail.serialNumber') }}</span>
                               <span class="sig-detail-value text-monospace word-break-serial">{{ sig.cert_info.serial_number }}</span>
                             </div>
                           </div>
@@ -562,14 +562,14 @@
           <!-- Reviewer Notes Panel -->
           <div class="glass-card section-panel notes-panel">
             <div class="section-title">
-              <h3>人工审核备注</h3>
+              <h3>{{ $t('detail.humanReviewNotes') }}</h3>
             </div>
 
             <!-- Notes List with smooth scroll -->
             <div class="notes-timeline-container" v-loading="notesLoading">
-              <el-empty 
-                v-if="notes.length === 0" 
-                description="暂无审核备注。添加备注以记录文件审查细节。" 
+              <el-empty
+                v-if="notes.length === 0"
+                :description="$t('detail.noReviewNotes')"
                 :image-size="60"
                 class="empty-notes-state"
               />
@@ -615,22 +615,22 @@
                 v-model="newNote"
                 type="textarea"
                 :rows="3"
-                placeholder="撰写人工审核意见或异常备注..."
+                :placeholder="$t('detail.notePlaceholder')"
                 maxlength="500"
                 show-word-limit
                 class="premium-textarea"
                 :disabled="submittingNote"
               />
               <div class="flex-between" style="margin-top: 8px;">
-                <span class="input-tips">请确保记录完整的信息，以便追溯核对</span>
-                <el-button 
-                  type="primary" 
-                  @click="handleAddNote" 
+                <span class="input-tips">{{ $t('detail.noteHint') }}</span>
+                <el-button
+                  type="primary"
+                  @click="handleAddNote"
                   :loading="submittingNote"
                   :disabled="!newNote.trim()"
                   class="submit-note-btn"
                 >
-                  发表备注
+                  {{ $t('detail.submitNote') }}
                 </el-button>
               </div>
             </div>
@@ -642,7 +642,7 @@
     <!-- Execution Trajectory Drawer -->
     <el-drawer
       v-model="trajectoryDrawerVisible"
-      title="执行流水日志"
+      :title="$t('detail.executionLogTitle')"
       size="45%"
       direction="rtl"
       :destroy-on-close="false"
@@ -663,16 +663,16 @@
               <h4 style="margin:0 0 8px 0; font-size:14px;">{{ log.operator }}</h4>
               <p class="log-msg" style="margin:0; font-size:13px; color:#666;">{{ log.message }}</p>
               <el-collapse v-if="log.extracted_data && Object.keys(log.extracted_data).length > 0" class="log-data-collapse mt-2">
-                <el-collapse-item title="详细提取数据" name="1">
+                <el-collapse-item :title="$t('detail.extractedData')" name="1">
                   <pre class="log-data-pre">{{ JSON.stringify(log.extracted_data, null, 2) }}</pre>
                 </el-collapse-item>
               </el-collapse>
             </el-card>
           </el-timeline-item>
         </el-timeline>
-        <el-empty 
-          v-if="executionLogs.length === 0" 
-          description="暂无执行流水记录" 
+        <el-empty
+          v-if="executionLogs.length === 0"
+          :description="$t('detail.noExecutionLogs')"
         />
       </div>
     </el-drawer>
@@ -687,8 +687,12 @@ import { ArrowLeft, Document, Download, Check, Warning, WarningFilled, Close, De
 import { filesApi } from '@/api/files'
 import { notesApi } from '@/api/notes'
 import { useAuthStore } from '@/stores/auth'
+import { useI18n } from 'vue-i18n'
+import { getLocale } from '@/locales'
 import type { FileDetail, Note } from '@/types'
 import * as pdfjsLib from 'pdfjs-dist'
+
+const { t } = useI18n()
 
 // Use CDN for PDF.js worker to avoid MIME type issues
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
@@ -715,10 +719,10 @@ const liveExecutionLogs = ref<any[]>([])
 const activeFilter = ref<'all' | 'pass' | 'warning' | 'fail'>('all')
 
 function getNoteBubbleClass(content: string): string {
-  if (content.startsWith('已通过仲裁：')) {
+  if (content.startsWith(t('detail.arbitrationApproved'))) {
     return 'note-arbitration-approved'
   }
-  if (content.startsWith('已驳回仲裁：')) {
+  if (content.startsWith(t('detail.arbitrationRejected'))) {
     return 'note-arbitration-rejected'
   }
   return ''
@@ -763,11 +767,11 @@ const executionLogs = computed(() => {
   if (file.value && file.value.verification_result_json) {
     const v = file.value.verification_result_json
     if (v.execution_trajectory && Array.isArray(v.execution_trajectory)) {
-      v.execution_trajectory.forEach((t: any, index: number) => {
+      v.execution_trajectory.forEach((traj: any, index: number) => {
         logs.push({
-          operator: '引擎流程',
-          message: t.message,
-          timestamp: t.time || t.timestamp,
+          operator: t('detail.engineFlow'),
+          message: traj.message,
+          timestamp: traj.time || traj.timestamp,
           status: 'success',
           _order: index
         })
@@ -830,12 +834,12 @@ const isTextPdf = computed(() => {
 })
 
 const riskLevelText = computed(() => {
-  if (!file.value) return '分析中...'
-  if (file.value.status === 'needs_review') return '【高风险】人工介入'
-  if (file.value.status === 'failed') return '【危险】合规不通过'
-  if (file.value.status === 'warning') return '【警告】存在合规瑕疵'
-  if (file.value.status === 'completed') return '【安全】合规通过'
-  return '未评级'
+  if (!file.value) return t('detail.analyzing')
+  if (file.value.status === 'needs_review') return t('detail.riskHigh')
+  if (file.value.status === 'failed') return t('detail.riskDanger')
+  if (file.value.status === 'warning') return t('detail.riskWarning')
+  if (file.value.status === 'completed') return t('detail.riskSafe')
+  return t('detail.riskUnrated')
 })
 
 const riskLevelClass = computed(() => {
@@ -1014,46 +1018,46 @@ function drawHighlightBox(wrapper: HTMLElement, rect: number[], viewport: any, b
 
 function statusText(status: string): string {
   const map: Record<string, string> = {
-    pending: '等待校验',
-    processing: '智能分析中',
-    completed: '校验通过',
-    failed: '校验未通过',
-    warning: '合规性预警',
-    needs_review: '需人工仲裁',
+    pending: t('detail.statusWaiting'),
+    processing: t('detail.statusAnalyzing'),
+    completed: t('detail.statusPassed'),
+    failed: t('detail.statusFailedVerify'),
+    warning: t('detail.statusPreWarning'),
+    needs_review: t('detail.statusNeedsArbitration'),
   }
   return map[status] || status
 }
 
 function checkStatusLabel(status: string): string {
   const map: Record<string, string> = {
-    pass: '通过',
-    warning: '预警',
-    fail: '不合规',
-    info: '参考',
+    pass: t('detail.checkPass'),
+    warning: t('detail.checkWarning'),
+    fail: t('detail.checkFail'),
+    info: t('detail.checkReference'),
   }
   return map[status] || status
 }
 
 function fileTypeLabel(type?: string): string {
   const map: Record<string, string> = {
-    production_plan: '生产计划单',
-    quality_report: '质量检测报告',
-    purchase_order: '采购订单',
-    supplier_qualification: '供应商资质证书',
-    product_specification: '产品规格说明书',
-    other: '常规文档',
+    production_plan: t('detail.typeProductionPlan'),
+    quality_report: t('detail.typeQualityReport'),
+    purchase_order: t('detail.typePurchaseOrder'),
+    supplier_qualification: t('detail.typeSupplierQualification'),
+    product_specification: t('detail.typeProductSpecification'),
+    other: t('detail.typeOther'),
   }
-  return map[type || ''] || '未归类文档'
+  return map[type || ''] || t('detail.typeUncategorized')
 }
 
 import { formatFileSize } from '@/utils/formatters'
 
 function formatDuration(seconds?: number): string {
   if (seconds === undefined || seconds === null) return '-'
-  if (seconds < 60) return `${seconds} 秒`
+  if (seconds < 60) return t('detail.seconds', { s: seconds })
   const min = Math.floor(seconds / 60)
   const sec = seconds % 60
-  return `${min}分${sec}秒`
+  return t('detail.minutesSeconds', { m: min, s: sec })
 }
 
 function scrollToPage(page: number) {
@@ -1068,7 +1072,7 @@ function scrollToPage(page: number) {
       behavior: 'smooth'
     })
   } else {
-    ElMessage.warning(`无法定位到第 ${page} 页`)
+    ElMessage.warning(t('detail.cannotLocatePage', { page }))
   }
 }
 
@@ -1080,7 +1084,7 @@ function formatDate(dateStr?: string): string {
   if (!dateStr) return '-'
   try {
     const date = new Date(dateStr)
-    return date.toLocaleString('zh-CN', {
+    return date.toLocaleString(getLocale(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -1141,7 +1145,7 @@ async function fetchFileDetail(silent = false) {
   } catch (error) {
     closeWebSocket()
     stopPolling()
-    ElMessage.error('无法载入文件详情')
+    ElMessage.error(t('detail.loadFileFailed'))
   } finally {
     if (!silent) loading.value = false
   }
@@ -1157,7 +1161,7 @@ async function fetchNotes(silent = false) {
     // Notes are already sorted desc by created_at in backend notes.py
     notes.value = res
   } catch (error) {
-    ElMessage.error('无法载入备注记录')
+    ElMessage.error(t('detail.loadNotesFailed'))
   } finally {
     if (!silent) notesLoading.value = false
   }
@@ -1167,16 +1171,16 @@ async function fetchNotes(silent = false) {
 async function handleDownload() {
   if (!file.value) return
   try {
-    ElMessage.info('正在请求下载链接...')
+    ElMessage.info(t('detail.requestingDownload'))
     const res = await filesApi.getDownloadUrl(file.value.id)
     if (res && res.download_url) {
       window.open(res.download_url, '_blank')
-      ElMessage.success('已打开下载通道')
+      ElMessage.success(t('detail.downloadOpened'))
     } else {
-      ElMessage.error('未能获取有效下载链接')
+      ElMessage.error(t('detail.downloadUrlInvalid'))
     }
   } catch (error) {
-    ElMessage.error('获取下载链接失败，请重试')
+    ElMessage.error(t('detail.downloadFailed'))
   }
 }
 
@@ -1194,9 +1198,9 @@ async function handleAddNote() {
     // Prepend the new note to the top of the local list
     notes.value.unshift(res)
     newNote.value = ''
-    ElMessage.success('备注发表成功')
+    ElMessage.success(t('detail.notePublished'))
   } catch (error) {
-    ElMessage.error('发表备注失败，请重试')
+    ElMessage.error(t('detail.notePublishFailed'))
   } finally {
     submittingNote.value = false
   }
@@ -1206,22 +1210,22 @@ async function handleAddNote() {
 async function handleDeleteNote(noteId: string) {
   try {
     await ElMessageBox.confirm(
-      '确定要永久删除这条审核备注吗？此操作无法撤销。',
-      '删除确认',
+      t('detail.deleteNoteConfirm'),
+      t('detail.deleteConfirmTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
         buttonSize: 'default'
       }
     )
-    
+
     await notesApi.delete(noteId)
     notes.value = notes.value.filter(n => n.id !== noteId)
-    ElMessage.success('备注已删除')
+    ElMessage.success(t('detail.noteDeleted'))
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除备注失败，请重试')
+      ElMessage.error(t('detail.noteDeleteFailed'))
     }
   }
 }
@@ -1230,35 +1234,35 @@ async function handleDeleteNote(noteId: string) {
 async function handleReviewResolution(action: 'approve' | 'reject') {
   if (!file.value) return
   
-  const actionText = action === 'approve' ? '放行通过' : '驳回不合规'
-  
+  const actionText = action === 'approve' ? t('detail.approveText') : t('detail.rejectText')
+
   try {
     const { value: comment } = await ElMessageBox.prompt(
-      `您正在执行【${actionText}】操作。请输入仲裁备注（选填）：`,
-      '人工仲裁确认',
+      t('detail.reviewPrompt', { action: actionText }),
+      t('detail.reviewConfirmTitle'),
       {
-        confirmButtonText: '确认提交',
-        cancelButtonText: '取消',
-        inputPlaceholder: '如：已核对相关条款，确认无误',
+        confirmButtonText: t('detail.confirmSubmit'),
+        cancelButtonText: t('common.cancel'),
+        inputPlaceholder: t('detail.reviewPlaceholder'),
         type: action === 'approve' ? 'success' : 'error'
       }
     )
-    
+
     // Call API
     loading.value = true
     const updatedFile = await filesApi.resolveReview(file.value.id, {
       action,
       comment
     })
-    
-    ElMessage.success(`操作成功：已${actionText}`)
+
+    ElMessage.success(t('detail.reviewSuccess', { action: actionText }))
     // Refresh the page data
     await fetchFileDetail(true)
     await fetchNotes(true)
-    
+
   } catch (e: unknown) {
     if (e !== 'cancel') {
-      ElMessage.error('仲裁提交失败，请重试')
+      ElMessage.error(t('detail.reviewFailed'))
     }
   } finally {
     loading.value = false
@@ -1304,7 +1308,7 @@ function connectWebSocket() {
     
     if (data.current_step) {
       liveExecutionLogs.value.push({
-        operator: '实时分析',
+        operator: t('detail.realtimeAnalysis'),
         message: data.current_step,
         timestamp: new Date().toISOString(),
         status: 'running'

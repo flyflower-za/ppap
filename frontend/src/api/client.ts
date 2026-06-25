@@ -61,13 +61,13 @@ client.interceptors.response.use(
     }
 
     if (axios.isCancel(error)) {
-      return Promise.reject(error)
+      return new Promise(() => {})
     }
 
     const config = error.config as AxiosRequestConfig & { skipGlobalError?: boolean }
 
     if (!config?.skipGlobalError) {
-      const message = error.response?.data?.detail || error.message || '请求失败'
+      const message = error.response?.data?.detail || error.message || 'Request failed'
       const now = Date.now()
       if (message !== lastErrorMessage || now - lastErrorTime > 2000) {
         ElMessage.error(message)

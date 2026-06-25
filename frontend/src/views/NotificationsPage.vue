@@ -1,16 +1,16 @@
 <template>
   <div>
     <div class="flex-between mb-4">
-      <h2>消息中心</h2>
-      <el-button v-if="hasUnread" :loading="markingAll" @click="handleMarkAllRead">全部已读</el-button>
+      <h2>{{ $t('notification.center') }}</h2>
+      <el-button v-if="hasUnread" :loading="markingAll" @click="handleMarkAllRead">{{ $t('notification.markAllRead') }}</el-button>
     </div>
 
     <el-card shadow="never" class="notifications-card">
       <el-tabs v-model="activeTab">
-        <el-tab-pane label="全部" name="all">
+        <el-tab-pane :label="$t('notification.allTab')" name="all">
           <NotificationList :unread-only="false" :refresh-key="refreshKey" @unread-change="onUnreadChange" />
         </el-tab-pane>
-        <el-tab-pane label="未读" name="unread">
+        <el-tab-pane :label="$t('notification.unreadTab')" name="unread">
           <NotificationList :unread-only="true" :refresh-key="refreshKey" />
         </el-tab-pane>
       </el-tabs>
@@ -20,10 +20,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import NotificationList from '@/components/NotificationList.vue'
 import { useNotificationStore } from '@/stores/notification'
 import client from '@/api/client'
+
+const { t } = useI18n()
 
 const notificationStore = useNotificationStore()
 const activeTab = ref('all')
@@ -35,12 +38,12 @@ async function handleMarkAllRead() {
   markingAll.value = true
   try {
     await client.post('/notifications/mark-all-read')
-    ElMessage.success('已全部标记为已读')
+    ElMessage.success(t('notification.markSuccess'))
     hasUnread.value = false
     notificationStore.markAllRead()
     refreshKey.value++
   } catch {
-    ElMessage.error('操作失败，请重试')
+    ElMessage.error(t('notification.markFailed'))
   } finally {
     markingAll.value = false
   }

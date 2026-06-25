@@ -3,18 +3,18 @@
     <!-- Header Hero Banner with Statistics -->
     <div class="hero-statistics-row mb-6">
       <div class="hero-left">
-        <h2 class="dashboard-title">合规历史审计中心</h2>
-        <p class="dashboard-subtitle">实时审计并追溯所有历史上传 PDF 的文本层、印章签名及二维码追溯结果</p>
+        <h2 class="dashboard-title">{{ $t('history.title') }}</h2>
+        <p class="dashboard-subtitle">{{ $t('history.subtitle') }}</p>
       </div>
       <div class="hero-right">
-        <el-button 
-          type="primary" 
+        <el-button
+          type="primary"
           class="export-button-premium"
-          :icon="Download" 
+          :icon="Download"
           @click="handleExport"
           :loading="exporting"
         >
-          导出 Excel 审计报表
+          {{ $t('history.exportExcel') }}
         </el-button>
       </div>
     </div>
@@ -24,14 +24,14 @@
       <div class="filter-card-header flex-between cursor-pointer" @click="isCollapsed = !isCollapsed">
         <div class="header-left flex-align-center">
           <span class="filter-icon">🔍</span>
-          <span class="filter-title-text font-bold ml-2">数据条件筛选</span>
+          <span class="filter-title-text font-bold ml-2">{{ $t('history.filterTitle') }}</span>
           <el-tag v-if="hasActiveFilters" size="small" type="warning" class="active-filter-tag ml-3">
-            已启用筛选条件
+            {{ $t('history.filterActive') }}
           </el-tag>
         </div>
         <div class="header-right">
           <el-button link type="primary" class="collapse-toggle-btn">
-            {{ isCollapsed ? '展开筛选面板' : '收起筛选面板' }}
+            {{ isCollapsed ? $t('history.expandFilter') : $t('history.collapseFilter') }}
             <el-icon class="arrow-icon ml-1" :class="{ 'is-active': !isCollapsed }">
               <ArrowDown />
             </el-icon>
@@ -44,29 +44,29 @@
           <el-form :model="filters" label-position="top" class="premium-filter-form">
             <el-row :gutter="20">
               <el-col :xs="24" :sm="8" :md="5">
-                <el-form-item label="校验状态">
+                <el-form-item :label="$t('history.verifyStatusLabel')">
                   <el-select
                     v-model="filters.status"
-                    placeholder="全部状态"
+                    :placeholder="$t('history.allStatus')"
                     clearable
                     class="premium-select"
                     @change="handleSearch"
                   >
-                    <el-option label="等待中" value="pending" />
-                    <el-option label="校验中" value="processing" />
-                    <el-option label="已通过 (合规)" value="completed" />
-                    <el-option label="有警告 (含风险)" value="warning" />
-                    <el-option label="校验失败 (不合格)" value="failed" />
-                    <el-option label="需人工放行" value="needs_review" />
+                    <el-option :label="$t('history.statusPending')" value="pending" />
+                    <el-option :label="$t('history.statusProcessing')" value="processing" />
+                    <el-option :label="$t('history.statusCompleted')" value="completed" />
+                    <el-option :label="$t('history.statusWarning')" value="warning" />
+                    <el-option :label="$t('history.statusFailed')" value="failed" />
+                    <el-option :label="$t('status.needsReview')" value="needs_review" />
                   </el-select>
                 </el-form-item>
               </el-col>
 
               <el-col :xs="24" :sm="8" :md="5">
-                <el-form-item label="签发机构">
+                <el-form-item :label="$t('history.institutionLabel')">
                   <el-input
                     v-model="filters.institution"
-                    placeholder="输入机构名称"
+                    :placeholder="$t('history.institutionPlaceholder')"
                     clearable
                     class="premium-input"
                     @clear="handleSearch"
@@ -76,10 +76,10 @@
               </el-col>
 
               <el-col :xs="24" :sm="8" :md="6">
-                <el-form-item label="模糊匹配">
-                  <el-input 
-                    v-model="filters.keyword" 
-                    placeholder="输入文件名关键词..." 
+                <el-form-item :label="$t('history.fuzzyMatch')">
+                  <el-input
+                    v-model="filters.keyword"
+                    :placeholder="$t('history.keywordPlaceholder')"
                     clearable
                     class="premium-input"
                     @keyup.enter="handleSearch"
@@ -88,13 +88,13 @@
               </el-col>
 
               <el-col :xs="24" :sm="24" :md="8">
-                <el-form-item label="上传时间范围">
+                <el-form-item :label="$t('history.uploadTimeRange')">
                   <el-date-picker
                     v-model="dateRange"
                     type="daterange"
-                    range-separator="至"
-                    start-placeholder="开始日期"
-                    end-placeholder="结束日期"
+                    :range-separator="$t('history.dateRangeSeparator')"
+                    :start-placeholder="$t('history.startDate')"
+                    :end-placeholder="$t('history.endDate')"
                     value-format="YYYY-MM-DD"
                     class="premium-date-picker"
                     @change="handleDateRangeChange"
@@ -104,8 +104,8 @@
             </el-row>
             
             <div class="flex-end-buttons mt-2">
-              <el-button class="reset-button-premium" @click="handleReset">重置筛选</el-button>
-              <el-button type="primary" class="search-button-premium" @click="handleSearch">执行筛选</el-button>
+              <el-button class="reset-button-premium" @click="handleReset">{{ $t('history.resetFilter') }}</el-button>
+              <el-button type="primary" class="search-button-premium" @click="handleSearch">{{ $t('history.applyFilter') }}</el-button>
             </div>
           </el-form>
         </div>
@@ -117,26 +117,26 @@
     <div v-if="selectedRows.length > 0" class="batch-control-banner mb-4 animate-slide-down">
       <div class="batch-left">
         <span class="pulse-dot"></span>
-        <span class="selected-text">已选中 <strong>{{ selectedRows.length }}</strong> 项历史合规记录</span>
+        <span class="selected-text">{{ $t('history.selectedRecords', { count: selectedRows.length }) }}</span>
       </div>
       <div class="batch-right">
         <el-button-group>
-          <el-button 
-            size="small" 
-            type="primary" 
-            plain 
-            :icon="Download" 
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            :icon="Download"
             @click="handleBatchDownload"
           >
-            批量下载 PDF
+            {{ $t('history.batchDownload') }}
           </el-button>
-          <el-button 
-            size="small" 
-            type="danger" 
-            :icon="Delete" 
+          <el-button
+            size="small"
+            type="danger"
+            :icon="Delete"
             @click="handleBatchDelete"
           >
-            批量删除记录
+            {{ $t('history.batchDelete') }}
           </el-button>
         </el-button-group>
       </div>
@@ -208,40 +208,40 @@
                 />
               </div>
               <div v-else class="status-placeholder text-secondary">
-                {{ row.status === 'processing' ? '诊断中...' : '等待中...' }}
+                {{ row.status === 'processing' ? $t('history.diagnosingProgress') : $t('history.waitingProgress') }}
               </div>
             </template>
           </template>
         </el-table-column>
         
-        <el-table-column label="操作" width="280" fixed="right">
+        <el-table-column :label="$t('history.actionsColumn')" width="280" fixed="right">
           <template #default="{ row }">
             <div class="table-actions-row">
               <el-button link type="primary" size="small" class="action-btn-view" @click="handleView(row)">
-                查看详情
+                {{ $t('task.viewDetail') }}
               </el-button>
-              <el-button 
-                link 
-                type="primary" 
-                size="small" 
-                class="action-btn-download" 
+              <el-button
+                link
+                type="primary"
+                size="small"
+                class="action-btn-download"
                 @click="handleDownload(row)"
                 :disabled="row.status === 'pending' || row.status === 'processing'"
               >
-                下载报告
+                {{ $t('history.downloadReport') }}
               </el-button>
-              <el-button 
-                link 
-                type="warning" 
-                size="small" 
-                class="action-btn-reverify" 
+              <el-button
+                link
+                type="warning"
+                size="small"
+                class="action-btn-reverify"
                 @click="handleReverify(row)"
                 :disabled="row.status === 'pending' || row.status === 'processing'"
               >
-                重新校验
+                {{ $t('history.reverify') }}
               </el-button>
               <el-button link type="danger" size="small" class="action-btn-delete" @click="handleDelete(row)">
-                删除
+                {{ $t('common.delete') }}
               </el-button>
             </div>
           </template>
@@ -266,7 +266,7 @@
     <!-- Execution Trajectory Drawer -->
     <el-drawer
       v-model="trajectoryDrawerVisible"
-      title="执行流水日志"
+      :title="$t('history.trajectoryTitle')"
       size="45%"
       direction="rtl"
       :destroy-on-close="false"
@@ -287,16 +287,16 @@
               <h4 style="margin:0 0 8px 0; font-size:14px;">{{ log.operator }}</h4>
               <p class="log-msg" style="margin:0; font-size:13px; color:#666;">{{ log.message }}</p>
               <el-collapse v-if="log.extracted_data && Object.keys(log.extracted_data).length > 0" class="log-data-collapse mt-2">
-                <el-collapse-item title="详细提取数据" name="1">
+                <el-collapse-item :title="$t('history.extractedData')" name="1">
                   <pre class="log-data-pre">{{ JSON.stringify(log.extracted_data, null, 2) }}</pre>
                 </el-collapse-item>
               </el-collapse>
             </el-card>
           </el-timeline-item>
         </el-timeline>
-        <el-empty 
-          v-if="executionLogs.length === 0" 
-          description="暂无执行流水记录" 
+        <el-empty
+          v-if="executionLogs.length === 0"
+          :description="$t('history.emptyTrajectory')"
         />
       </div>
     </el-drawer>
@@ -306,12 +306,15 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Download, Delete, ArrowDown, Tickets } from '@element-plus/icons-vue'
 import Sortable from 'sortablejs'
 import { filesApi } from '@/api/files'
 import { getErrorMessage } from '@/utils/formatters'
+import { getLocale } from '@/locales'
 
+const { t } = useI18n()
 const router = useRouter()
 
 const loading = ref(false)
@@ -334,13 +337,13 @@ const tableKey = ref(1)
 const LOCAL_STORAGE_KEY = 'ppap_history_table_columns_order_v1'
 
 const defaultColumns = [
-  { prop: 'uploaded_at', label: '上传时间', width: 200 },
-  { prop: 'original_filename', label: '文件名', minWidth: 250, showOverflowTooltip: true },
-  { prop: 'file_type', label: '文件类型', width: 120, showOverflowTooltip: true },
-  { prop: 'institution', label: '签发机构', minWidth: 120, showOverflowTooltip: true },
-  { prop: 'page_count', label: '页数', width: 60, align: 'center' },
-  { prop: 'status', label: '校验状态', width: 110 },
-  { prop: 'pass_rate', label: '指标通过率', width: 150 },
+  { prop: 'uploaded_at', label: t('file.uploadedAt'), width: 200 },
+  { prop: 'original_filename', label: t('file.filename'), minWidth: 250, showOverflowTooltip: true },
+  { prop: 'file_type', label: t('file.fileType'), width: 120, showOverflowTooltip: true },
+  { prop: 'institution', label: t('history.institutionLabel'), minWidth: 120, showOverflowTooltip: true },
+  { prop: 'page_count', label: t('file.pageCount'), width: 60, align: 'center' },
+  { prop: 'status', label: t('history.verifyStatusLabel'), width: 110 },
+  { prop: 'pass_rate', label: t('history.passRateLabel'), width: 150 },
 ]
 
 const loadColumns = () => {
@@ -398,11 +401,11 @@ const executionLogs = computed(() => {
   const v = currentTrajectoryFile.value.verification_result_json
   
   if (v.execution_trajectory && Array.isArray(v.execution_trajectory)) {
-    v.execution_trajectory.forEach((t: any, index: number) => {
+    v.execution_trajectory.forEach((traj: any, index: number) => {
       logs.push({
-        operator: '引擎流程',
-        message: t.message,
-        timestamp: t.time || t.timestamp,
+        operator: t('history.engineFlow'),
+        message: traj.message,
+        timestamp: traj.time || traj.timestamp,
         status: 'success',
         _order: index
       })
@@ -448,7 +451,7 @@ function formatDateTime(isoString: string): string {
   if (!isoString) return '--'
   try {
     const d = new Date(isoString)
-    return d.toLocaleString('zh-CN', {
+    return d.toLocaleString(getLocale() === 'zh-CN' ? 'zh-CN' : 'en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -464,26 +467,26 @@ function formatDateTime(isoString: string): string {
 
 function statusText(status: string): string {
   const map: Record<string, string> = {
-    pending: '等待中',
-    processing: '诊断中',
-    completed: '合规通过',
-    failed: '不合格',
-    warning: '有风险警告',
-    needs_review: '需人工放行',
+    pending: t('history.statusPending'),
+    processing: t('task.diagnosing'),
+    completed: t('task.compliant'),
+    failed: t('task.notQualified'),
+    warning: t('task.hasWarning'),
+    needs_review: t('status.needsReview'),
   }
   return map[status] || status
 }
 
 function getFileTypeText(type: string): string {
   const map: Record<string, string> = {
-    production_plan: '生产计划单',
-    quality_report: '质量检测报告',
-    purchase_order: '采购订单',
-    supplier_qualification: '供应商资质',
-    product_specification: '产品规格书',
-    other: '常规合规文件',
+    production_plan: t('file.production_plan'),
+    quality_report: t('file.quality_report'),
+    purchase_order: t('file.purchase_order'),
+    supplier_qualification: t('file.supplier_qualification'),
+    product_specification: t('file.product_specification'),
+    other: t('file.other'),
   }
-  return map[type] || '未定类型'
+  return map[type] || t('history.unknownFileType')
 }
 
 function getFileTypeTag(type: string): string {
@@ -547,7 +550,7 @@ async function fetchData() {
     pagination.total = response.total || 0
   } catch (err: unknown) {
     console.error('Failed to fetch historical files:', err)
-    ElMessage.error(getErrorMessage(err, '拉取历史数据失败，请重试'))
+    ElMessage.error(getErrorMessage(err, t('history.fetchFailed')))
   } finally {
     loading.value = false
   }
@@ -599,30 +602,30 @@ async function handleDownload(row: { id: string; original_filename: string }) {
     const res = await filesApi.getDownloadUrl(row.id)
     if (res && res.download_url) {
       window.open(res.download_url, '_blank')
-      ElMessage.success(`开始下载: ${row.original_filename}`)
+      ElMessage.success(t('history.downloadStarted', { name: row.original_filename }))
     } else {
-      throw new Error('未获取到合法的下载链接')
+      throw new Error(t('history.downloadUrlInvalid'))
     }
   } catch (err: unknown) {
     console.error('Failed to get download URL:', err)
-    ElMessage.error(getErrorMessage(err, '获取下载地址失败，请检查文件是否在库'))
+    ElMessage.error(getErrorMessage(err, t('history.downloadUrlFailed')))
   }
 }
 
 async function handleReverify(row: { id: string; original_filename: string }) {
   try {
     await ElMessageBox.confirm(
-      `您确定要对文件【${row.original_filename}】重新执行智能诊断吗？这将会清空之前的诊断结果并重新进入队列。人工备注将会保留。`,
-      '重新校验确认',
+      t('history.reverifyConfirmMessage', { name: row.original_filename }),
+      t('history.reverifyConfirmTitle'),
       {
-        confirmButtonText: '确定重新校验',
-        cancelButtonText: '取消',
+        confirmButtonText: t('history.reverifyConfirmButton'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
     
     await filesApi.reverify(row.id)
-    ElMessage.success('已加入重新校验队列')
+    ElMessage.success(t('history.reverifySuccess'))
     fetchData() // Refresh list
   } catch {
     // cancelled or failed
@@ -631,7 +634,7 @@ async function handleReverify(row: { id: string; original_filename: string }) {
 
 async function handleBatchDownload() {
   if (selectedRows.value.length === 0) return
-  ElMessage.info(`正在批量准备 ${selectedRows.value.length} 份报告链接...`)
+  ElMessage.info(t('history.batchDownloadPreparing', { count: selectedRows.value.length }))
   
   let successCount = 0
   for (const row of selectedRows.value) {
@@ -652,23 +655,23 @@ async function handleBatchDownload() {
       // Continue next
     }
   }
-  ElMessage.success(`成功触发 ${successCount} 个文件的下载`)
+  ElMessage.success(t('history.batchDownloadSuccess', { count: successCount }))
 }
 
 async function handleDelete(row: { id: string; original_filename: string }) {
   try {
     await ElMessageBox.confirm(
-      `您确定要永久删除文件【${row.original_filename}】及全部关联诊断报告吗？此操作无法撤销。`,
-      '危险删除警告',
+      t('history.deleteConfirmMessage', { name: row.original_filename }),
+      t('history.deleteConfirmTitle'),
       {
-        confirmButtonText: '确定永久删除',
-        cancelButtonText: '取消',
+        confirmButtonText: t('history.deleteConfirmButton'),
+        cancelButtonText: t('common.cancel'),
         confirmButtonClass: 'el-button--danger',
         type: 'warning',
       }
     )
     await filesApi.delete(row.id)
-    ElMessage.success('记录已安全移除')
+    ElMessage.success(t('history.deleteSuccess'))
     fetchData()
   } catch {
     // cancelled
@@ -679,18 +682,18 @@ async function handleBatchDelete() {
   if (selectedRows.value.length === 0) return
   try {
     await ElMessageBox.confirm(
-      `您确定要永久删除所选的 ${selectedRows.value.length} 项诊断记录吗？此操作将彻底删除归档，不可恢复。`,
-      '批量删除危险提示',
+      t('history.batchDeleteConfirmMessage', { count: selectedRows.value.length }),
+      t('history.batchDeleteConfirmTitle'),
       {
-        confirmButtonText: '确定批量删除',
-        cancelButtonText: '取消',
+        confirmButtonText: t('history.batchDeleteConfirmButton'),
+        cancelButtonText: t('common.cancel'),
         confirmButtonClass: 'el-button--danger',
         type: 'warning',
       }
     )
     const ids = selectedRows.value.map(row => row.id)
     await filesApi.batchDelete(ids)
-    ElMessage.success(`成功删除 ${ids.length} 项记录`)
+    ElMessage.success(t('history.batchDeleteSuccess', { count: ids.length }))
     selectedRows.value = []
     fetchData()
   } catch {
@@ -714,31 +717,31 @@ async function handleExport() {
     const records = response.items || []
 
     if (records.length === 0) {
-      ElMessage.warning('当前筛选条件下无数据可供导出')
+      ElMessage.warning(t('history.exportNoData'))
       return
     }
 
     // Helper to escape CSV fields
     const esc = (val: string) => `"${(val || '').replace(/"/g, '""')}"`
-    const checkStatusText = (s: string) => s === 'pass' ? '通过' : (s === 'warning' ? '警告' : (s === 'info' ? '参考' : (s === 'fail' ? '不合格' : s)))
+    const checkStatusText = (s: string) => s === 'pass' ? t('history.csvStatusPass') : (s === 'warning' ? t('history.csvStatusWarning') : (s === 'info' ? t('history.csvStatusInfo') : (s === 'fail' ? t('history.csvStatusFail') : s)))
 
     // Phase 1: Discover all unique check names across all records (preserve order)
     const checkNames: string[] = []
     records.forEach((row: any) => {
       const checks = row.verification_result_json?.checks || []
       checks.forEach((c: any) => {
-        const name = c.name || c.rule_name || '未知检测项'
+        const name = c.name || c.rule_name || t('task.unknownCheckItem')
         if (!checkNames.includes(name)) checkNames.push(name)
       })
     })
 
     // Phase 2: Build CSV header
-    const fixedHeaders = ['文件ID', '原文件名', '上传时间', '签发机构', '匹配分类', '文件分类', '页数', '诊断状态', '通过率', '通过项', '警告项', '不合格项', '参考项', '耗时(秒)']
+    const fixedHeaders = [t('history.csvHeaderFileId'), t('history.csvHeaderOriginalFilename'), t('history.csvHeaderUploadedAt'), t('history.csvHeaderInstitution'), t('history.csvHeaderMatchedCategory'), t('history.csvHeaderFileType'), t('history.csvHeaderPageCount'), t('history.csvHeaderStatus'), t('history.csvHeaderPassRate'), t('history.csvHeaderPassCount'), t('history.csvHeaderWarningCount'), t('history.csvHeaderFailCount'), t('history.csvHeaderRefCount'), t('history.csvHeaderDuration')]
     const dynamicHeaders: string[] = []
     checkNames.forEach(name => {
-      dynamicHeaders.push(`${name}-状态`, `${name}-详情`)
+      dynamicHeaders.push(`${name}${t('history.csvStatusSuffix')}`, `${name}${t('history.csvDetailSuffix')}`)
     })
-    const allHeaders = [...fixedHeaders, ...dynamicHeaders, '人工审核备注']
+    const allHeaders = [...fixedHeaders, ...dynamicHeaders, t('history.csvHeaderManualRemark')]
     let csvContent = '\uFEFF' + allHeaders.join(',') + '\n'
 
     // Phase 3: Build rows
@@ -754,7 +757,7 @@ async function handleExport() {
       const checkMap: Record<string, any> = {}
       const checks = vr?.checks || []
       checks.forEach((c: any) => {
-        const name = c.name || c.rule_name || '未知检测项'
+        const name = c.name || c.rule_name || t('task.unknownCheckItem')
         checkMap[name] = c
       })
 
@@ -794,15 +797,15 @@ async function handleExport() {
     const link = document.createElement('a')
     const dateStr = new Date().toISOString().slice(0, 10)
     link.href = URL.createObjectURL(blob)
-    link.setAttribute('download', `PPAP_合规诊断审计报表_${dateStr}.csv`)
+    link.setAttribute('download', `PPAP_audit_report_${dateStr}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    
-    ElMessage.success(`成功导出 ${records.length} 条审计记录！`)
+
+    ElMessage.success(t('history.exportSuccess', { count: records.length }))
   } catch (err) {
     console.error('Export failed:', err)
-    ElMessage.error('报表导出失败，请重试')
+    ElMessage.error(t('history.exportFailed'))
   } finally {
     exporting.value = false
   }

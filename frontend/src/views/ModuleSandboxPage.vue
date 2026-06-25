@@ -1,8 +1,8 @@
 <template>
   <div class="sandbox-container">
     <div class="header">
-      <h2>🧪 模块沙盒 (Module Sandbox)</h2>
-      <p class="text-secondary">独立调试和验证底层审核模型与提取算子的效果，无需运行整个流水线。</p>
+      <h2>🧪 {{ $t('modules.sandbox.title') }}</h2>
+      <p class="text-secondary">{{ $t('modules.sandbox.subtitle') }}</p>
     </div>
 
     <el-row :gutter="24">
@@ -11,24 +11,24 @@
         <el-card shadow="never" class="config-card premium-card">
           <template #header>
             <div class="card-header">
-              <span class="font-bold">⚙️ 测试参数配置</span>
+              <span class="font-bold">⚙️ {{ $t('modules.sandbox.testConfig') }}</span>
             </div>
           </template>
 
           <el-form :model="form" label-position="top" size="large">
             <!-- 文件源选择 -->
             <template v-if="form.operator_name !== 'URLFetchOperator'">
-              <el-form-item label="测试文件来源">
+              <el-form-item :label="$t('modules.sandbox.fileSource')">
                 <el-radio-group v-model="form.fileSourceType" class="premium-radio-group">
-                  <el-radio-button value="existing">从历史中选择</el-radio-button>
-                  <el-radio-button value="upload">临时上传新文件</el-radio-button>
+                  <el-radio-button value="existing">{{ $t('modules.sandbox.selectFromHistory') }}</el-radio-button>
+                  <el-radio-button value="upload">{{ $t('modules.sandbox.uploadNewFile') }}</el-radio-button>
                 </el-radio-group>
               </el-form-item>
             </template>
 
             <template v-if="form.operator_name !== 'URLFetchOperator'">
-              <el-form-item v-if="form.fileSourceType === 'existing'" label="选择已有文件">
-                <el-select v-model="form.file_id" filterable placeholder="选择要测试的文档" style="width: 100%" popper-class="sandbox-file-select-dropdown">
+              <el-form-item v-if="form.fileSourceType === 'existing'" :label="$t('modules.sandbox.selectExistingFile')">
+                <el-select v-model="form.file_id" filterable :placeholder="$t('modules.sandbox.selectDocument')" style="width: 100%" popper-class="sandbox-file-select-dropdown">
                   <el-option
                     v-for="f in historyFiles"
                     :key="f.id"
@@ -45,7 +45,7 @@
             </template>
 
             <template v-if="form.operator_name !== 'URLFetchOperator'">
-              <el-form-item v-if="form.fileSourceType === 'upload'" label="上传测试文件">
+              <el-form-item v-if="form.fileSourceType === 'upload'" :label="$t('modules.sandbox.uploadTestFile')">
                 <el-upload
                   class="upload-demo sandbox-upload"
                   drag
@@ -57,14 +57,14 @@
                   :on-remove="handleFileRemove"
                 >
                   <el-icon class="el-icon--upload"><upload-filled /></el-icon>
-                  <div class="el-upload__text">拖拽文件到这里或 <em>点击上传</em></div>
+                  <div class="el-upload__text">{{ $t('modules.sandbox.dragOrClick') }} <em>{{ $t('modules.sandbox.clickUpload') }}</em></div>
                 </el-upload>
               </el-form-item>
             </template>
 
             <!-- 模块选择 -->
-            <el-form-item label="目标测试模块">
-              <el-select v-model="form.operator_name" placeholder="请选择底层模块" @change="handleModuleChange" style="width: 100%" popper-class="sandbox-module-select-dropdown">
+            <el-form-item :label="$t('modules.sandbox.targetModule')">
+              <el-select v-model="form.operator_name" :placeholder="$t('modules.sandbox.selectModule')" @change="handleModuleChange" style="width: 100%" popper-class="sandbox-module-select-dropdown">
                 <el-option
                   v-for="mod in availableModules"
                   :key="mod.name"
@@ -85,7 +85,7 @@
 
             <!-- 动态参数表单 -->
             <div v-if="selectedModuleParams.length > 0" class="dynamic-params-container p-4 bg-gray-50 rounded-lg border">
-              <h4 class="mb-4 mt-0 text-sm font-bold text-gray-700">模块参数</h4>
+              <h4 class="mb-4 mt-0 text-sm font-bold text-gray-700">{{ $t('modules.sandbox.moduleParams') }}</h4>
               <el-form-item
                 v-for="param in selectedModuleParams"
                 :key="param.key"
@@ -101,7 +101,7 @@
                   v-model="form.params[param.key]"
                   type="textarea"
                   :rows="3"
-                  :placeholder="'默认: ' + param.default"
+                  :placeholder="$t('modules.sandbox.defaultPrefix') + param.default"
                 />
                 <el-input-number
                   v-else-if="param.type === 'number'"
@@ -110,15 +110,15 @@
                 <el-input
                   v-else
                   v-model="form.params[param.key]"
-                  :placeholder="'默认: ' + param.default"
+                  :placeholder="$t('modules.sandbox.defaultPrefix') + param.default"
                 />
               </el-form-item>
-              
+
               <!-- 显式注入底座模型选择 (Open Question 2) -->
-              <el-form-item v-if="form.operator_name.includes('LLM')" label="底层 AI 模型 (Base Model)">
-                <el-select v-model="form.params.model" placeholder="默认模型" style="width: 100%">
-                  <el-option label="默认配置 (Configured Default)" value="" />
-                  <el-option 
+              <el-form-item v-if="form.operator_name.includes('LLM')" :label="$t('modules.sandbox.baseModel')">
+                <el-select v-model="form.params.model" :placeholder="$t('modules.sandbox.defaultModel')" style="width: 100%">
+                  <el-option :label="$t('modules.sandbox.configuredDefault')" value="" />
+                  <el-option
                     v-for="profile in aiModelProfiles"
                     :key="profile.model_name"
                     :label="profile.name + ' (' + profile.model_name + ')'"
@@ -129,15 +129,15 @@
             </div>
 
             <div class="action-bar mt-6">
-              <el-button 
-                type="primary" 
-                size="large" 
-                :loading="testing" 
+              <el-button
+                type="primary"
+                size="large"
+                :loading="testing"
                 @click="runTest"
                 :disabled="!canSubmit"
                 style="width: 100%"
               >
-                🚀 立即执行测试
+                🚀 {{ $t('modules.sandbox.runTest') }}
               </el-button>
             </div>
           </el-form>
@@ -149,17 +149,17 @@
         <el-card shadow="never" class="result-card premium-card h-full" style="min-height: 600px;">
           <template #header>
             <div class="card-header">
-              <span class="font-bold">📊 执行结果与诊断数据</span>
+              <span class="font-bold">📊 {{ $t('modules.sandbox.resultTitle') }}</span>
             </div>
           </template>
 
           <div v-if="!resultData && !testing" class="empty-state text-center mt-20">
-            <el-empty description="尚未执行，请在左侧配置参数并点击开始测试" />
+            <el-empty :description="$t('modules.sandbox.emptyResult')" />
           </div>
 
           <div v-else-if="testing" class="loading-state text-center mt-20">
             <el-skeleton :rows="10" animated />
-            <p class="text-secondary mt-4">模块正在全力计算中，大模型视觉推理可能需要 10-30 秒...</p>
+            <p class="text-secondary mt-4">{{ $t('modules.sandbox.processing') }}</p>
           </div>
 
           <div v-else class="result-display">
@@ -167,35 +167,35 @@
             <div class="summary-box p-4 mb-4 rounded-lg border" :class="resultData.status === 'success' ? (resultData.pass_status ? 'bg-success-light border-success' : 'bg-danger-light border-danger') : 'bg-gray-100 border-gray-300'">
               <div class="flex justify-between items-center">
                 <div>
-                  <h3 class="mt-0 mb-2">执行状态：
+                  <h3 class="mt-0 mb-2">{{ $t('modules.sandbox.executionStatus') }}
                     <el-tag :type="resultData.status === 'success' ? 'success' : 'danger'" size="large">
-                      {{ resultData.status === 'success' ? '调用成功' : '系统异常' }}
+                      {{ resultData.status === 'success' ? $t('modules.sandbox.callSuccess') : $t('modules.sandbox.systemError') }}
                     </el-tag>
                   </h3>
                   <div v-if="resultData.status === 'success'" class="text-lg font-bold" :class="resultData.pass_status ? 'text-green-600' : 'text-red-600'">
-                    逻辑判定：{{ resultData.pass_status ? '✅ 校验通过' : '❌ 校验不合格' }}
+                    {{ $t('modules.sandbox.logicResult') }}{{ resultData.pass_status ? $t('modules.sandbox.passed') : $t('modules.sandbox.failed') }}
                   </div>
                 </div>
                 <div class="text-right text-sm text-secondary">
-                  <div>模块: {{ resultData.operator }}</div>
+                  <div>{{ $t('modules.sandbox.moduleLabel') }} {{ resultData.operator }}</div>
                 </div>
               </div>
               <div class="mt-4 p-3 bg-white rounded border shadow-sm">
-                <strong>💡 诊断结论 (Reason)：</strong><br/>
+                <strong>{{ $t('modules.sandbox.diagnosis') }}</strong><br/>
                 <span class="text-gray-700">{{ resultData.message || '--' }}</span>
               </div>
             </div>
 
             <!-- 数据提取可视化 -->
-            <h4>🧩 提取到的结构化数据 (Extracted Data)</h4>
+            <h4>{{ $t('modules.sandbox.extractedData') }}</h4>
             <el-card shadow="none" class="bg-gray-900 text-gray-100 border-0 font-mono text-sm">
               <pre style="margin: 0; white-space: pre-wrap;">{{ JSON.stringify(resultData.extracted_data, null, 2) || '{}' }}</pre>
             </el-card>
 
             <!-- 运行时上下文数据 -->
-            <h4 class="mt-6">🗃️ 运行时共享上下文 (Shared State)</h4>
+            <h4 class="mt-6">{{ $t('modules.sandbox.sharedState') }}</h4>
             <el-collapse class="mt-2">
-              <el-collapse-item title="点击展开查看执行上下文变量">
+              <el-collapse-item :title="$t('modules.sandbox.expandContext')">
                 <pre class="bg-gray-50 p-4 rounded text-xs overflow-auto">{{ JSON.stringify(resultData.shared_state, null, 2) || '{}' }}</pre>
               </el-collapse-item>
             </el-collapse>
@@ -208,12 +208,15 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesApi } from '@/api/files'
 import { modulesApi } from '@/api/modules'
 import { settingsApi, PublicModelProfile } from '@/api/settings'
 import { getErrorMessage } from '@/utils/formatters'
+
+const { t } = useI18n()
 
 const historyFiles = ref<any[]>([])
 const availableModules = ref<any[]>([])
@@ -290,30 +293,30 @@ function handleFileRemove() {
 
 async function runTest() {
   if (!canSubmit.value) return
-  
+
   testing.value = true
   resultData.value = null
-  
+
   try {
     const formData = new FormData()
     formData.append('operator_name', form.operator_name)
     formData.append('params', JSON.stringify(form.params))
-    
+
     if (form.fileSourceType === 'existing') {
       formData.append('file_id', form.file_id)
     } else if (form.uploadFile) {
       formData.append('file', form.uploadFile)
     }
-    
+
     const res = await modulesApi.testModule(formData)
     resultData.value = res
     if (res.status === 'success') {
-      ElMessage.success('测试执行完成')
+      ElMessage.success(t('modules.sandbox.testComplete'))
     } else {
-      ElMessage.error(`执行失败: ${res.message}`)
+      ElMessage.error(t('modules.sandbox.testFailed', { message: res.message }))
     }
   } catch (e: unknown) {
-    ElMessage.error(getErrorMessage(e, '网络或接口请求错误'))
+    ElMessage.error(getErrorMessage(e, t('common.networkError')))
   } finally {
     testing.value = false
   }

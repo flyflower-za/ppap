@@ -1,41 +1,41 @@
 <template>
   <div>
-    <h2 class="mb-4">系统设置</h2>
+    <h2 class="mb-4">{{ $t('settings.title') }}</h2>
 
     <el-row :gutter="32">
       <el-col :span="6">
         <el-menu :default-active="activeMenu" @select="handleMenuSelect">
           <el-menu-item index="profile">
             <el-icon><User /></el-icon>
-            <span>个人信息</span>
+            <span>{{ $t('settings.menuProfile') }}</span>
           </el-menu-item>
           <el-menu-item index="notification">
             <el-icon><Bell /></el-icon>
-            <span>通知设置</span>
+            <span>{{ $t('settings.menuNotification') }}</span>
           </el-menu-item>
           <el-menu-item index="file-retention" v-if="canAccessSettings('file_retention')">
             <el-icon><FolderOpened /></el-icon>
-            <span>文件保留设置</span>
+            <span>{{ $t('settings.menuFileRetention') }}</span>
           </el-menu-item>
           <el-menu-item index="smtp" v-if="canAccessSettings('smtp')">
             <el-icon><Setting /></el-icon>
-            <span>SMTP 配置</span>
+            <span>{{ $t('settings.menuSmtp') }}</span>
           </el-menu-item>
           <el-menu-item index="templates" v-if="canAccessSettings('email_templates')">
             <el-icon><Document /></el-icon>
-            <span>邮件模板</span>
+            <span>{{ $t('settings.menuTemplates') }}</span>
           </el-menu-item>
           <el-menu-item index="ldap" v-if="canAccessSettings('ldap')">
             <el-icon><Lock /></el-icon>
-            <span>LDAP/SSO配置</span>
+            <span>{{ $t('settings.menuLdap') }}</span>
           </el-menu-item>
           <el-menu-item index="ai-model" v-if="canAccessSettings('ai_model')">
             <el-icon><Cpu /></el-icon>
-            <span>AI 模型配置</span>
+            <span>{{ $t('settings.menuAiModel') }}</span>
           </el-menu-item>
           <el-menu-item index="users" v-if="canAccessSettings('users')">
             <el-icon><UserFilled /></el-icon>
-            <span>用户管理</span>
+            <span>{{ $t('settings.menuUsers') }}</span>
           </el-menu-item>
         </el-menu>
       </el-col>
@@ -44,15 +44,15 @@
         <!-- Profile Section -->
         <el-card v-if="activeMenu === 'profile'" shadow="never">
           <template #header>
-            <span>基本信息</span>
+            <span>{{ $t('settings.profileTitle') }}</span>
           </template>
 
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="登录名">{{ authStore.user?.email }}</el-descriptions-item>
-            <el-descriptions-item label="姓名">{{ authStore.user?.full_name }}</el-descriptions-item>
-            <el-descriptions-item label="部门">{{ authStore.user?.department || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="邮箱">{{ authStore.user?.email }}</el-descriptions-item>
-            <el-descriptions-item label="登录方式">
+            <el-descriptions-item :label="$t('settings.loginName')">{{ authStore.user?.email }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('settings.fullName')">{{ authStore.user?.full_name }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('settings.department')">{{ authStore.user?.department || '-' }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('settings.email')">{{ authStore.user?.email }}</el-descriptions-item>
+            <el-descriptions-item :label="$t('settings.loginMethod')">
               <el-tag size="small">SSO</el-tag>
             </el-descriptions-item>
           </el-descriptions>
@@ -62,25 +62,25 @@
             :closable="false"
             class="mt-4"
           >
-            个人信息由企业 LDAP/SSO 系统统一管理，如需修改请联系系统管理员。
+            {{ $t('settings.profileLdapHint') }}
           </el-alert>
 
           <div class="mt-4">
-            <el-button type="primary" :icon="Key" @click="openChangePasswordDialog">修改密码</el-button>
+            <el-button type="primary" :icon="Key" @click="openChangePasswordDialog">{{ $t('settings.changePassword') }}</el-button>
           </div>
         </el-card>
 
         <!-- Notification Section -->
         <el-card v-if="activeMenu === 'notification'" shadow="never" v-loading="loadingNotif">
           <template #header>
-            <span>邮件通知设置</span>
+            <span>{{ $t('settings.notificationTitle') }}</span>
           </template>
 
           <div class="notification-setting">
             <div class="setting-item">
               <div class="setting-info">
-                <h4>启用邮件通知</h4>
-                <p>当文件校验完成时发送邮件通知</p>
+                <h4>{{ $t('settings.enableEmailNotification') }}</h4>
+                <p>{{ $t('settings.enableEmailNotificationDesc') }}</p>
               </div>
               <el-switch v-model="emailEnabled" />
             </div>
@@ -89,8 +89,8 @@
 
             <div class="setting-item">
               <div class="setting-info">
-                <h4>校验失败通知</h4>
-                <p>当校验失败时立即发送邮件提醒</p>
+                <h4>{{ $t('settings.failureNotification') }}</h4>
+                <p>{{ $t('settings.failureNotificationDesc') }}</p>
               </div>
               <el-switch v-model="notifyOnFailure" />
             </div>
@@ -99,8 +99,8 @@
 
             <div class="setting-item">
               <div class="setting-info">
-                <h4>每日汇总报告</h4>
-                <p>每天发送当日校验任务汇总到邮箱</p>
+                <h4>{{ $t('settings.dailySummary') }}</h4>
+                <p>{{ $t('settings.dailySummaryDesc') }}</p>
               </div>
               <el-switch v-model="dailySummary" />
             </div>
@@ -115,15 +115,15 @@
               :loading="savingNotif"
               @click="handleSaveNotification"
             >
-              保存通知设置
+              {{ $t('settings.saveNotificationSettings') }}
             </el-button>
           </div>
 
           <el-alert
             v-if="notifSaveSuccess"
             type="success"
-            title="设置已保存"
-            description="通知设置已成功保存"
+            :title="$t('settings.notificationSaved')"
+            :description="$t('settings.notificationSavedDesc')"
             :closable="false"
             show-icon
             class="mt-4"
@@ -134,17 +134,17 @@
         <el-card v-if="activeMenu === 'file-retention'" shadow="never" v-loading="loadingFileRetention">
           <template #header>
             <div class="flex-between">
-              <span>PDF文件保留设置</span>
+              <span>{{ $t('settings.fileRetentionTitle') }}</span>
               <el-tag :type="fileRetentionSettings.auto_cleanup_enabled ? 'success' : 'info'" size="small">
-                {{ fileRetentionSettings.auto_cleanup_enabled ? '自动清理已启用' : '自动清理已禁用' }}
+                {{ fileRetentionSettings.auto_cleanup_enabled ? $t('settings.autoCleanupEnabled') : $t('settings.autoCleanupDisabled') }}
               </el-tag>
             </div>
           </template>
 
           <el-alert
             type="info"
-            title="文件自动清理"
-            description="系统将自动删除超过保留天数的PDF文件，以释放存储空间。文件删除后无法恢复，请谨慎设置。"
+            :title="$t('settings.fileAutoCleanupTitle')"
+            :description="$t('settings.fileAutoCleanupDesc')"
             :closable="false"
             show-icon
             class="mb-4"
@@ -157,12 +157,12 @@
             label-width="180px"
             class="file-retention-form"
           >
-            <el-form-item label="启用自动清理" prop="auto_cleanup_enabled">
+            <el-form-item :label="$t('settings.enableAutoCleanup')" prop="auto_cleanup_enabled">
               <el-switch v-model="fileRetentionSettings.auto_cleanup_enabled" />
-              <span class="form-tip">启用后系统将自动清理过期的PDF文件</span>
+              <span class="form-tip">{{ $t('settings.enableAutoCleanupTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="文件保留天数" prop="retention_days">
+            <el-form-item :label="$t('settings.retentionDays')" prop="retention_days">
               <el-input-number
                 v-model="fileRetentionSettings.retention_days"
                 :min="1"
@@ -172,14 +172,14 @@
                 controls-position="right"
                 style="width: 200px"
               />
-              <span class="form-tip">文件上传后保留的天数（1-3650天，默认30天）</span>
+              <span class="form-tip">{{ $t('settings.retentionDaysTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="清理执行时间" prop="cleanup_hour">
+            <el-form-item :label="$t('settings.cleanupHour')" prop="cleanup_hour">
               <el-select
                 v-model="fileRetentionSettings.cleanup_hour"
                 :disabled="!fileRetentionSettings.auto_cleanup_enabled"
-                placeholder="选择小时"
+                :placeholder="$t('settings.cleanupHourPlaceholder')"
                 style="width: 200px"
               >
                 <el-option
@@ -189,7 +189,7 @@
                   :value="hour - 1"
                 />
               </el-select>
-              <span class="form-tip">每天执行清理任务的时间（0-23点，默认凌晨2点）</span>
+              <span class="form-tip">{{ $t('settings.cleanupHourTip') }}</span>
             </el-form-item>
 
             <el-divider />
@@ -201,7 +201,7 @@
                 :loading="savingFileRetention"
                 @click="handleSaveFileRetention"
               >
-                保存设置
+                {{ $t('settings.saveSettings') }}
               </el-button>
               <el-button
                 :icon="Delete"
@@ -209,7 +209,7 @@
                 :disabled="!fileRetentionSettings.auto_cleanup_enabled"
                 @click="handleTriggerCleanup"
               >
-                立即执行清理
+                {{ $t('settings.executeCleanupNow') }}
               </el-button>
             </el-form-item>
           </el-form>
@@ -217,8 +217,8 @@
           <el-alert
             v-if="fileRetentionSaveSuccess"
             type="success"
-            title="设置已保存"
-            description="文件保留设置已成功保存"
+            :title="$t('settings.fileRetentionSaved')"
+            :description="$t('settings.fileRetentionSavedDesc')"
             :closable="false"
             show-icon
             class="mt-4"
@@ -227,7 +227,7 @@
           <el-alert
             v-if="cleanupTriggerSuccess"
             type="success"
-            title="清理任务已启动"
+            :title="$t('settings.cleanupStarted')"
             :description="cleanupTriggerMessage"
             :closable="false"
             show-icon
@@ -239,9 +239,9 @@
         <el-card v-if="activeMenu === 'smtp'" shadow="never" v-loading="loading">
           <template #header>
             <div class="flex-between">
-              <span>SMTP 邮件服务器配置</span>
+              <span>{{ $t('settings.smtpTitle') }}</span>
               <el-tag :type="smtpConfig.enabled ? 'success' : 'info'" size="small">
-                {{ smtpConfig.enabled ? '已启用' : '未启用' }}
+                {{ smtpConfig.enabled ? $t('settings.enabled') : $t('settings.notEnabled') }}
               </el-tag>
             </div>
           </template>
@@ -253,25 +253,25 @@
             label-width="140px"
             class="smtp-form"
           >
-            <el-form-item label="启用 SMTP" prop="enabled">
+            <el-form-item :label="$t('settings.enableSmtp')" prop="enabled">
               <el-switch
                 v-model="smtpConfig.enabled"
               />
-              <span class="form-tip">启用后将使用 SMTP 服务器发送邮件通知</span>
+              <span class="form-tip">{{ $t('settings.enableSmtpTip') }}</span>
             </el-form-item>
 
-            <el-divider content-position="left">服务器配置</el-divider>
+            <el-divider content-position="left">{{ $t('settings.serverConfig') }}</el-divider>
 
-            <el-form-item label="SMTP 服务器" prop="host">
+            <el-form-item :label="$t('settings.smtpServer')" prop="host">
               <el-input
                 v-model="smtpConfig.host"
-                placeholder="例如: smtp.gmail.com"
+                :placeholder="$t('settings.smtpServerPlaceholder')"
                 :disabled="!smtpConfig.enabled"
                 clearable
               />
             </el-form-item>
 
-            <el-form-item label="端口" prop="port">
+            <el-form-item :label="$t('settings.port')" prop="port">
               <el-input
                 v-model="smtpConfig.port"
                 type="number"
@@ -279,47 +279,47 @@
                 :disabled="!smtpConfig.enabled"
                 clearable
               />
-              <span class="form-tip">常用端口: 25, 465 (SSL), 587 (TLS)</span>
+              <span class="form-tip">{{ $t('settings.portTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="加密方式" prop="encryption">
+            <el-form-item :label="$t('settings.encryption')" prop="encryption">
               <el-radio-group v-model="smtpConfig.encryption" :disabled="!smtpConfig.enabled">
-                <el-radio value="none">不加密</el-radio>
+                <el-radio value="none">{{ $t('settings.encryptionNone') }}</el-radio>
                 <el-radio value="tls">TLS</el-radio>
                 <el-radio value="ssl">SSL</el-radio>
               </el-radio-group>
             </el-form-item>
 
-            <el-divider content-position="left">账户认证</el-divider>
+            <el-divider content-position="left">{{ $t('settings.accountAuth') }}</el-divider>
 
-            <el-form-item label="发件人邮箱" prop="username">
+            <el-form-item :label="$t('settings.senderEmail')" prop="username">
               <el-input
                 v-model="smtpConfig.username"
-                placeholder="例如:noreply@example.com"
+                :placeholder="$t('settings.senderEmailPlaceholder')"
                 :disabled="!smtpConfig.enabled"
                 clearable
               />
             </el-form-item>
 
-            <el-form-item label="发件人名称" prop="from_name">
+            <el-form-item :label="$t('settings.senderName')" prop="from_name">
               <el-input
                 v-model="smtpConfig.from_name"
-                placeholder="例如:文件校验平台"
+                :placeholder="$t('settings.senderNamePlaceholder')"
                 :disabled="!smtpConfig.enabled"
                 clearable
               />
             </el-form-item>
 
-            <el-form-item label="密码/授权码" prop="password">
+            <el-form-item :label="$t('settings.passwordOrAuthCode')" prop="password">
               <el-input
                 v-model="smtpConfig.password"
                 type="password"
-                placeholder="请输入邮箱密码或授权码"
+                :placeholder="$t('settings.passwordPlaceholder')"
                 :disabled="!smtpConfig.enabled"
                 show-password
                 clearable
               />
-              <span class="form-tip">对于 Gmail 等服务，请使用应用专用密码</span>
+              <span class="form-tip">{{ $t('settings.passwordTip') }}</span>
             </el-form-item>
 
             <el-form-item>
@@ -330,7 +330,7 @@
                 :disabled="!smtpConfig.enabled"
                 @click="handleTestEmail"
               >
-                发送测试邮件
+                {{ $t('settings.sendTestEmail') }}
               </el-button>
               <el-button
                 type="success"
@@ -338,7 +338,7 @@
                 :loading="saving"
                 @click="handleSaveSmtp"
               >
-                保存配置
+                {{ $t('settings.saveConfig') }}
               </el-button>
             </el-form-item>
           </el-form>
@@ -346,8 +346,8 @@
           <el-alert
             v-if="saveSuccess"
             type="success"
-            title="配置已保存"
-            description="SMTP 配置已成功保存，将在下次发送邮件时使用"
+            :title="$t('settings.smtpSaved')"
+            :description="$t('settings.smtpSavedDesc')"
             :closable="false"
             show-icon
             class="mt-4"
@@ -358,23 +358,23 @@
         <el-card v-if="activeMenu === 'templates'" shadow="never" v-loading="loadingTemplates">
           <template #header>
             <div class="flex-between">
-              <span>邮件模板管理</span>
+              <span>{{ $t('settings.templateTitle') }}</span>
               <el-button
                 type="primary"
                 :icon="Plus"
                 size="small"
                 @click="handleCreateTemplate"
               >
-                新建模板
+                {{ $t('settings.createTemplate') }}
               </el-button>
             </div>
           </template>
 
           <el-table :data="templates" style="width: 100%">
-            <el-table-column prop="name" label="模板名称" width="200" />
-            <el-table-column prop="id" label="模板ID" width="180" />
-            <el-table-column prop="description" label="描述" show-overflow-tooltip />
-            <el-table-column label="变量" width="300">
+            <el-table-column prop="name" :label="$t('settings.templateName')" width="200" />
+            <el-table-column prop="id" :label="$t('settings.templateId')" width="180" />
+            <el-table-column prop="description" :label="$t('settings.description')" show-overflow-tooltip />
+            <el-table-column :label="$t('settings.variables')" width="300">
               <template #default="scope">
                 <el-tag
                   v-for="variable in scope.row.variables"
@@ -386,14 +386,14 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="100">
+            <el-table-column :label="$t('settings.status')" width="100">
               <template #default="scope">
                 <el-tag :type="scope.row.is_active ? 'success' : 'info'" size="small">
-                  {{ scope.row.is_active ? '启用' : '禁用' }}
+                  {{ scope.row.is_active ? $t('settings.statusEnabled') : $t('settings.statusDisabled') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="180" fixed="right">
+            <el-table-column :label="$t('settings.actions')" width="180" fixed="right">
               <template #default="scope">
                 <el-button
                   type="primary"
@@ -402,7 +402,7 @@
                   link
                   @click="handleEditTemplate(scope.row)"
                 >
-                  编辑
+                  {{ $t('settings.edit') }}
                 </el-button>
                 <el-button
                   type="primary"
@@ -410,14 +410,14 @@
                   link
                   @click="handlePreviewTemplate(scope.row)"
                 >
-                  预览
+                  {{ $t('settings.preview') }}
                 </el-button>
                 <el-popconfirm
-                  title="确定要删除这个模板吗？"
+                  :title="$t('settings.deleteTemplateConfirm')"
                   @confirm="handleDeleteTemplate(scope.row.id)"
                 >
                   <template #reference>
-                    <el-button type="danger" size="small" link>删除</el-button>
+                    <el-button type="danger" size="small" link>{{ $t('settings.delete') }}</el-button>
                   </template>
                 </el-popconfirm>
               </template>
@@ -428,7 +428,7 @@
         <!-- Template Edit Dialog -->
         <el-dialog
           v-model="templateDialogVisible"
-          :title="editingTemplate?.id ? '编辑邮件模板' : '新建邮件模板'"
+          :title="editingTemplate?.id ? $t('settings.editTemplate') : $t('settings.createNewTemplate')"
           width="80%"
           :close-on-click-modal="false"
         >
@@ -438,67 +438,67 @@
             :rules="templateRules"
             label-width="120px"
           >
-            <el-form-item label="模板ID" prop="id">
+            <el-form-item :label="$t('settings.templateId')" prop="id">
               <el-input
                 v-model="templateForm.id"
-                placeholder="例如: verification_complete"
+                :placeholder="$t('settings.templateIdPlaceholder')"
                 :disabled="!!editingTemplate?.id"
                 clearable
               />
-              <span class="form-tip">唯一标识符，用于系统调用模板</span>
+              <span class="form-tip">{{ $t('settings.templateIdTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="模板名称" prop="name">
+            <el-form-item :label="$t('settings.templateName')" prop="name">
               <el-input
                 v-model="templateForm.name"
-                placeholder="例如: 文件校验完成通知"
+                :placeholder="$t('settings.templateNamePlaceholder')"
                 clearable
               />
             </el-form-item>
 
-            <el-form-item label="描述" prop="description">
+            <el-form-item :label="$t('settings.description')" prop="description">
               <el-input
                 v-model="templateForm.description"
                 type="textarea"
                 :rows="2"
-                placeholder="模板用途描述"
+                :placeholder="$t('settings.descriptionPlaceholder')"
               />
             </el-form-item>
 
-            <el-form-item label="邮件主题" prop="subject">
+            <el-form-item :label="$t('settings.emailSubject')" prop="subject">
               <el-input
                 v-model="templateForm.subject"
-                placeholder="例如: 文件校验完成 - {filename}"
+                :placeholder="$t('settings.emailSubjectPlaceholder')"
                 clearable
               />
-              <span class="form-tip">可使用变量占位符，如 {filename}</span>
+              <span class="form-tip">{{ $t('settings.emailSubjectTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="HTML内容" prop="html_content">
+            <el-form-item :label="$t('settings.htmlContent')" prop="html_content">
               <el-input
                 v-model="templateForm.html_content"
                 type="textarea"
                 :rows="15"
-                placeholder="邮件HTML内容，可使用变量占位符"
+                :placeholder="$t('settings.htmlContentPlaceholder')"
               />
-              <span class="form-tip">可使用变量占位符，如 {filename}, {status} 等</span>
+              <span class="form-tip">{{ $t('settings.htmlContentTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="启用状态" prop="is_active">
+            <el-form-item :label="$t('settings.isActive')" prop="is_active">
               <el-switch v-model="templateForm.is_active" />
-              <span class="form-tip">启用后，系统将使用此模板发送邮件</span>
+              <span class="form-tip">{{ $t('settings.isActiveTip') }}</span>
             </el-form-item>
           </el-form>
 
           <template #footer>
-            <el-button @click="templateDialogVisible = false">取消</el-button>
+            <el-button @click="templateDialogVisible = false">{{ $t('settings.cancel') }}</el-button>
             <el-button
               type="primary"
               :icon="Check"
               :loading="savingTemplate"
               @click="handleSaveTemplate"
             >
-              保存
+              {{ $t('settings.save') }}
             </el-button>
           </template>
         </el-dialog>
@@ -506,12 +506,12 @@
         <!-- Template Preview Dialog -->
         <el-dialog
           v-model="previewDialogVisible"
-          title="模板预览"
+          :title="$t('settings.templatePreview')"
           width="70%"
         >
           <div v-html="previewHtml"></div>
           <template #footer>
-            <el-button @click="previewDialogVisible = false">关闭</el-button>
+            <el-button @click="previewDialogVisible = false">{{ $t('settings.close') }}</el-button>
           </template>
         </el-dialog>
 
@@ -521,10 +521,10 @@
             <div class="flex-between">
               <div class="card-header-content">
                 <el-icon class="header-icon"><Lock /></el-icon>
-                <span>LDAP/SSO 认证配置</span>
+                <span>{{ $t('settings.ldapTitle') }}</span>
               </div>
               <el-tag :type="ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? 'success' : 'info'" size="small">
-                {{ ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? '已启用' : '未启用' }}
+                {{ ldapConfig.ldap_enabled || ldapConfig.sso_enabled ? $t('settings.enabled') : $t('settings.notEnabled') }}
               </el-tag>
             </div>
           </template>
@@ -537,225 +537,225 @@
             class="ldap-form"
           >
             <!-- LDAP Configuration Block -->
-            <el-divider content-position="left">LDAP 目录服务配置</el-divider>
+            <el-divider content-position="left">{{ $t('settings.ldapSectionTitle') }}</el-divider>
 
-            <el-form-item label="启用 LDAP 认证" prop="ldap_enabled">
+            <el-form-item :label="$t('settings.enableLdap')" prop="ldap_enabled">
               <el-switch
                 v-model="ldapConfig.ldap_enabled"
                 @change="handleLDAPToggle"
               />
-              <span class="form-tip">启用后将使用企业 LDAP/Active Directory 进行用户身份认证</span>
+              <span class="form-tip">{{ $t('settings.enableLdapTip') }}</span>
             </el-form-item>
 
             <template v-if="ldapConfig.ldap_enabled">
-              <el-form-item label="服务器地址" prop="ldap_server">
+              <el-form-item :label="$t('settings.serverAddress')" prop="ldap_server">
                 <el-input
                   v-model="ldapConfig.ldap_server"
                   placeholder="ldap.example.com"
                   clearable
                 />
-                <span class="form-tip">LDAP 服务器域名或 IP 地址</span>
+                <span class="form-tip">{{ $t('settings.serverAddressTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="端口" prop="ldap_port">
+              <el-form-item :label="$t('settings.port')" prop="ldap_port">
                 <el-input
                   v-model.number="ldapConfig.ldap_port"
                   type="number"
                   placeholder="389"
                   clearable
                 />
-                <span class="form-tip">常用端口：389 (标准)、636 (SSL)</span>
+                <span class="form-tip">{{ $t('settings.ldapPortTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="加密方式" prop="ldap_use_ssl">
+              <el-form-item :label="$t('settings.ldapEncryption')" prop="ldap_use_ssl">
                 <el-radio-group v-model="ldapConfig.ldap_use_ssl">
-                  <el-radio :value="false">不加密</el-radio>
-                  <el-radio :value="true">SSL/TLS 加密</el-radio>
+                  <el-radio :value="false">{{ $t('settings.encryptionNone') }}</el-radio>
+                  <el-radio :value="true">{{ $t('settings.encryptionSsl') }}</el-radio>
                 </el-radio-group>
               </el-form-item>
 
-              <el-form-item label="绑定 DN" prop="ldap_bind_dn">
+              <el-form-item :label="$t('settings.bindDn')" prop="ldap_bind_dn">
                 <el-input
                   v-model="ldapConfig.ldap_bind_dn"
                   placeholder="cn=admin,dc=example,dc=com"
                   clearable
                 />
-                <span class="form-tip">管理员 DN，用于绑定 LDAP 服务器</span>
+                <span class="form-tip">{{ $t('settings.bindDnTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="绑定密码" prop="ldap_bind_password">
+              <el-form-item :label="$t('settings.bindPassword')" prop="ldap_bind_password">
                 <el-input
                   v-model="ldapConfig.ldap_bind_password"
                   type="password"
-                  placeholder="请输入绑定密码"
+                  :placeholder="$t('settings.bindPasswordPlaceholder')"
                   show-password
                   clearable
                 />
-                <span class="form-tip">管理员账户密码</span>
+                <span class="form-tip">{{ $t('settings.bindPasswordTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="搜索基础 DN" prop="ldap_search_base">
+              <el-form-item :label="$t('settings.searchBaseDn')" prop="ldap_search_base">
                 <el-input
                   v-model="ldapConfig.ldap_search_base"
                   placeholder="dc=example,dc=com"
                   clearable
                 />
-                <span class="form-tip">用户搜索的根路径</span>
+                <span class="form-tip">{{ $t('settings.searchBaseDnTip') }}</span>
               </el-form-item>
 
               <!-- Attribute Mapping -->
-              <el-divider content-position="left">属性映射配置</el-divider>
+              <el-divider content-position="left">{{ $t('settings.attributeMapping') }}</el-divider>
 
-              <el-form-item label="邮箱属性" prop="ldap_email_attribute">
+              <el-form-item :label="$t('settings.emailAttribute')" prop="ldap_email_attribute">
                 <el-input
                   v-model="ldapConfig.ldap_email_attribute"
                   placeholder="mail"
                   clearable
                 />
-                <span class="form-tip">LDAP 邮箱属性名，确保用户信息正确同步</span>
+                <span class="form-tip">{{ $t('settings.emailAttributeTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="姓名属性" prop="ldap_name_attribute">
+              <el-form-item :label="$t('settings.nameAttribute')" prop="ldap_name_attribute">
                 <el-input
                   v-model="ldapConfig.ldap_name_attribute"
                   placeholder="cn"
                   clearable
                 />
-                <span class="form-tip">LDAP 姓名属性名</span>
+                <span class="form-tip">{{ $t('settings.nameAttributeTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="部门属性" prop="ldap_department_attribute">
+              <el-form-item :label="$t('settings.departmentAttribute')" prop="ldap_department_attribute">
                 <el-input
                   v-model="ldapConfig.ldap_department_attribute"
                   placeholder="department"
                   clearable
                 />
-                <span class="form-tip">LDAP 部门属性名</span>
+                <span class="form-tip">{{ $t('settings.departmentAttributeTip') }}</span>
               </el-form-item>
 
               <!-- AD Group Mapping -->
-              <el-divider content-position="left">AD 组权限映射</el-divider>
+              <el-divider content-position="left">{{ $t('settings.adGroupMapping') }}</el-divider>
 
-              <el-form-item label="管理员组" prop="ad_admin_group">
+              <el-form-item :label="$t('settings.adminGroup')" prop="ad_admin_group">
                 <el-input
                   v-model="ldapConfig.ad_admin_group"
                   placeholder="cn=PPAP-Admins,ou=groups,dc=example,dc=com"
                   clearable
                 />
-                <span class="form-tip">该组成员将被分配管理员权限</span>
+                <span class="form-tip">{{ $t('settings.adminGroupTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="经理组" prop="ad_manager_group">
+              <el-form-item :label="$t('settings.managerGroup')" prop="ad_manager_group">
                 <el-input
                   v-model="ldapConfig.ad_manager_group"
                   placeholder="cn=PPAP-Managers,ou=groups,dc=example,dc=com"
                   clearable
                 />
-                <span class="form-tip">该组成员将被分配经理权限</span>
+                <span class="form-tip">{{ $t('settings.managerGroupTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="普通用户组" prop="ad_user_group">
+              <el-form-item :label="$t('settings.userGroup')" prop="ad_user_group">
                 <el-input
                   v-model="ldapConfig.ad_user_group"
                   placeholder="cn=PPAP-Users,ou=groups,dc=example,dc=com"
                   clearable
                 />
-                <span class="form-tip">该组成员将被分配普通用户权限</span>
+                <span class="form-tip">{{ $t('settings.userGroupTip') }}</span>
               </el-form-item>
             </template>
 
             <!-- SSO Configuration Block -->
-            <el-divider content-position="left">SSO 单点登录配置</el-divider>
+            <el-divider content-position="left">{{ $t('settings.ssoSectionTitle') }}</el-divider>
 
-            <el-form-item label="启用 SSO 单点登录" prop="sso_enabled">
+            <el-form-item :label="$t('settings.enableSso')" prop="sso_enabled">
               <el-switch
                 v-model="ldapConfig.sso_enabled"
                 @change="handleSSOToggle"
               />
-              <span class="form-tip">启用后支持第三方 SSO 提供商，支持 OIDC 协议</span>
+              <span class="form-tip">{{ $t('settings.enableSsoTip') }}</span>
             </el-form-item>
 
             <template v-if="ldapConfig.sso_enabled">
-              <el-form-item label="提供商类型" prop="sso_provider">
+              <el-form-item :label="$t('settings.providerType')" prop="sso_provider">
                 <el-select
                   v-model="ldapConfig.sso_provider"
-                  placeholder="选择提供商"
+                  :placeholder="$t('settings.providerPlaceholder')"
                   style="width: 100%"
                 >
                   <el-option label="Keycloak" value="keycloak" />
                   <el-option label="Azure AD" value="azure" />
                   <el-option label="Okta" value="okta" />
                   <el-option label="Auth0" value="auth0" />
-                  <el-option label="其他" value="other" />
+                  <el-option :label="$t('settings.providerOther')" value="other" />
                 </el-select>
-                <span class="form-tip">OIDC 兼容的身份提供商</span>
+                <span class="form-tip">{{ $t('settings.providerTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="发现端点" prop="sso_idp_sso_url">
+              <el-form-item :label="$t('settings.discoveryEndpoint')" prop="sso_idp_sso_url">
                 <el-input
                   v-model="ldapConfig.sso_idp_sso_url"
                   placeholder="https://sso.example.com/.well-known/openid-configuration"
                   clearable
                 />
-                <span class="form-tip">OIDC 发现文档 URL</span>
+                <span class="form-tip">{{ $t('settings.discoveryEndpointTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="客户端 ID" prop="sso_entity_id">
+              <el-form-item :label="$t('settings.clientId')" prop="sso_entity_id">
                 <el-input
                   v-model="ldapConfig.sso_entity_id"
                   placeholder="ppap-client-id"
                   clearable
                 />
-                <span class="form-tip">SSO 提供商分配的客户端标识符</span>
+                <span class="form-tip">{{ $t('settings.clientIdTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="客户端密钥" prop="sso_sp_key">
+              <el-form-item :label="$t('settings.clientSecret')" prop="sso_sp_key">
                 <el-input
                   v-model="ldapConfig.sso_sp_key"
                   type="password"
-                  placeholder="请输入客户端密钥"
+                  :placeholder="$t('settings.clientSecretPlaceholder')"
                   show-password
                   clearable
                 />
-                <span class="form-tip">客户端密钥，请妥善保管</span>
+                <span class="form-tip">{{ $t('settings.clientSecretTip') }}</span>
               </el-form-item>
 
-              <el-form-item label="回调地址" prop="sso_acs_url">
+              <el-form-item :label="$t('settings.callbackUrl')" prop="sso_acs_url">
                 <el-input
                   v-model="ldapConfig.sso_acs_url"
                   placeholder="http://localhost:5173/auth/callback"
                   clearable
                 />
-                <span class="form-tip">认证成功后的回调地址</span>
+                <span class="form-tip">{{ $t('settings.callbackUrlTip') }}</span>
               </el-form-item>
             </template>
 
             <!-- General Settings -->
-            <el-divider content-position="left">通用用户设置</el-divider>
+            <el-divider content-position="left">{{ $t('settings.generalUserSettings') }}</el-divider>
 
-            <el-form-item label="自动创建用户" prop="auto_create_users">
+            <el-form-item :label="$t('settings.autoCreateUsers')" prop="auto_create_users">
               <el-switch v-model="ldapConfig.auto_create_users" />
-              <span class="form-tip">新用户首次通过 LDAP/SSO 登录时自动创建系统账号</span>
+              <span class="form-tip">{{ $t('settings.autoCreateUsersTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="保留本地管理员" prop="local_admin_enabled">
+            <el-form-item :label="$t('settings.keepLocalAdmin')" prop="local_admin_enabled">
               <el-switch v-model="ldapConfig.local_admin_enabled" />
-              <span class="form-tip">保留紧急访问的本地管理员账号以防身份验证服务不可用</span>
+              <span class="form-tip">{{ $t('settings.keepLocalAdminTip') }}</span>
             </el-form-item>
 
-            <el-form-item label="默认用户角色" prop="default_role">
+            <el-form-item :label="$t('settings.defaultUserRole')" prop="default_role">
               <el-radio-group v-model="ldapConfig.default_role" class="vertical-radio-group">
                 <el-radio value="USER">
-                  <span>普通用户</span>
-                  <span class="radio-tip"> (基本的文件查看和上传权限)</span>
+                  <span>{{ $t('settings.roleUser') }}</span>
+                  <span class="radio-tip"> {{ $t('settings.roleUserDesc') }}</span>
                 </el-radio>
                 <el-radio value="MANAGER">
-                  <span>经理</span>
-                  <span class="radio-tip"> (管理任务和查看报表)</span>
+                  <span>{{ $t('settings.roleManager') }}</span>
+                  <span class="radio-tip"> {{ $t('settings.roleManagerDesc') }}</span>
                 </el-radio>
                 <el-radio value="ADMIN">
-                  <span>管理员</span>
-                  <span class="radio-tip"> (完整的系统管理权限)</span>
+                  <span>{{ $t('settings.roleAdmin') }}</span>
+                  <span class="radio-tip"> {{ $t('settings.roleAdminDesc') }}</span>
                 </el-radio>
               </el-radio-group>
             </el-form-item>
@@ -769,7 +769,7 @@
                 :disabled="!ldapConfig.ldap_enabled"
                 @click="handleTestLDAP"
               >
-                测试连接
+                {{ $t('settings.testConnection') }}
               </el-button>
 
               <el-button
@@ -778,14 +778,14 @@
                 :loading="savingLDAP"
                 @click="handleSaveLDAP"
               >
-                保存配置
+                {{ $t('settings.saveConfig') }}
               </el-button>
 
               <el-button
                 :icon="RefreshLeft"
                 @click="loadLDAPConfig"
               >
-                重置
+                {{ $t('settings.reset') }}
               </el-button>
             </el-form-item>
           </el-form>
@@ -793,8 +793,8 @@
           <el-alert
             v-if="ldapSaveSuccess"
             type="success"
-            title="配置已保存"
-            description="LDAP/SSO 配置已成功保存"
+            :title="$t('settings.ldapSaved')"
+            :description="$t('settings.ldapSavedDesc')"
             :closable="false"
             show-icon
             class="mt-4"
@@ -805,63 +805,63 @@
         <el-card v-if="activeMenu === 'ai-model'" shadow="never" v-loading="loadingProfiles">
           <template #header>
             <div class="flex-between">
-              <span>多模型配置（OpenAI 兼容）</span>
-              <el-button type="primary" :icon="Plus" @click="handleAddProfile">新增配置</el-button>
+              <span>{{ $t('settings.aiModelTitle') }}</span>
+              <el-button type="primary" :icon="Plus" @click="handleAddProfile">{{ $t('settings.addProfile') }}</el-button>
             </div>
           </template>
 
           <el-alert
             type="info"
-            title="关于多模型配置"
-            description="您可以配置多个模型接入点。通过设为默认，规则执行引擎将自动选择对应的模型进行文本或视觉推理。"
+            :title="$t('settings.aiModelAboutTitle')"
+            :description="$t('settings.aiModelAboutDesc')"
             :closable="false"
             show-icon
             class="mb-4"
           />
 
           <el-table :data="modelProfiles" style="width: 100%" border>
-            <el-table-column prop="name" label="配置名称" width="150" />
-            <el-table-column prop="model_name" label="模型" width="150" />
-            <el-table-column label="能力" width="100">
+            <el-table-column prop="name" :label="$t('settings.profileName')" width="150" />
+            <el-table-column prop="model_name" :label="$t('settings.model')" width="150" />
+            <el-table-column :label="$t('settings.capability')" width="100">
               <template #default="{ row }">
-                <el-tag size="small" v-if="row.model_type === 'both'">全能</el-tag>
-                <el-tag size="small" type="success" v-else-if="row.model_type === 'text'">文本</el-tag>
-                <el-tag size="small" type="warning" v-else-if="row.model_type === 'vision'">视觉</el-tag>
+                <el-tag size="small" v-if="row.model_type === 'both'">{{ $t('settings.capabilityBoth') }}</el-tag>
+                <el-tag size="small" type="success" v-else-if="row.model_type === 'text'">{{ $t('settings.capabilityText') }}</el-tag>
+                <el-tag size="small" type="warning" v-else-if="row.model_type === 'vision'">{{ $t('settings.capabilityVision') }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="默认状态" width="180">
+            <el-table-column :label="$t('settings.defaultStatus')" width="180">
               <template #default="{ row }">
                 <div style="display: flex; gap: 4px;">
-                  <el-tag size="small" effect="dark" type="success" v-if="row.is_default_text">默认文本</el-tag>
-                  <el-tag size="small" effect="dark" type="warning" v-if="row.is_default_vision">默认视觉</el-tag>
+                  <el-tag size="small" effect="dark" type="success" v-if="row.is_default_text">{{ $t('settings.defaultText') }}</el-tag>
+                  <el-tag size="small" effect="dark" type="warning" v-if="row.is_default_vision">{{ $t('settings.defaultVision') }}</el-tag>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="状态" width="80">
+            <el-table-column :label="$t('settings.status')" width="80">
               <template #default="{ row }">
                 <el-tag :type="row.enabled ? 'success' : 'info'" size="small">
-                  {{ row.enabled ? '启用' : '禁用' }}
+                  {{ row.enabled ? $t('settings.enabled') : $t('settings.notEnabled') }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="250">
+            <el-table-column :label="$t('settings.actions')" min-width="250">
               <template #default="{ row }">
-                <el-button link type="primary" :icon="Edit" @click="handleEditProfile(row)">编辑</el-button>
-                <el-button link type="success" :icon="Connection" :loading="testingProfileId === row.id" @click="handleTestProfile(row.id)">测试</el-button>
+                <el-button link type="primary" :icon="Edit" @click="handleEditProfile(row)">{{ $t('settings.edit') }}</el-button>
+                <el-button link type="success" :icon="Connection" :loading="testingProfileId === row.id" @click="handleTestProfile(row.id)">{{ $t('common.test') }}</el-button>
                 <el-dropdown trigger="click" style="margin-left: 12px; margin-right: 12px;">
                   <el-button link type="primary">
-                    设为默认<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                    {{ $t('settings.setAsDefault') }}<el-icon class="el-icon--right"><arrow-down /></el-icon>
                   </el-button>
                   <template #dropdown>
                     <el-dropdown-menu>
-                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'text')" :disabled="row.model_type === 'vision'">设为默认文本模型</el-dropdown-item>
-                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'vision')" :disabled="row.model_type === 'text'">设为默认视觉模型</el-dropdown-item>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'text')" :disabled="row.model_type === 'vision'">{{ $t('settings.setDefaultText') }}</el-dropdown-item>
+                      <el-dropdown-item @click="handleSetDefaultProfile(row.id, 'vision')" :disabled="row.model_type === 'text'">{{ $t('settings.setDefaultVision') }}</el-dropdown-item>
                     </el-dropdown-menu>
                   </template>
                 </el-dropdown>
-                <el-popconfirm title="确定要删除此配置吗？" @confirm="handleDeleteProfile(row)">
+                <el-popconfirm :title="$t('settings.deleteProfileConfirm')" @confirm="handleDeleteProfile(row)">
                   <template #reference>
-                    <el-button link type="danger" :icon="Delete">删除</el-button>
+                    <el-button link type="danger" :icon="Delete">{{ $t('settings.delete') }}</el-button>
                   </template>
                 </el-popconfirm>
               </template>
@@ -871,7 +871,7 @@
           <el-alert
             v-if="testResult"
             :type="testResult.success ? 'success' : 'error'"
-            :title="testResult.success ? '连接测试成功' : '连接测试失败'"
+            :title="testResult.success ? $t('settings.testSuccess') : $t('settings.testFailed')"
             :description="testResult.message"
             :closable="true"
             @close="testResult = null"
@@ -882,7 +882,7 @@
 
         <!-- AI Model Profile Dialog -->
         <el-dialog
-          :title="editingProfile ? '编辑模型配置' : '新增模型配置'"
+          :title="editingProfile ? $t('settings.editProfile') : $t('settings.addNewProfile')"
           v-model="profileDialogVisible"
           width="600px"
           destroy-on-close
@@ -893,23 +893,23 @@
             :rules="profileRules"
             label-width="120px"
           >
-            <el-form-item label="配置名称" prop="name">
-              <el-input v-model="profileForm.name" placeholder="如：GPT-4o 默认接入点" clearable />
+            <el-form-item :label="$t('settings.profileName')" prop="name">
+              <el-input v-model="profileForm.name" :placeholder="$t('settings.profileNamePlaceholder')" clearable />
             </el-form-item>
             <el-form-item label="Base URL" prop="base_url">
               <el-input v-model="profileForm.base_url" placeholder="https://api.openai.com/v1" clearable />
             </el-form-item>
             <el-form-item label="API Key" prop="api_key">
-              <el-input v-model="profileForm.api_key" type="password" show-password placeholder="不修改请留空" clearable />
+              <el-input v-model="profileForm.api_key" type="password" show-password :placeholder="$t('settings.apiKeyPlaceholder')" clearable />
             </el-form-item>
-            <el-form-item label="模型名称" prop="model_name">
-              <el-input v-model="profileForm.model_name" placeholder="如：gpt-4o" clearable />
+            <el-form-item :label="$t('settings.model')" prop="model_name">
+              <el-input v-model="profileForm.model_name" :placeholder="$t('settings.modelNamePlaceholder')" clearable />
             </el-form-item>
-            <el-form-item label="模型能力" prop="model_type">
+            <el-form-item :label="$t('settings.modelCapability')" prop="model_type">
               <el-radio-group v-model="profileForm.model_type">
-                <el-radio label="both">全能 (文本+视觉)</el-radio>
-                <el-radio label="text">仅文本</el-radio>
-                <el-radio label="vision">仅视觉</el-radio>
+                <el-radio label="both">{{ $t('settings.capabilityBothLabel') }}</el-radio>
+                <el-radio label="text">{{ $t('settings.capabilityTextLabel') }}</el-radio>
+                <el-radio label="vision">{{ $t('settings.capabilityVisionLabel') }}</el-radio>
               </el-radio-group>
             </el-form-item>
             <el-form-item label="Max Tokens" prop="max_tokens">
@@ -918,15 +918,15 @@
             <el-form-item label="Temperature" prop="temperature">
               <el-slider v-model="profileForm.temperature" :min="0" :max="2" :step="0.05" show-input style="width: 100%" />
             </el-form-item>
-            <el-form-item label="启用状态" prop="enabled">
+            <el-form-item :label="$t('settings.enabledStatus')" prop="enabled">
               <el-switch v-model="profileForm.enabled" />
             </el-form-item>
           </el-form>
           <template #footer>
             <span class="dialog-footer">
-              <el-button @click="profileDialogVisible = false">取消</el-button>
+              <el-button @click="profileDialogVisible = false">{{ $t('settings.cancel') }}</el-button>
               <el-button type="primary" :icon="Check" :loading="savingProfile" @click="handleSaveProfile">
-                保存
+                {{ $t('settings.save') }}
               </el-button>
             </span>
           </template>
@@ -936,11 +936,11 @@
         <el-card v-if="activeMenu === 'users'" shadow="never" v-loading="loadingUsers">
           <template #header>
             <div class="flex-between">
-              <span>用户管理</span>
+              <span>{{ $t('settings.userManagement') }}</span>
               <div class="header-actions">
-                <el-button :icon="Setting" size="small" @click="activeUserSubTab = 'groups'" v-if="activeUserSubTab === 'list'">权限组管理</el-button>
-                <el-button :icon="UserFilled" size="small" @click="activeUserSubTab = 'list'" v-if="activeUserSubTab === 'groups'">用户列表</el-button>
-                <el-button type="primary" :icon="Plus" size="small" @click="handleCreateUser" v-if="activeUserSubTab === 'list'">新增用户</el-button>
+                <el-button :icon="Setting" size="small" @click="activeUserSubTab = 'groups'" v-if="activeUserSubTab === 'list'">{{ $t('settings.groupManagement') }}</el-button>
+                <el-button :icon="UserFilled" size="small" @click="activeUserSubTab = 'list'" v-if="activeUserSubTab === 'groups'">{{ $t('settings.userList') }}</el-button>
+                <el-button type="primary" :icon="Plus" size="small" @click="handleCreateUser" v-if="activeUserSubTab === 'list'">{{ $t('settings.addUser') }}</el-button>
               </div>
             </div>
           </template>
@@ -950,7 +950,7 @@
             <div class="user-search-bar">
               <el-input
                 v-model="userSearchQuery"
-                placeholder="搜索邮箱、姓名或部门"
+                :placeholder="$t('settings.searchUserPlaceholder')"
                 :prefix-icon="Search"
                 clearable
                 style="width: 300px"
@@ -959,10 +959,10 @@
             </div>
 
             <el-table :data="filteredUsers" style="width: 100%">
-              <el-table-column prop="email" label="邮箱" min-width="200" />
-              <el-table-column prop="full_name" label="姓名" width="120" />
-              <el-table-column prop="department" label="部门" width="140" />
-              <el-table-column label="权限组" width="140">
+              <el-table-column prop="email" :label="$t('settings.email')" min-width="200" />
+              <el-table-column prop="full_name" :label="$t('settings.fullName')" width="120" />
+              <el-table-column prop="department" :label="$t('settings.department')" width="140" />
+              <el-table-column :label="$t('settings.userGroups')" width="140">
                 <template #default="scope">
                   <el-tag v-if="scope.row.groups && scope.row.groups.length > 0" size="small" type="info">
                     {{ scope.row.groups.map((g: UserGroup) => g.name).join(', ') }}
@@ -970,7 +970,7 @@
                   <span v-else class="text-muted text-sm">-</span>
                 </template>
               </el-table-column>
-              <el-table-column label="角色" width="110">
+              <el-table-column :label="$t('settings.role')" width="110">
                 <template #default="scope">
                   <el-select
                     v-model="scope.row.role"
@@ -978,13 +978,13 @@
                     :disabled="scope.row.id === authStore.user?.id"
                     @change="handleRoleChange(scope.row)"
                   >
-                    <el-option label="管理员" value="ADMIN" />
-                    <el-option label="经理" value="MANAGER" />
-                    <el-option label="普通用户" value="USER" />
+                    <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
+                    <el-option :label="$t('settings.roleManager')" value="MANAGER" />
+                    <el-option :label="$t('settings.roleUser')" value="USER" />
                   </el-select>
                 </template>
               </el-table-column>
-              <el-table-column label="状态" width="90">
+              <el-table-column :label="$t('settings.status')" width="90">
                 <template #default="scope">
                   <el-switch
                     v-model="scope.row.is_active"
@@ -993,23 +993,23 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="最后登录" width="140">
+              <el-table-column :label="$t('settings.lastLogin')" width="140">
                 <template #default="scope">
                   {{ scope.row.last_login_at ? formatDate(scope.row.last_login_at) : '-' }}
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="130" fixed="right">
+              <el-table-column :label="$t('settings.operation')" width="130" fixed="right">
                 <template #default="scope">
                   <el-dropdown trigger="click" @command="(cmd: string) => handleUserCommand(cmd, scope.row)">
                     <el-button link type="primary" size="small">
-                      操作 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+                      {{ $t('settings.operation') }} <el-icon class="el-icon--right"><arrow-down /></el-icon>
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
-                        <el-dropdown-item command="edit" :icon="Edit">编辑</el-dropdown-item>
-                        <el-dropdown-item command="groups" :icon="UserFilled">设置权限组</el-dropdown-item>
-                        <el-dropdown-item command="resetPassword" :icon="Key">重置密码</el-dropdown-item>
-                        <el-dropdown-item command="delete" :icon="Delete" divided v-if="scope.row.id !== authStore.user?.id">删除</el-dropdown-item>
+                        <el-dropdown-item command="edit" :icon="Edit">{{ $t('settings.editUser') }}</el-dropdown-item>
+                        <el-dropdown-item command="groups" :icon="UserFilled">{{ $t('settings.setUserGroups') }}</el-dropdown-item>
+                        <el-dropdown-item command="resetPassword" :icon="Key">{{ $t('settings.resetPassword') }}</el-dropdown-item>
+                        <el-dropdown-item command="delete" :icon="Delete" divided v-if="scope.row.id !== authStore.user?.id">{{ $t('settings.deleteUser') }}</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
@@ -1027,39 +1027,39 @@
                 show-icon
                 class="mb-4"
               >
-                权限组用于 LDAP/SSO 登录后自动分配用户角色。用户登录时会根据其所属的 AD 组自动匹配对应的权限组角色。
+                {{ $t('settings.groupAlert') }}
               </el-alert>
             </div>
 
             <el-table :data="userGroups" style="width: 100%" v-loading="loadingGroups">
-              <el-table-column prop="name" label="组名称" width="180" />
-              <el-table-column prop="description" label="描述" min-width="200" />
-              <el-table-column prop="ldap_group_dn" label="LDAP 组 DN" min-width="280">
+              <el-table-column prop="name" :label="$t('settings.groupName')" width="180" />
+              <el-table-column prop="description" :label="$t('settings.description')" min-width="200" />
+              <el-table-column prop="ldap_group_dn" :label="$t('settings.ldapGroupDn')" min-width="280">
                 <template #default="scope">
                   <code class="text-xs">{{ scope.row.ldap_group_dn || '-' }}</code>
                 </template>
               </el-table-column>
-              <el-table-column label="分配角色" width="110">
+              <el-table-column :label="$t('settings.assignedRole')" width="110">
                 <template #default="scope">
                   <el-tag :type="getRoleTagType(scope.row.role)" size="small">
                     {{ getRoleLabel(scope.row.role) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="成员数量" width="90" align="center">
+              <el-table-column :label="$t('settings.memberCount')" width="90" align="center">
                 <template #default="scope">
                   <el-badge :value="scope.row.member_count || 0" type="primary" />
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="150" fixed="right">
+              <el-table-column :label="$t('settings.operation')" width="150" fixed="right">
                 <template #default="scope">
-                  <el-button link type="primary" :icon="Edit" size="small" @click="handleEditGroup(scope.row)">编辑</el-button>
+                  <el-button link type="primary" :icon="Edit" size="small" @click="handleEditGroup(scope.row)">{{ $t('settings.edit') }}</el-button>
                   <el-popconfirm
-                    title="确定要删除此权限组吗？"
+                    :title="$t('settings.deleteGroupConfirm')"
                     @confirm="handleDeleteGroup(scope.row)"
                   >
                     <template #reference>
-                      <el-button link type="danger" :icon="Delete" size="small">删除</el-button>
+                      <el-button link type="danger" :icon="Delete" size="small">{{ $t('settings.delete') }}</el-button>
                     </template>
                   </el-popconfirm>
                 </template>
@@ -1067,7 +1067,7 @@
             </el-table>
 
             <div class="mt-4 text-center">
-              <el-button type="primary" :icon="Plus" @click="handleCreateGroup">新增权限组</el-button>
+              <el-button type="primary" :icon="Plus" @click="handleCreateGroup">{{ $t('settings.addGroup') }}</el-button>
             </div>
           </template>
         </el-card>
@@ -1075,7 +1075,7 @@
         <!-- User Edit/Create Dialog -->
         <el-dialog
           v-model="userDialogVisible"
-          :title="editingUser?.id ? '编辑用户' : '新增用户'"
+          :title="editingUser?.id ? $t('settings.editUserTitle') : $t('settings.addUserTitle')"
           width="500px"
           :close-on-click-modal="false"
         >
@@ -1085,46 +1085,46 @@
             :rules="userRules"
             label-width="80px"
           >
-            <el-form-item label="邮箱" prop="email">
+            <el-form-item :label="$t('settings.email')" prop="email">
               <el-input
                 v-model="userForm.email"
-                placeholder="请输入邮箱"
+                :placeholder="$t('settings.enterEmail')"
                 :disabled="!!editingUser?.id"
                 clearable
               />
             </el-form-item>
-            <el-form-item label="姓名" prop="full_name">
+            <el-form-item :label="$t('settings.fullName')" prop="full_name">
               <el-input
                 v-model="userForm.full_name"
-                placeholder="请输入姓名"
+                :placeholder="$t('settings.enterName')"
                 clearable
               />
             </el-form-item>
-            <el-form-item label="部门" prop="department">
+            <el-form-item :label="$t('settings.department')" prop="department">
               <el-input
                 v-model="userForm.department"
-                placeholder="请输入部门"
+                :placeholder="$t('settings.enterDepartment')"
                 clearable
               />
             </el-form-item>
-            <el-form-item v-if="!editingUser?.id" label="密码" prop="password">
+            <el-form-item v-if="!editingUser?.id" :label="$t('auth.password')" prop="password">
               <el-input
                 v-model="userForm.password"
                 type="password"
-                placeholder="请输入初始密码（至少6位）"
+                :placeholder="$t('settings.enterInitialPassword')"
                 show-password
                 clearable
               />
             </el-form-item>
-            <el-form-item label="角色" prop="role">
-              <el-select v-model="userForm.role" placeholder="请选择角色">
-                <el-option label="管理员" value="ADMIN" />
-                <el-option label="经理" value="MANAGER" />
-                <el-option label="普通用户" value="USER" />
+            <el-form-item :label="$t('settings.role')" prop="role">
+              <el-select v-model="userForm.role" :placeholder="$t('settings.selectRole')">
+                <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
+                <el-option :label="$t('settings.roleManager')" value="MANAGER" />
+                <el-option :label="$t('settings.roleUser')" value="USER" />
               </el-select>
             </el-form-item>
-            <el-form-item label="权限组" prop="group_ids">
-              <el-select v-model="userForm.group_ids" multiple placeholder="选择权限组" style="width: 100%">
+            <el-form-item :label="$t('settings.permissionGroups')" prop="group_ids">
+              <el-select v-model="userForm.group_ids" multiple :placeholder="$t('settings.selectGroups')" style="width: 100%">
                 <el-option
                   v-for="group in userGroups"
                   :key="group.id"
@@ -1136,14 +1136,14 @@
           </el-form>
 
           <template #footer>
-            <el-button @click="userDialogVisible = false">取消</el-button>
+            <el-button @click="userDialogVisible = false">{{ $t('common.cancel') }}</el-button>
             <el-button
               type="primary"
               :icon="Check"
               :loading="savingUser"
               @click="handleSaveUser"
             >
-              保存
+              {{ $t('common.save') }}
             </el-button>
           </template>
         </el-dialog>
@@ -1151,7 +1151,7 @@
         <!-- User Groups Dialog -->
         <el-dialog
           v-model="groupDialogVisible"
-          :title="editingGroup?.id ? '编辑权限组' : '新增权限组'"
+          :title="editingGroup?.id ? $t('settings.editGroupTitle') : $t('settings.addGroupTitle')"
           width="600px"
           :close-on-click-modal="false"
         >
@@ -1161,33 +1161,33 @@
             :rules="groupRules"
             label-width="120px"
           >
-            <el-form-item label="组名称" prop="name">
-              <el-input v-model="groupForm.name" placeholder="如: PPAP管理员组" clearable />
+            <el-form-item :label="$t('settings.groupName')" prop="name">
+              <el-input v-model="groupForm.name" :placeholder="$t('settings.groupNamePlaceholder')" clearable />
             </el-form-item>
-            <el-form-item label="描述" prop="description">
-              <el-input v-model="groupForm.description" type="textarea" :rows="2" placeholder="权限组用途描述" />
+            <el-form-item :label="$t('settings.description')" prop="description">
+              <el-input v-model="groupForm.description" type="textarea" :rows="2" :placeholder="$t('settings.groupDescriptionPlaceholder')" />
             </el-form-item>
-            <el-form-item label="LDAP 组 DN" prop="ldap_group_dn">
+            <el-form-item :label="$t('settings.ldapGroupDn')" prop="ldap_group_dn">
               <el-input
                 v-model="groupForm.ldap_group_dn"
-                placeholder="如: cn=PPAP-Admins,ou=groups,dc=example,dc=com"
+                :placeholder="$t('settings.ldapGroupDnPlaceholder')"
                 clearable
               />
-              <span class="form-tip">用户登录时，如果其 AD 组与此 DN 匹配，将自动分配此组设定的角色</span>
+              <span class="form-tip">{{ $t('settings.ldapGroupDnTip') }}</span>
             </el-form-item>
-            <el-form-item label="分配角色" prop="role">
-              <el-select v-model="groupForm.role" placeholder="请选择角色">
-                <el-option label="管理员" value="ADMIN" />
-                <el-option label="经理" value="MANAGER" />
-                <el-option label="普通用户" value="USER" />
+            <el-form-item :label="$t('settings.assignedRole')" prop="role">
+              <el-select v-model="groupForm.role" :placeholder="$t('settings.selectRole')">
+                <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
+                <el-option :label="$t('settings.roleManager')" value="MANAGER" />
+                <el-option :label="$t('settings.roleUser')" value="USER" />
               </el-select>
             </el-form-item>
           </el-form>
 
           <template #footer>
-            <el-button @click="groupDialogVisible = false">取消</el-button>
+            <el-button @click="groupDialogVisible = false">{{ $t('common.cancel') }}</el-button>
             <el-button type="primary" :icon="Check" :loading="savingGroup" @click="handleSaveGroup">
-              保存
+              {{ $t('common.save') }}
             </el-button>
           </template>
         </el-dialog>
@@ -1195,16 +1195,16 @@
         <!-- User Group Assignment Dialog -->
         <el-dialog
           v-model="userGroupAssignDialogVisible"
-          title="设置用户权限组"
+          :title="$t('settings.setUserGroupsTitle')"
           width="500px"
           :close-on-click-modal="false"
         >
           <el-form label-width="80px">
-            <el-form-item label="用户">
+            <el-form-item :label="$t('settings.user')">
               <span>{{ userForGroupAssign?.full_name }} ({{ userForGroupAssign?.email }})</span>
             </el-form-item>
-            <el-form-item label="权限组">
-              <el-select v-model="userForGroupAssignGroupIds" multiple placeholder="选择权限组" style="width: 100%">
+            <el-form-item :label="$t('settings.permissionGroups')">
+              <el-select v-model="userForGroupAssignGroupIds" multiple :placeholder="$t('settings.selectGroups')" style="width: 100%">
                 <el-option
                   v-for="group in userGroups"
                   :key="group.id"
@@ -1216,9 +1216,9 @@
           </el-form>
 
           <template #footer>
-            <el-button @click="userGroupAssignDialogVisible = false">取消</el-button>
+            <el-button @click="userGroupAssignDialogVisible = false">{{ $t('common.cancel') }}</el-button>
             <el-button type="primary" :loading="savingUserGroups" @click="handleSaveUserGroups">
-              保存
+              {{ $t('common.save') }}
             </el-button>
           </template>
         </el-dialog>
@@ -1226,7 +1226,7 @@
         <!-- User Edit/Create Dialog -->
         <el-dialog
           v-model="userDialogVisible"
-          :title="editingUser?.id ? '编辑用户' : '新增用户'"
+          :title="editingUser?.id ? $t('settings.editUserTitle') : $t('settings.addUserTitle')"
           width="500px"
           :close-on-click-modal="false"
         >
@@ -1236,55 +1236,55 @@
             :rules="userRules"
             label-width="80px"
           >
-            <el-form-item label="邮箱" prop="email">
+            <el-form-item :label="$t('settings.email')" prop="email">
               <el-input
                 v-model="userForm.email"
-                placeholder="请输入邮箱"
+                :placeholder="$t('settings.enterEmail')"
                 :disabled="!!editingUser?.id"
                 clearable
               />
             </el-form-item>
-            <el-form-item label="姓名" prop="full_name">
+            <el-form-item :label="$t('settings.fullName')" prop="full_name">
               <el-input
                 v-model="userForm.full_name"
-                placeholder="请输入姓名"
+                :placeholder="$t('settings.enterName')"
                 clearable
               />
             </el-form-item>
-            <el-form-item label="部门" prop="department">
+            <el-form-item :label="$t('settings.department')" prop="department">
               <el-input
                 v-model="userForm.department"
-                placeholder="请输入部门"
+                :placeholder="$t('settings.enterDepartment')"
                 clearable
               />
             </el-form-item>
-            <el-form-item v-if="!editingUser?.id" label="密码" prop="password">
+            <el-form-item v-if="!editingUser?.id" :label="$t('auth.password')" prop="password">
               <el-input
                 v-model="userForm.password"
                 type="password"
-                placeholder="请输入初始密码（至少6位）"
+                :placeholder="$t('settings.enterInitialPassword')"
                 show-password
                 clearable
               />
             </el-form-item>
-            <el-form-item label="角色" prop="role">
-              <el-select v-model="userForm.role" placeholder="请选择角色">
-                <el-option label="管理员" value="ADMIN" />
-                <el-option label="经理" value="MANAGER" />
-                <el-option label="普通用户" value="USER" />
+            <el-form-item :label="$t('settings.role')" prop="role">
+              <el-select v-model="userForm.role" :placeholder="$t('settings.selectRole')">
+                <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
+                <el-option :label="$t('settings.roleManager')" value="MANAGER" />
+                <el-option :label="$t('settings.roleUser')" value="USER" />
               </el-select>
             </el-form-item>
           </el-form>
 
           <template #footer>
-            <el-button @click="userDialogVisible = false">取消</el-button>
+            <el-button @click="userDialogVisible = false">{{ $t('common.cancel') }}</el-button>
             <el-button
               type="primary"
               :icon="Check"
               :loading="savingUser"
               @click="handleSaveUser"
             >
-              保存
+              {{ $t('common.save') }}
             </el-button>
           </template>
         </el-dialog>
@@ -1292,73 +1292,73 @@
         <!-- Reset Password Dialog (Admin) -->
         <el-dialog
           v-model="resetPasswordDialogVisible"
-          title="重置用户密码"
+          :title="$t('settings.resetPasswordTitle')"
           width="450px"
           :close-on-click-modal="false"
         >
           <el-form label-width="100px">
-            <el-form-item label="用户">
+            <el-form-item :label="$t('settings.user')">
               <span>{{ resetPasswordUser?.full_name }} ({{ resetPasswordUser?.email }})</span>
             </el-form-item>
-            <el-form-item label="新密码" required>
+            <el-form-item :label="$t('settings.newPassword')" required>
               <el-input
                 v-model="resetPasswordForm.password"
                 type="password"
-                placeholder="请输入新密码（至少6位）"
+                :placeholder="$t('settings.newPasswordPlaceholder')"
                 show-password
               />
             </el-form-item>
-            <el-form-item label="确认密码" required>
+            <el-form-item :label="$t('settings.confirmPassword')" required>
               <el-input
                 v-model="resetPasswordForm.confirmPassword"
                 type="password"
-                placeholder="请再次输入新密码"
+                :placeholder="$t('settings.confirmPasswordPlaceholder')"
                 show-password
               />
             </el-form-item>
           </el-form>
           <template #footer>
-            <el-button @click="resetPasswordDialogVisible = false">取消</el-button>
-            <el-button type="primary" :loading="resettingPassword" @click="handleResetPassword">确认重置</el-button>
+            <el-button @click="resetPasswordDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+            <el-button type="primary" :loading="resettingPassword" @click="handleResetPassword">{{ $t('settings.confirmReset') }}</el-button>
           </template>
         </el-dialog>
 
         <!-- Change Password Dialog (Self-service) -->
         <el-dialog
           v-model="changePasswordDialogVisible"
-          title="修改密码"
+          :title="$t('settings.changePasswordTitle')"
           width="450px"
           :close-on-click-modal="false"
         >
           <el-form label-width="100px">
-            <el-form-item label="旧密码" required>
+            <el-form-item :label="$t('settings.oldPassword')" required>
               <el-input
                 v-model="changePasswordForm.oldPassword"
                 type="password"
-                placeholder="请输入当前密码"
+                :placeholder="$t('settings.oldPasswordPlaceholder')"
                 show-password
               />
             </el-form-item>
-            <el-form-item label="新密码" required>
+            <el-form-item :label="$t('settings.changePasswordNew')" required>
               <el-input
                 v-model="changePasswordForm.newPassword"
                 type="password"
-                placeholder="请输入新密码（至少6位）"
+                :placeholder="$t('settings.changePasswordNewPlaceholder')"
                 show-password
               />
             </el-form-item>
-            <el-form-item label="确认新密码" required>
+            <el-form-item :label="$t('settings.confirmNewPassword')" required>
               <el-input
                 v-model="changePasswordForm.confirmNewPassword"
                 type="password"
-                placeholder="请再次输入新密码"
+                :placeholder="$t('settings.confirmNewPasswordPlaceholder')"
                 show-password
               />
             </el-form-item>
           </el-form>
           <template #footer>
-            <el-button @click="changePasswordDialogVisible = false">取消</el-button>
-            <el-button type="primary" :loading="changingPassword" @click="handleChangePassword">确认修改</el-button>
+            <el-button @click="changePasswordDialogVisible = false">{{ $t('common.cancel') }}</el-button>
+            <el-button type="primary" :loading="changingPassword" @click="handleChangePassword">{{ $t('settings.confirmChange') }}</el-button>
           </template>
         </el-dialog>
       </el-col>
@@ -1368,7 +1368,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { getLocale } from '@/locales'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import {
   User,
@@ -1398,6 +1400,7 @@ import type { LDAPConfig, UserInfo } from '@/api/ldap'
 import { getErrorMessage } from '@/utils/formatters'
 
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 // Restore active menu from localStorage
 const savedMenu = localStorage.getItem('settingsActiveMenu')
@@ -1489,9 +1492,9 @@ const profileForm = reactive<Omit<ModelProfile, 'id'> & { id?: string }>({
 })
 
 const profileRules: FormRules = {
-  name: [{ required: true, message: '请输入配置名称', trigger: 'blur' }],
-  base_url: [{ required: true, message: '请输入 Base URL', trigger: 'blur' }],
-  model_name: [{ required: true, message: '请输入模型名称', trigger: 'blur' }]
+  name: [{ required: true, message: t('settings.enterProfileName'), trigger: 'blur' }],
+  base_url: [{ required: true, message: t('settings.enterBaseUrl'), trigger: 'blur' }],
+  model_name: [{ required: true, message: t('settings.enterModelName'), trigger: 'blur' }]
 }
 const fileRetentionSettings = reactive<FileRetentionSettings>({
   retention_days: 30,
@@ -1501,11 +1504,11 @@ const fileRetentionSettings = reactive<FileRetentionSettings>({
 
 const fileRetentionRules: FormRules = {
   retention_days: [
-    { required: true, message: '请输入文件保留天数', trigger: 'blur' },
-    { type: 'number', min: 1, max: 3650, message: '保留天数必须在1-3650之间', trigger: 'blur' }
+    { required: true, message: t('settings.enterRetentionDays'), trigger: 'blur' },
+    { type: 'number', min: 1, max: 3650, message: t('settings.retentionDaysRange'), trigger: 'blur' }
   ],
   cleanup_hour: [
-    { required: true, message: '请选择清理执行时间', trigger: 'change' }
+    { required: true, message: t('settings.selectCleanupHour'), trigger: 'change' }
   ]
 }
 
@@ -1517,23 +1520,23 @@ const smtpConfig = reactive({
   port: 587,
   encryption: 'tls',
   username: '',
-  from_name: '文件校验平台',
+  from_name: '',
   password: ''
 })
 
 const smtpRules: FormRules = {
   host: [
-    { required: true, message: '请输入 SMTP 服务器地址', trigger: 'blur' }
+    { required: true, message: t('settings.enterSmtpServer'), trigger: 'blur' }
   ],
   port: [
-    { required: true, message: '请输入端口号', trigger: 'blur' }
+    { required: true, message: t('settings.enterPort'), trigger: 'blur' }
   ],
   username: [
-    { required: true, message: '请输入发件人邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: t('settings.enterSenderEmail'), trigger: 'blur' },
+    { type: 'email', message: t('settings.invalidEmail'), trigger: 'blur' }
   ],
   from_name: [
-    { required: true, message: '请输入发件人名称', trigger: 'blur' }
+    { required: true, message: t('settings.enterSenderName'), trigger: 'blur' }
   ]
 }
 
@@ -1565,45 +1568,45 @@ const ldapFormRef = ref<FormInstance>()
 
 const ldapRules: FormRules = {
   ldap_server: [
-    { required: true, message: '请输入 LDAP 服务器地址', trigger: 'blur' }
+    { required: true, message: t('settings.enterLdapServer'), trigger: 'blur' }
   ],
   ldap_port: [
-    { required: true, message: '请输入端口号', trigger: 'blur' }
+    { required: true, message: t('settings.enterPort'), trigger: 'blur' }
   ],
   ldap_bind_dn: [
-    { required: true, message: '请输入绑定 DN', trigger: 'blur' }
+    { required: true, message: t('settings.enterBindDn'), trigger: 'blur' }
   ],
   ldap_bind_password: [
-    { required: true, message: '请输入绑定密码', trigger: 'blur' }
+    { required: true, message: t('settings.enterBindPassword'), trigger: 'blur' }
   ],
   ldap_search_base: [
-    { required: true, message: '请输入搜索基础 DN', trigger: 'blur' }
+    { required: true, message: t('settings.enterSearchBaseDn'), trigger: 'blur' }
   ],
   ldap_email_attribute: [
-    { required: true, message: '请输入邮箱属性', trigger: 'blur' }
+    { required: true, message: t('settings.enterEmailAttribute'), trigger: 'blur' }
   ],
   ldap_name_attribute: [
-    { required: true, message: '请输入姓名属性', trigger: 'blur' }
+    { required: true, message: t('settings.enterNameAttribute'), trigger: 'blur' }
   ],
   ldap_department_attribute: [
-    { required: true, message: '请输入部门属性', trigger: 'blur' }
+    { required: true, message: t('settings.enterDepartmentAttribute'), trigger: 'blur' }
   ],
   sso_provider: [
-    { required: true, message: '请选择 SSO 提供商', trigger: 'change' }
+    { required: true, message: t('settings.selectSsoProvider'), trigger: 'change' }
   ],
   sso_idp_sso_url: [
-    { required: true, message: '请输入发现端点 URL', trigger: 'blur' },
-    { type: 'url', message: '请输入正确的 URL 格式', trigger: 'blur' }
+    { required: true, message: t('settings.enterDiscoveryEndpoint'), trigger: 'blur' },
+    { type: 'url', message: t('settings.invalidUrl'), trigger: 'blur' }
   ],
   sso_entity_id: [
-    { required: true, message: '请输入客户端 ID', trigger: 'blur' }
+    { required: true, message: t('settings.enterClientId'), trigger: 'blur' }
   ],
   sso_sp_key: [
-    { required: true, message: '请输入客户端密钥', trigger: 'blur' }
+    { required: true, message: t('settings.enterClientSecret'), trigger: 'blur' }
   ],
   sso_acs_url: [
-    { required: true, message: '请输入回调地址', trigger: 'blur' },
-    { type: 'url', message: '请输入正确的 URL 格式', trigger: 'blur' }
+    { required: true, message: t('settings.enterCallbackUrl'), trigger: 'blur' },
+    { type: 'url', message: t('settings.invalidUrl'), trigger: 'blur' }
   ]
 }
 
@@ -1679,14 +1682,14 @@ const userForm = reactive({
 
 const userRules: FormRules = {
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: t('settings.enterEmail'), trigger: 'blur' },
+    { type: 'email', message: t('settings.invalidEmail'), trigger: 'blur' }
   ],
   full_name: [
-    { required: true, message: '请输入姓名', trigger: 'blur' }
+    { required: true, message: t('settings.enterName'), trigger: 'blur' }
   ],
   role: [
-    { required: true, message: '请选择角色', trigger: 'change' }
+    { required: true, message: t('settings.selectRole'), trigger: 'change' }
   ]
 }
 
@@ -1699,10 +1702,10 @@ const groupForm = reactive({
 
 const groupRules: FormRules = {
   name: [
-    { required: true, message: '请输入组名称', trigger: 'blur' }
+    { required: true, message: t('settings.enterGroupName'), trigger: 'blur' }
   ],
   role: [
-    { required: true, message: '请选择角色', trigger: 'change' }
+    { required: true, message: t('settings.selectRole'), trigger: 'change' }
   ]
 }
 
@@ -1720,9 +1723,9 @@ function formatDate(dateStr: string): string {
 
 function getRoleLabel(role: string): string {
   const labels: Record<string, string> = {
-    'ADMIN': '管理员',
-    'MANAGER': '经理',
-    'USER': '普通用户'
+    'ADMIN': t('settings.roleAdmin'),
+    'MANAGER': t('settings.roleManager'),
+    'USER': t('settings.roleUser')
   }
   return labels[role] || role
 }
@@ -1748,17 +1751,17 @@ const templateForm = reactive({
 
 const templateRules: FormRules = {
   id: [
-    { required: true, message: '请输入模板ID', trigger: 'blur' },
-    { pattern: /^[a-z_][a-z0-9_]*$/, message: '模板ID只能包含小写字母、数字和下划线，且必须以字母或下划线开头', trigger: 'blur' }
+    { required: true, message: t('settings.enterTemplateId'), trigger: 'blur' },
+    { pattern: /^[a-z_][a-z0-9_]*$/, message: t('settings.templateIdPattern'), trigger: 'blur' }
   ],
   name: [
-    { required: true, message: '请输入模板名称', trigger: 'blur' }
+    { required: true, message: t('settings.enterTemplateName'), trigger: 'blur' }
   ],
   subject: [
-    { required: true, message: '请输入邮件主题', trigger: 'blur' }
+    { required: true, message: t('settings.enterEmailSubject'), trigger: 'blur' }
   ],
   html_content: [
-    { required: true, message: '请输入HTML内容', trigger: 'blur' }
+    { required: true, message: t('settings.enterHtmlContent'), trigger: 'blur' }
   ]
 }
 
@@ -1807,13 +1810,13 @@ async function handleSaveNotification() {
     })
 
     notifSaveSuccess.value = true
-    ElMessage.success('通知设置已保存')
+    ElMessage.success(t('settings.notificationSavedMsg'))
 
     setTimeout(() => {
       notifSaveSuccess.value = false
     }, 3000)
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '保存失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
   } finally {
     savingNotif.value = false
   }
@@ -1833,14 +1836,14 @@ async function handleSaveSmtp() {
       await settingsApi.updateSmtpConfig(smtpConfig)
 
       saveSuccess.value = true
-      ElMessage.success('SMTP 配置已保存')
+      ElMessage.success(t('settings.smtpSavedMsg'))
 
       // 3秒后隐藏成功提示
       setTimeout(() => {
         saveSuccess.value = false
       }, 3000)
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
     } finally {
       saving.value = false
     }
@@ -1859,9 +1862,9 @@ async function handleTestEmail() {
       const { settingsApi } = await import('@/api/settings')
       await settingsApi.testSmtpConfig(smtpConfig)
 
-      ElMessage.success('测试邮件已发送，请检查收件箱')
+      ElMessage.success(t('settings.testEmailSent'))
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '发送失败，请检查配置'))
+      ElMessage.error(getErrorMessage(error, t('settings.sendFailed')))
     } finally {
       testing.value = false
     }
@@ -1875,7 +1878,7 @@ async function loadEmailTemplates() {
     templates.value = await settingsApi.getEmailTemplates()
   } catch (error) {
     console.error('Failed to load email templates:', error)
-    ElMessage.error('加载邮件模板失败')
+    ElMessage.error(t('settings.loadTemplatesFailed'))
   } finally {
     loadingTemplates.value = false
   }
@@ -1915,17 +1918,17 @@ async function handleSaveTemplate() {
       if (editingTemplate.value?.id) {
         // Update existing template
         await settingsApi.updateEmailTemplate(editingTemplate.value.id, templateForm)
-        ElMessage.success('模板更新成功')
+        ElMessage.success(t('settings.templateUpdated'))
       } else {
         // Create new template
         await settingsApi.createEmailTemplate(templateForm)
-        ElMessage.success('模板创建成功')
+        ElMessage.success(t('settings.templateCreated'))
       }
 
       templateDialogVisible.value = false
       await loadEmailTemplates()
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存模板失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.saveTemplateFailed')))
     } finally {
       savingTemplate.value = false
     }
@@ -1936,10 +1939,10 @@ async function handleDeleteTemplate(templateId: string) {
   try {
     const { settingsApi } = await import('@/api/settings')
     await settingsApi.deleteEmailTemplate(templateId)
-    ElMessage.success('模板删除成功')
+    ElMessage.success(t('settings.templateDeleted'))
     await loadEmailTemplates()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '删除模板失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.deleteTemplateFailed')))
   }
 }
 
@@ -1950,18 +1953,18 @@ async function handlePreviewTemplate(template: EmailTemplate) {
     // Create sample context based on template variables
     const context: Record<string, any> = {}
     template.variables.forEach(variable => {
-      if (variable === 'filename') context[variable] = '示例文件.pdf'
+      if (variable === 'filename') context[variable] = t('settings.sampleFilename')
       else if (variable === 'status_emoji') context[variable] = '✅'
-      else if (variable === 'status_text') context[variable] = '通过'
+      else if (variable === 'status_text') context[variable] = t('settings.sampleStatusText')
       else if (variable === 'pass_rate') context[variable] = '100'
       else if (variable === 'status-class') context[variable] = 'status-completed'
-      else if (variable === 'date') context[variable] = '2025年01月15日'
+      else if (variable === 'date') context[variable] = t('settings.sampleDate')
       else if (variable === 'total_count') context[variable] = '50'
       else if (variable === 'completed_count') context[variable] = '45'
       else if (variable === 'warning_count') context[variable] = '3'
       else if (variable === 'failed_count') context[variable] = '2'
-      else if (variable === 'file_list_html') context[variable] = '<div>示例文件列表</div>'
-      else if (variable === 'from_name') context[variable] = '文件校验平台'
+      else if (variable === 'file_list_html') context[variable] = `<div>${t('settings.sampleFileList')}</div>`
+      else if (variable === 'from_name') context[variable] = t('settings.sampleFromName')
       else if (variable === 'smtp_host') context[variable] = 'smtp.example.com'
       else if (variable === 'smtp_port') context[variable] = '587'
       else if (variable === 'encryption') context[variable] = 'TLS'
@@ -1977,7 +1980,7 @@ async function handlePreviewTemplate(template: EmailTemplate) {
     previewHtml.value = result.html_content
     previewDialogVisible.value = true
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '预览模板失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.previewTemplateFailed')))
   }
 }
 
@@ -2027,13 +2030,13 @@ async function handleSaveLDAP() {
     await ldapApi.updateLDAPConfig(ldapConfig)
 
     ldapSaveSuccess.value = true
-    ElMessage.success('LDAP/SSO 配置已保存')
+    ElMessage.success(t('settings.ldapSavedMsg'))
 
     setTimeout(() => {
       ldapSaveSuccess.value = false
     }, 3000)
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '保存失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
   } finally {
     savingLDAP.value = false
   }
@@ -2045,9 +2048,9 @@ async function handleTestLDAP() {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.testLDAPConnection()
-    ElMessage.success('LDAP 连接测试成功')
+    ElMessage.success(t('settings.ldapTestSuccess'))
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '连接测试失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.connectionTestFailed')))
   } finally {
     testingLDAP.value = false
   }
@@ -2056,18 +2059,18 @@ async function handleTestLDAP() {
 // Handle LDAP toggle
 function handleLDAPToggle(value: boolean) {
   if (value) {
-    ElMessage.info('LDAP 已启用，请配置连接信息')
+    ElMessage.info(t('settings.ldapEnabledMsg'))
   } else {
-    ElMessage.warning('LDAP 已禁用，用户无法使用 LDAP 登录')
+    ElMessage.warning(t('settings.ldapDisabledMsg'))
   }
 }
 
 // Handle SSO toggle
 function handleSSOToggle(value: boolean) {
   if (value) {
-    ElMessage.info('SSO 已启用，请配置第三方登录')
+    ElMessage.info(t('settings.ssoEnabledMsg'))
   } else {
-    ElMessage.warning('SSO 已禁用，用户无法使用 SSO 登录')
+    ElMessage.warning(t('settings.ssoDisabledMsg'))
   }
 }
 
@@ -2079,7 +2082,7 @@ async function loadUsers() {
     filterUsers()
   } catch (error) {
     console.error('Failed to load users:', error)
-    ElMessage.error('加载用户列表失败')
+    ElMessage.error(t('settings.loadUsersFailed'))
   } finally {
     loadingUsers.value = false
   }
@@ -2102,9 +2105,9 @@ async function handleRoleChange(user: UserInfo) {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.updateUserRole(user.id, user.role as 'ADMIN' | 'MANAGER' | 'USER')
-    ElMessage.success(`用户 ${user.full_name} 的角色已更新为 ${user.role}`)
+    ElMessage.success(t('settings.roleUpdated', { name: user.full_name, role: user.role }))
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '更新角色失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.updateRoleFailed')))
     // Revert the change
     await loadUsers()
   }
@@ -2114,10 +2117,10 @@ async function handleToggleUserStatus(user: UserInfo) {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.toggleUserStatus(user.id)
-    const status = user.is_active ? '启用' : '禁用'
-    ElMessage.success(`用户 ${user.full_name} 已${status}`)
+    const status = user.is_active ? t('settings.userEnabled') : t('settings.userDisabled')
+    ElMessage.success(t('settings.userStatusChanged', { name: user.full_name, status }))
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '操作失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
     // Revert the change
     await loadUsers()
   }
@@ -2170,7 +2173,7 @@ async function handleSaveUser() {
           department: userForm.department || undefined,
           role: userForm.role
         })
-        ElMessage.success('用户信息已更新')
+        ElMessage.success(t('settings.userUpdated'))
       } else {
         // Create new user
         const result = await ldapApi.createUser({
@@ -2181,7 +2184,7 @@ async function handleSaveUser() {
           password: userForm.password || undefined
         })
         userId = result.user.id
-        ElMessage.success('用户创建成功')
+        ElMessage.success(t('settings.userCreated'))
       }
 
       // Update user groups
@@ -2190,7 +2193,7 @@ async function handleSaveUser() {
       userDialogVisible.value = false
       await loadUsers()
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
     } finally {
       savingUser.value = false
     }
@@ -2201,10 +2204,10 @@ async function handleDeleteUser(user: UserInfo) {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.deleteUser(user.id)
-    ElMessage.success('用户已删除')
+    ElMessage.success(t('settings.userDeleted'))
     await loadUsers()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '删除失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.deleteFailed')))
   }
 }
 
@@ -2226,21 +2229,21 @@ function openResetPasswordDialog(user: UserInfo) {
 async function handleResetPassword() {
   if (!resetPasswordUser.value) return
   if (resetPasswordForm.password.length < 6) {
-    ElMessage.warning('密码长度至少 6 位')
+    ElMessage.warning(t('settings.passwordMinLength'))
     return
   }
   if (resetPasswordForm.password !== resetPasswordForm.confirmPassword) {
-    ElMessage.warning('两次输入的密码不一致')
+    ElMessage.warning(t('settings.passwordsMismatch'))
     return
   }
   resettingPassword.value = true
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.resetUserPassword(resetPasswordUser.value.id, resetPasswordForm.password)
-    ElMessage.success(`用户 ${resetPasswordUser.value.email} 的密码已重置`)
+    ElMessage.success(t('settings.passwordResetSuccess', { email: resetPasswordUser.value.email }))
     resetPasswordDialogVisible.value = false
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '重置密码失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.resetPasswordFailed')))
   } finally {
     resettingPassword.value = false
   }
@@ -2260,21 +2263,21 @@ function openChangePasswordDialog() {
 
 async function handleChangePassword() {
   if (changePasswordForm.newPassword.length < 6) {
-    ElMessage.warning('新密码长度至少 6 位')
+    ElMessage.warning(t('settings.newPasswordMinLength'))
     return
   }
   if (changePasswordForm.newPassword !== changePasswordForm.confirmNewPassword) {
-    ElMessage.warning('两次输入的新密码不一致')
+    ElMessage.warning(t('settings.newPasswordsMismatch'))
     return
   }
   changingPassword.value = true
   try {
     const { authApi } = await import('@/api/auth')
     await authApi.changePassword(changePasswordForm.oldPassword, changePasswordForm.newPassword)
-    ElMessage.success('密码修改成功')
+    ElMessage.success(t('settings.changePasswordSuccess'))
     changePasswordDialogVisible.value = false
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '修改密码失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.changePasswordFailed')))
   } finally {
     changingPassword.value = false
   }
@@ -2306,7 +2309,7 @@ async function loadUserGroups() {
     userGroups.value = await ldapApi.getUserGroups()
   } catch (error) {
     console.error('Failed to load user groups:', error)
-    ElMessage.error('加载权限组失败')
+    ElMessage.error(t('settings.loadGroupsFailed'))
   } finally {
     loadingGroups.value = false
   }
@@ -2348,17 +2351,17 @@ async function handleSaveGroup() {
       if (editingGroup.value?.id) {
         // Update existing group
         await ldapApi.updateUserGroup(editingGroup.value.id, groupForm)
-        ElMessage.success('权限组已更新')
+        ElMessage.success(t('settings.groupUpdated'))
       } else {
         // Create new group
         await ldapApi.createUserGroup(groupForm)
-        ElMessage.success('权限组创建成功')
+        ElMessage.success(t('settings.groupCreated'))
       }
 
       groupDialogVisible.value = false
       await loadUserGroups()
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.saveGroupFailed')))
     } finally {
       savingGroup.value = false
     }
@@ -2369,10 +2372,10 @@ async function handleDeleteGroup(group: UserGroup) {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.deleteUserGroup(group.id)
-    ElMessage.success('权限组已删除')
+    ElMessage.success(t('settings.groupDeleted'))
     await loadUserGroups()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '删除失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.deleteFailed')))
   }
 }
 
@@ -2388,11 +2391,11 @@ async function handleSaveUserGroups() {
   try {
     const { ldapApi } = await import('@/api/ldap')
     await ldapApi.setUserGroups(userForGroupAssign.value!.id, userForGroupAssignGroupIds.value)
-    ElMessage.success('用户权限组已更新')
+    ElMessage.success(t('settings.userGroupsUpdated'))
     userGroupAssignDialogVisible.value = false
     await loadUsers()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '更新失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.updateFailed')))
   } finally {
     savingUserGroups.value = false
   }
@@ -2407,7 +2410,7 @@ async function loadFileRetentionSettings() {
     Object.assign(fileRetentionSettings, response)
   } catch (error) {
     console.error('Failed to load file retention settings:', error)
-    ElMessage.error('加载文件保留设置失败')
+    ElMessage.error(t('settings.loadFileRetentionFailed'))
   } finally {
     loadingFileRetention.value = false
   }
@@ -2427,13 +2430,13 @@ async function handleSaveFileRetention() {
       await settingsApi.updateFileRetentionSettings(fileRetentionSettings)
 
       fileRetentionSaveSuccess.value = true
-      ElMessage.success('文件保留设置已保存')
+      ElMessage.success(t('settings.fileRetentionSavedMsg'))
 
       setTimeout(() => {
         fileRetentionSaveSuccess.value = false
       }, 3000)
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
     } finally {
       savingFileRetention.value = false
     }
@@ -2448,15 +2451,15 @@ async function handleTriggerCleanup() {
     const { settingsApi } = await import('@/api/settings')
     const response = await settingsApi.triggerCleanupNow()
 
-    cleanupTriggerMessage.value = `任务ID: ${response.task_id}`
+    cleanupTriggerMessage.value = `Task ID: ${response.task_id}`
     cleanupTriggerSuccess.value = true
-    ElMessage.success('清理任务已启动，请稍后查看结果')
+    ElMessage.success(t('settings.cleanupStartedMsg'))
 
     setTimeout(() => {
       cleanupTriggerSuccess.value = false
     }, 5000)
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '启动清理任务失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.startCleanupFailed')))
   } finally {
     triggeringCleanup.value = false
   }
@@ -2470,7 +2473,7 @@ async function loadModelProfiles() {
     modelProfiles.value = await settingsApi.listModelProfiles()
   } catch (error) {
     console.error('Failed to load model profiles:', error)
-    ElMessage.error('加载模型配置失败')
+    ElMessage.error(t('settings.loadProfilesFailed'))
   } finally {
     loadingProfiles.value = false
   }
@@ -2519,15 +2522,15 @@ async function handleSaveProfile() {
 
       if (editingProfile.value?.id) {
         await settingsApi.updateModelProfile(editingProfile.value.id, submitData as ModelProfile)
-        ElMessage.success('配置已更新')
+        ElMessage.success(t('settings.profileUpdated'))
       } else {
         await settingsApi.createModelProfile(submitData)
-        ElMessage.success('配置已创建')
+        ElMessage.success(t('settings.profileCreated'))
       }
       profileDialogVisible.value = false
       await loadModelProfiles()
     } catch (error: unknown) {
-      ElMessage.error(getErrorMessage(error, '保存失败'))
+      ElMessage.error(getErrorMessage(error, t('settings.operationFailed')))
     } finally {
       savingProfile.value = false
     }
@@ -2538,10 +2541,10 @@ async function handleDeleteProfile(profile: ModelProfile) {
   try {
     const { settingsApi } = await import('@/api/settings')
     await settingsApi.deleteModelProfile(profile.id)
-    ElMessage.success('配置已删除')
+    ElMessage.success(t('settings.profileDeleted'))
     await loadModelProfiles()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '删除失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.deleteFailed')))
   }
 }
 
@@ -2549,10 +2552,10 @@ async function handleSetDefaultProfile(profileId: string, forType: 'text' | 'vis
   try {
     const { settingsApi } = await import('@/api/settings')
     await settingsApi.setDefaultModelProfile(profileId, forType)
-    ElMessage.success(`已设为默认${forType}模型`)
+    ElMessage.success(t('settings.setDefaultSuccess', { type: forType === 'text' ? t('settings.setDefaultText') : t('settings.setDefaultVision') }))
     await loadModelProfiles()
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '设置失败'))
+    ElMessage.error(getErrorMessage(error, t('settings.setDefaultFailed')))
   }
 }
 
@@ -2565,12 +2568,12 @@ async function handleTestProfile(profileId: string) {
     const result = await settingsApi.testModelProfile(profileId)
     testResult.value = { id: profileId, ...result }
     if (result.success) {
-      ElMessage.success('连接测试成功')
+      ElMessage.success(t('settings.connectionTestSuccessMsg'))
     } else {
-      ElMessage.warning('连接测试失败')
+      ElMessage.warning(t('settings.connectionTestFailedMsg'))
     }
   } catch (error: unknown) {
-    const message = getErrorMessage(error, '连接测试失败，请检查网络或配置')
+    const message = getErrorMessage(error, t('settings.connectionTestFailedDetail'))
     testResult.value = { id: profileId, success: false, message }
     ElMessage.error(message)
   } finally {

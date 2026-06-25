@@ -3,12 +3,12 @@
     <!-- Header Title -->
     <div class="dashboard-header mb-4">
       <div class="title-section">
-        <h2 class="dashboard-title">合规分析控制台</h2>
-        <p class="dashboard-subtitle">平台校验质量、运行态势与高风险规则漏洞实时监控</p>
+        <h2 class="dashboard-title">{{ $t('dashboard.title') }}</h2>
+        <p class="dashboard-subtitle">{{ $t('dashboard.subtitle') }}</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" plain :icon="Refresh" @click="fetchStats">
-          刷新数据
+          {{ $t('dashboard.refreshData') }}
         </el-button>
       </div>
     </div>
@@ -20,7 +20,7 @@
           <div class="glass-card metric-card">
             <div class="metric-icon total">📊</div>
             <div class="metric-info">
-              <span class="metric-label">累计校验总量</span>
+              <span class="metric-label">{{ $t('dashboard.totalVerifications') }}</span>
               <h3 class="metric-value">{{ stats.overview.total }}</h3>
             </div>
           </div>
@@ -29,7 +29,7 @@
           <div class="glass-card metric-card">
             <div class="metric-icon completed">✓</div>
             <div class="metric-info">
-              <span class="metric-label">合规通过量</span>
+              <span class="metric-label">{{ $t('dashboard.compliantCount') }}</span>
               <h3 class="metric-value text-pass">{{ stats.overview.completed }}</h3>
             </div>
           </div>
@@ -38,7 +38,7 @@
           <div class="glass-card metric-card">
             <div class="metric-icon warning">⚠</div>
             <div class="metric-info">
-              <span class="metric-label">合规预警量</span>
+              <span class="metric-label">{{ $t('dashboard.warningCount') }}</span>
               <h3 class="metric-value text-warn">{{ stats.overview.warning }}</h3>
             </div>
           </div>
@@ -47,7 +47,7 @@
           <div class="glass-card metric-card">
             <div class="metric-icon failed">✗</div>
             <div class="metric-info">
-              <span class="metric-label">拦截不合规</span>
+              <span class="metric-label">{{ $t('dashboard.interceptedCount') }}</span>
               <h3 class="metric-value text-fail">{{ stats.overview.failed }}</h3>
             </div>
           </div>
@@ -56,7 +56,7 @@
           <div class="glass-card metric-card">
             <div class="metric-icon review">🙋</div>
             <div class="metric-info">
-              <span class="metric-label">待人工仲裁</span>
+              <span class="metric-label">{{ $t('dashboard.needsReviewCount') }}</span>
               <h3 class="metric-value text-review">{{ stats.overview.needs_review }}</h3>
             </div>
           </div>
@@ -80,7 +80,7 @@
               <div class="percentage">{{ stats.overview.pass_rate }}%</div>
             </div>
             <div class="metric-info text-center">
-              <span class="metric-label">整体合规通过率</span>
+              <span class="metric-label">{{ $t('dashboard.overallPassRate') }}</span>
             </div>
           </div>
         </el-col>
@@ -90,10 +90,10 @@
       <div class="mb-4">
         <div class="glass-card chart-card trend-full-card">
           <div class="card-header mb-3">
-            <h3 class="card-title">📈 近两周校验态势变化趋势</h3>
+            <h3 class="card-title">{{ '📈 ' + $t('dashboard.trendTitle') }}</h3>
             <div class="chart-legend">
-              <span class="legend-item total"><span class="color-dot"></span>上传总量</span>
-              <span class="legend-item passed"><span class="color-dot"></span>合规通过数</span>
+              <span class="legend-item total"><span class="color-dot"></span>{{ $t('dashboard.legendTotalUploads') }}</span>
+              <span class="legend-item passed"><span class="color-dot"></span>{{ $t('dashboard.legendCompliantPassed') }}</span>
             </div>
           </div>
           
@@ -140,12 +140,12 @@
       <div class="mb-4">
         <div class="glass-card chart-card rules-full-card">
           <div class="card-header mb-3">
-            <h3 class="card-title">🔥 高频合规失效规则排行 (Top 5)</h3>
+            <h3 class="card-title">{{ '🔥 ' + $t('dashboard.topFailingRulesTitle') }}</h3>
           </div>
           
           <div class="failing-rules-list">
             <div v-if="stats.top_failing_rules.length === 0" class="empty-failing-state">
-              <el-empty description="暂无合规失败记录" :image-size="60" />
+              <el-empty :description="$t('dashboard.noFailureRecords')" :image-size="60" />
             </div>
             <div
               v-else
@@ -158,7 +158,7 @@
                   <span class="rank-index" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
                   <span class="rule-name" :title="rule.rule_name">{{ rule.rule_name }}</span>
                 </div>
-                <span class="fail-count font-bold">{{ rule.count }} 次拦截</span>
+                <span class="fail-count font-bold">{{ $t('dashboard.interceptionCount', { count: rule.count }) }}</span>
               </div>
               <div class="progress-track">
                 <div 
@@ -177,9 +177,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { filesApi } from '@/api/files'
+
+const { t } = useI18n()
 
 const loading = ref(true)
 const stats = ref<any>(null)
@@ -189,7 +192,7 @@ const fetchStats = async () => {
   try {
     stats.value = await filesApi.getStatistics()
   } catch (e) {
-    ElMessage.error('无法载入合规大屏统计数据')
+    ElMessage.error(t('dashboard.fetchStatsFailed'))
   } finally {
     loading.value = false
   }

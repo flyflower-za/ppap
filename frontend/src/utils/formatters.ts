@@ -12,7 +12,7 @@ export function formatFileSize(bytes?: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
-export function getErrorMessage(error: unknown, fallback = '操作失败'): string {
+export function getErrorMessage(error: unknown, fallback = 'Operation failed'): string {
   if (error && typeof error === 'object') {
     const resp = (error as Record<string, unknown>).response as Record<string, unknown> | undefined
     if (resp?.data) {

@@ -38,7 +38,7 @@
             <!-- Processing / Pending -->
             <div v-if="file.status === 'processing' || file.status === 'pending'" class="progress-section">
               <div class="progress-info flex-between mb-1">
-                <span class="progress-txt">{{ file.status === 'pending' ? '排队等待诊断中...' : '正在进行合规比对分析...' }}</span>
+                <span class="progress-txt">{{ file.status === 'pending' ? $t('task.queueingWaiting') : $t('task.analyzing') }}</span>
                 <span class="progress-val">{{ file.verification_progress }}%</span>
               </div>
               <div class="card-progress-track">
@@ -49,13 +49,13 @@
             <!-- Completed / Warning -->
             <div v-else-if="file.status === 'completed' || file.status === 'warning'" class="result-section flex-between">
               <div class="metrics">
-                <span class="metric pass"><el-icon><Check /></el-icon> {{ file.pass_count }} 通过</span>
-                <span class="metric warn" v-if="file.warning_count > 0"><el-icon><Warning /></el-icon> {{ file.warning_count }} 警告</span>
-                <span class="metric fail" v-if="file.fail_count > 0"><el-icon><Close /></el-icon> {{ file.fail_count }} 异常</span>
-                <span class="metric ref" v-if="getRefCount(file) > 0"><el-icon><InfoFilled /></el-icon> {{ getRefCount(file) }} 参考</span>
+                <span class="metric pass"><el-icon><Check /></el-icon> {{ file.pass_count }} {{ $t('file.passCount') }}</span>
+                <span class="metric warn" v-if="file.warning_count > 0"><el-icon><Warning /></el-icon> {{ file.warning_count }} {{ $t('file.warningCount') }}</span>
+                <span class="metric fail" v-if="file.fail_count > 0"><el-icon><Close /></el-icon> {{ file.fail_count }} {{ $t('task.anomaly') }}</span>
+                <span class="metric ref" v-if="getRefCount(file) > 0"><el-icon><InfoFilled /></el-icon> {{ getRefCount(file) }} {{ $t('task.reference') }}</span>
               </div>
               <div class="pass-rate" v-if="file.pass_rate !== undefined">
-                <span class="label">通过率</span>
+                <span class="label">{{ $t('file.passRate') }}</span>
                 <span class="value" :class="passRateClass(file.pass_rate)">{{ file.pass_rate }}%</span>
               </div>
             </div>
@@ -72,7 +72,7 @@
           <div class="task-card-footer flex-between">
             <span class="upload-time">{{ formatTime(file.uploaded_at) }}</span>
             <el-button type="primary" link size="small" class="detail-link" @click.stop="goToDetail(file.id)">
-              查看分析报告 <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+              {{ $t('task.viewAnalysisReport') }} <el-icon class="arrow-icon"><ArrowRight /></el-icon>
             </el-button>
           </div>
         </div>
@@ -112,10 +112,10 @@
               <span class="metric ref" v-if="getRefCount(file) > 0"><el-icon><InfoFilled /></el-icon>{{ getRefCount(file) }}</span>
             </template>
             <template v-else-if="file.status === 'processing' || file.status === 'pending'">
-              <span class="list-progress-txt">{{ file.status === 'pending' ? '排队中' : `${file.verification_progress}%` }}</span>
+              <span class="list-progress-txt">{{ file.status === 'pending' ? $t('task.queueing') : `${file.verification_progress}%` }}</span>
             </template>
             <template v-else>
-              <span class="metric fail"><el-icon><Close /></el-icon> 异常</span>
+              <span class="metric fail"><el-icon><Close /></el-icon> {{ $t('task.anomaly') }}</span>
             </template>
           </div>
 
@@ -133,7 +133,7 @@
 
           <!-- Action -->
           <el-button type="primary" link size="small" class="detail-link" @click.stop="goToDetail(file.id)">
-            查看报告 <el-icon class="arrow-icon"><ArrowRight /></el-icon>
+            {{ $t('task.viewReport') }} <el-icon class="arrow-icon"><ArrowRight /></el-icon>
           </el-button>
         </div>
       </div>
@@ -145,9 +145,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { filesApi } from '@/api/files'
 import type { File } from '@/types'
 import { Check, Warning, Close, ArrowRight, InfoFilled } from '@element-plus/icons-vue'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   status: 'all' | 'processing' | 'completed' | 'failed'
@@ -162,20 +165,20 @@ const loading = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const emptyText = computed(() => {
-  if (props.status === 'all') return '暂无任何校验任务记录'
-  if (props.status === 'processing') return '当前没有进行中的校验任务'
-  if (props.status === 'completed') return '暂无已完成的校验文件'
-  return '暂无失败的校验记录'
+  if (props.status === 'all') return t('task.emptyAll')
+  if (props.status === 'processing') return t('task.emptyProcessing')
+  if (props.status === 'completed') return t('task.emptyCompletedFiles')
+  return t('task.emptyFailedRecords')
 })
 
 function statusText(status: string): string {
   const map: Record<string, string> = {
-    pending: '排队中',
-    processing: '诊断中',
-    completed: '合规通过',
-    warning: '有风险警告',
-    failed: '不合格',
-    needs_review: '需人工仲裁',
+    pending: t('task.queueing'),
+    processing: t('task.diagnosing'),
+    completed: t('task.compliant'),
+    warning: t('task.hasWarning'),
+    failed: t('task.notQualified'),
+    needs_review: t('task.needsArbitration'),
   }
   return map[status] || status
 }
@@ -213,7 +216,7 @@ function getInstitution(file: any): string {
 // Generate meaningful error message from verification result
 function getFailedMessage(file: any): string {
   const vr = file.verification_result_json
-  if (!vr) return '校验失败，无法获取检测结果'
+  if (!vr) return t('task.verificationFailedNoResult')
 
   // If there's an explicit error field, use it
   if (vr.error) return vr.error
@@ -224,28 +227,28 @@ function getFailedMessage(file: any): string {
   // If no checks were executed at all
   if (checks.length === 0) {
     if (summary?.matched_category === null) {
-      return '未匹配到任何检测分类，未执行检测项目'
+      return t('task.noCategoryMatched')
     }
-    return '校验完成但未产生任何检测项'
+    return t('task.noCheckItemsProduced')
   }
 
   // Extract failed check descriptions
   const failedChecks = checks.filter((c: any) => c.severity === 'fail' || c.status === 'fail')
   if (failedChecks.length > 0) {
-    const reasons = failedChecks.map((c: any) => c.title || c.rule_name || c.message || '未知检测项').slice(0, 2)
-    const suffix = failedChecks.length > 2 ? ` 等 ${failedChecks.length} 项` : ''
-    return `${reasons.join('、')}${suffix} 未通过`
+    const reasons = failedChecks.map((c: any) => c.title || c.rule_name || c.message || t('task.unknownCheckItem')).slice(0, 2)
+    const suffix = failedChecks.length > 2 ? t('task.notPassedSuffix', { count: failedChecks.length }) : ''
+    return `${reasons.join(t('task.enumSeparator'))}${suffix} ${t('task.notPassed')}`
   }
 
   // Fallback: use summary counts
   if (summary) {
     const { pass = 0, warning = 0, fail = 0, total = 0 } = summary
-    if (total === 0) return '未执行任何检测项目'
-    if (fail > 0) return `${fail} 项检测未通过`
-    if (warning > 0) return `${warning} 项检测存在风险`
+    if (total === 0) return t('task.noChecksExecuted')
+    if (fail > 0) return t('task.failItems', { count: fail })
+    if (warning > 0) return t('task.warningItems', { count: warning })
   }
 
-  return '校验未通过，请查看详细报告'
+  return t('task.viewDetailReport')
 }
 
 async function fetchTasks(silent = false) {
@@ -275,7 +278,7 @@ async function fetchTasks(silent = false) {
       stopPolling()
     }
   } catch (error) {
-    console.error('获取任务列表失败:', error)
+    console.error(t('task.fetchTaskListFailed'), error)
     stopPolling()
   } finally {
     if (!silent) loading.value = false

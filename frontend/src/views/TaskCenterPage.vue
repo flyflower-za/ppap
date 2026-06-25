@@ -2,13 +2,13 @@
   <div class="task-center-container">
     <!-- Header -->
     <div class="flex-between mb-4 header-row">
-      <h2 class="page-title">任务中心</h2>
-      <el-button 
-        :icon="Refresh" 
-        @click="handleRefresh" 
+      <h2 class="page-title">{{ $t('task.center') }}</h2>
+      <el-button
+        :icon="Refresh"
+        @click="handleRefresh"
         class="refresh-btn glass-btn"
       >
-        刷新列表
+        {{ $t('task.refreshList') }}
       </el-button>
     </div>
 
@@ -17,8 +17,8 @@
       <el-col :xs="24" :md="10" class="col-panel">
         <div class="glass-card upload-card flex-column">
           <div class="section-header flex-between mb-3">
-            <span class="section-title">上传文件校验</span>
-            <el-checkbox v-model="batchMode" class="batch-checkbox">批量确认模式</el-checkbox>
+            <span class="section-title">{{ $t('task.uploadVerification') }}</span>
+            <el-checkbox v-model="batchMode" class="batch-checkbox">{{ $t('task.batchConfirmMode') }}</el-checkbox>
           </div>
 
           <!-- Drag and Drop Upload Area -->
@@ -35,11 +35,11 @@
           >
             <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
             <div class="el-upload__text">
-              点击上传 PDF 文件 <em>或拖拽到此处</em>
+              {{ $t('task.uploadPdfHint') }} <em>{{ $t('task.orDragHere') }}</em>
             </div>
             <template #tip>
               <div class="el-upload__tip text-center mt-2">
-                支持格式：PDF，单个文件最大 50MB
+                {{ $t('task.supportedFormats') }}
               </div>
             </template>
           </el-upload>
@@ -47,7 +47,7 @@
           <!-- Selected Files Pending Confirmation Queue -->
           <div v-if="fileList.length > 0" class="pending-queue-container mt-4">
             <div class="queue-header flex-between mb-2">
-              <span class="queue-title">待上传校验队列 ({{ fileList.length }} 个文件)</span>
+              <span class="queue-title">{{ $t('task.pendingQueue') }} ({{ $t('task.filesCount', { count: fileList.length }) }})</span>
               <el-button 
                 type="danger" 
                 link 
@@ -56,7 +56,7 @@
                 :disabled="uploading"
                 class="clear-queue-btn"
               >
-                清空队列
+                {{ $t('task.clearQueue') }}
               </el-button>
             </div>
 
@@ -80,16 +80,16 @@
                   <div class="item-right flex-align-center">
                     <!-- Status Icons / Text -->
                     <span v-if="fileItem.status === 'pending'" class="status-indicator pending">
-                      <span class="status-dot"></span> 等待确认
+                      <span class="status-dot"></span> {{ $t('task.waitingConfirm') }}
                     </span>
                     <span v-else-if="fileItem.status === 'uploading'" class="status-indicator uploading">
-                      <el-icon class="is-loading"><Loading /></el-icon> 正在上传...
+                      <el-icon class="is-loading"><Loading /></el-icon> {{ $t('task.uploadingProgress') }}
                     </span>
                     <span v-else-if="fileItem.status === 'success'" class="status-indicator success">
-                      <el-icon><Check /></el-icon> 成功
+                      <el-icon><Check /></el-icon> {{ $t('task.uploadSuccess') }}
                     </span>
                     <span v-else-if="fileItem.status === 'error'" class="status-indicator error">
-                      <el-icon><Close /></el-icon> 失败
+                      <el-icon><Close /></el-icon> {{ $t('task.uploadFailed') }}
                     </span>
 
                     <!-- Remove Item button -->
@@ -114,7 +114,7 @@
                 :loading="uploading"
                 @click="handleConfirmUpload"
               >
-                {{ uploading ? '正在批量上传文件...' : `确认批量上传并校验 (${fileList.length}个文件)` }}
+                {{ uploading ? $t('task.batchUploading') : $t('task.confirmBatchUpload', { count: fileList.length }) }}
               </el-button>
             </div>
           </div>
@@ -125,32 +125,32 @@
       <el-col :xs="24" :md="14" class="col-panel">
         <div class="glass-card tasks-card flex-column">
           <div class="section-header mb-2 flex-between">
-            <span class="section-title">校验任务看板</span>
-            <span class="section-hint">仅展示最近 15 条任务记录，更多请前往历史记录查看</span>
+            <span class="section-title">{{ $t('task.taskBoard') }}</span>
+            <span class="section-hint">{{ $t('task.recentHint') }}</span>
           </div>
 
           <div class="tabs-container">
             <el-tabs v-model="activeTab" class="custom-tabs">
-              <el-tab-pane label="全部" name="all">
+              <el-tab-pane :label="$t('common.all')" name="all">
                 <TaskList ref="allTaskListRef" :status="'all'" :viewMode="viewMode" />
               </el-tab-pane>
-              <el-tab-pane label="进行中" name="processing">
+              <el-tab-pane :label="$t('task.processingTasks')" name="processing">
                 <TaskList ref="processingTaskListRef" :status="'processing'" :viewMode="viewMode" @task-finished="handleTaskFinished" />
               </el-tab-pane>
-              <el-tab-pane label="已完成" name="completed">
+              <el-tab-pane :label="$t('task.completedTasks')" name="completed">
                 <TaskList ref="completedTaskListRef" :status="'completed'" :viewMode="viewMode" />
               </el-tab-pane>
-              <el-tab-pane label="诊断异常" name="failed">
+              <el-tab-pane :label="$t('task.diagFailed')" name="failed">
                 <TaskList ref="failedTaskListRef" :status="'failed'" :viewMode="viewMode" />
               </el-tab-pane>
             </el-tabs>
 
             <!-- View Toggle -->
             <div class="view-toggle-group">
-              <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" title="卡片视图">
+              <button class="view-btn" :class="{ active: viewMode === 'grid' }" @click="viewMode = 'grid'" :title="$t('task.gridView')">
                 <el-icon><Grid /></el-icon>
               </button>
-              <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" title="列表视图">
+              <button class="view-btn" :class="{ active: viewMode === 'list' }" @click="viewMode = 'list'" :title="$t('task.listView')">
                 <el-icon><List /></el-icon>
               </button>
             </div>
@@ -163,10 +163,13 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Refresh, UploadFilled, Document, Loading, Check, Close, Delete, Grid, List } from '@element-plus/icons-vue'
 import { filesApi } from '@/api/files'
 import TaskList from '@/components/TaskList.vue'
+
+const { t } = useI18n()
 
 const batchMode = ref(true) // Default to batch confirmation mode
 const activeTab = ref('all')
@@ -191,7 +194,7 @@ function handleFileChange(uploadFile: any, uploadFiles: any[]) {
   // Validate type
   const isPDF = rawFile.type === 'application/pdf' || rawFile.name.toLowerCase().endsWith('.pdf')
   if (!isPDF) {
-    ElMessage.error(`【${rawFile.name}】不是 PDF 文件，已从队列移除`)
+    ElMessage.error(t('task.notPdfFile', { name: rawFile.name }))
     const idx = uploadFiles.indexOf(uploadFile)
     if (idx !== -1) uploadFiles.splice(idx, 1)
     return
@@ -200,7 +203,7 @@ function handleFileChange(uploadFile: any, uploadFiles: any[]) {
   // Validate size
   const isLt50M = rawFile.size / 1024 / 1024 < 50
   if (!isLt50M) {
-    ElMessage.error(`【${rawFile.name}】大小超过 50MB，已从队列移除`)
+    ElMessage.error(t('task.fileTooLarge', { name: rawFile.name }))
     const idx = uploadFiles.indexOf(uploadFile)
     if (idx !== -1) uploadFiles.splice(idx, 1)
     return
@@ -219,7 +222,7 @@ function handleFileChange(uploadFile: any, uploadFiles: any[]) {
     // Check if file is already added by UID or name+size
     const exists = fileList.value.some(f => f.name === uploadFile.name && f.size === uploadFile.size)
     if (exists) {
-      ElMessage.warning(`文件【${uploadFile.name}】已在待上传队列中`)
+      ElMessage.warning(t('task.fileAlreadyInQueue', { name: uploadFile.name }))
       const idx = uploadFiles.indexOf(uploadFile)
       if (idx !== -1) uploadFiles.splice(idx, 1)
       return
@@ -284,9 +287,9 @@ async function handleConfirmUpload() {
   await Promise.all(workers)
 
   if (failCount === 0) {
-    ElMessage.success(`批量上传成功！已成功载入 ${successCount} 个文件进行智能校验。`)
+    ElMessage.success(t('task.batchUploadSuccess', { count: successCount }))
   } else {
-    ElMessage.warning(`批量上传完成。成功 ${successCount} 个，失败 ${failCount} 个。`)
+    ElMessage.warning(t('task.batchUploadPartial', { success: successCount, fail: failCount }))
   }
 
   // Refresh dashboard tasks list
@@ -328,7 +331,7 @@ function handleRefresh() {
   } else if (activeTab.value === 'failed' && failedTaskListRef.value) {
     failedTaskListRef.value.refresh()
   }
-  ElMessage.success('任务看板已刷新')
+  ElMessage.success(t('task.taskBoardRefreshed'))
 }
 </script>
 

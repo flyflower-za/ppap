@@ -2,7 +2,7 @@
   <div class="notification-list-container">
     <div v-loading="loading" class="list-wrapper">
       <div v-if="notifications.length === 0" class="empty-state">
-        <el-empty :description="unreadOnly ? '暂无未读消息' : '暂无系统消息'" :image-size="80"></el-empty>
+        <el-empty :description="unreadOnly ? $t('notification.emptyUnread') : $t('notification.emptyAll')" :image-size="80"></el-empty>
       </div>
 
       <div v-else class="notifications-list">
@@ -26,7 +26,7 @@
           </div>
 
           <div class="action-section" v-if="!item.is_read">
-            <el-button type="primary" link size="small" @click.stop="markAsRead(item)">标记已读</el-button>
+            <el-button type="primary" link size="small" @click.stop="markAsRead(item)">{{ $t('notification.markRead') }}</el-button>
           </div>
         </div>
       </div>
@@ -36,10 +36,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
 import { useNotificationStore } from '@/stores/notification'
 import type { Notification, NotificationListResponse } from '@/types'
 import { SuccessFilled, CircleCloseFilled, WarningFilled, InfoFilled } from '@element-plus/icons-vue'
+
+const { t } = useI18n()
 
 const notificationStore = useNotificationStore()
 

@@ -2,51 +2,51 @@
   <div class="audit-page">
     <div class="page-header">
       <div class="header-left">
-        <h1 class="page-title">系统审计日志</h1>
-        <p class="page-subtitle">追踪系统敏感操作，保障数据安全与溯源</p>
+        <h1 class="page-title">{{ $t('audit.title') }}</h1>
+        <p class="page-subtitle">{{ $t('audit.subtitle') }}</p>
       </div>
       <div class="header-right">
-        <el-button @click="fetchLogs" :loading="loading" :icon="Refresh">刷新</el-button>
+        <el-button @click="fetchLogs" :loading="loading" :icon="Refresh">{{ $t('common.refresh') }}</el-button>
       </div>
     </div>
 
     <!-- Filters -->
     <div class="filter-card">
       <el-form :inline="true" :model="filters" class="filter-form">
-        <el-form-item label="操作类型">
-          <el-select v-model="filters.action" placeholder="全部类型" clearable class="w-200">
-            <el-option label="系统登录 (LOGIN)" value="LOGIN" />
-            <el-option label="自动查验运行 (RUN_VERIFICATION)" value="RUN_VERIFICATION" />
-            <el-option label="沙盒查验测试 (SANDBOX_TEST_MODULE)" value="SANDBOX_TEST_MODULE" />
-            <el-option label="上传文件 (UPLOAD_DOCUMENT)" value="UPLOAD_DOCUMENT" />
-            <el-option label="查看报告 (VIEW_VERIFICATION)" value="VIEW_VERIFICATION_REPORT" />
-            <el-option label="下载文件 (DOWNLOAD_DOCUMENT)" value="DOWNLOAD_DOCUMENT" />
-            <el-option label="人工审核 (RESOLVE_REVIEW)" value="RESOLVE_REVIEW" />
-            <el-option label="删除文件 (DELETE_DOCUMENT)" value="DELETE_DOCUMENT" />
-            <el-option label="新增规则 (CREATE_RULE)" value="CREATE_RULE" />
-            <el-option label="修改规则 (UPDATE_RULE)" value="UPDATE_RULE" />
-            <el-option label="删除规则 (DELETE_RULE)" value="DELETE_RULE" />
+        <el-form-item :label="$t('audit.actionType')">
+          <el-select v-model="filters.action" :placeholder="$t('audit.allTypes')" clearable class="w-200">
+            <el-option :label="$t('audit.actionLogin')" value="LOGIN" />
+            <el-option :label="$t('audit.actionRunVerification')" value="RUN_VERIFICATION" />
+            <el-option :label="$t('audit.actionSandboxTest')" value="SANDBOX_TEST_MODULE" />
+            <el-option :label="$t('audit.actionUploadDocument')" value="UPLOAD_DOCUMENT" />
+            <el-option :label="$t('audit.actionViewVerification')" value="VIEW_VERIFICATION_REPORT" />
+            <el-option :label="$t('audit.actionDownloadDocument')" value="DOWNLOAD_DOCUMENT" />
+            <el-option :label="$t('audit.actionResolveReview')" value="RESOLVE_REVIEW" />
+            <el-option :label="$t('audit.actionDeleteDocument')" value="DELETE_DOCUMENT" />
+            <el-option :label="$t('audit.actionCreateRule')" value="CREATE_RULE" />
+            <el-option :label="$t('audit.actionUpdateRule')" value="UPDATE_RULE" />
+            <el-option :label="$t('audit.actionDeleteRule')" value="DELETE_RULE" />
           </el-select>
         </el-form-item>
-        <el-form-item label="资源类别">
-          <el-select v-model="filters.resource_type" placeholder="全部资源" clearable class="w-150">
-            <el-option label="用户系统 (SYSTEM)" value="SYSTEM" />
-            <el-option label="校验规则 (RULE)" value="RULE" />
-            <el-option label="业务文档 (DOCUMENT)" value="DOCUMENT" />
-            <el-option label="查验测试 (VERIFICATION)" value="VERIFICATION" />
+        <el-form-item :label="$t('audit.resourceType')">
+          <el-select v-model="filters.resource_type" :placeholder="$t('audit.allResources')" clearable class="w-150">
+            <el-option :label="$t('audit.resourceSystem')" value="SYSTEM" />
+            <el-option :label="$t('audit.resourceRule')" value="RULE" />
+            <el-option :label="$t('audit.resourceDocument')" value="DOCUMENT" />
+            <el-option :label="$t('audit.resourceVerification')" value="VERIFICATION" />
           </el-select>
         </el-form-item>
-        <el-form-item label="时间范围">
+        <el-form-item :label="$t('audit.timeRange')">
           <el-select v-model="filters.days" class="w-150">
-            <el-option label="最近 7 天" :value="7" />
-            <el-option label="最近 30 天" :value="30" />
-            <el-option label="最近半年" :value="180" />
-            <el-option label="不限时间" :value="3650" />
+            <el-option :label="$t('audit.last7Days')" :value="7" />
+            <el-option :label="$t('audit.last30Days')" :value="30" />
+            <el-option :label="$t('audit.lastHalfYear')" :value="180" />
+            <el-option :label="$t('audit.allTime')" :value="3650" />
           </el-select>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="fetchLogs">筛选</el-button>
-          <el-button @click="resetFilters">重置</el-button>
+          <el-button type="primary" @click="fetchLogs">{{ $t('audit.filter') }}</el-button>
+          <el-button @click="resetFilters">{{ $t('common.reset') }}</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -60,12 +60,12 @@
         height="calc(100vh - 280px)"
         class="modern-table"
       >
-        <el-table-column prop="created_at" label="时间" width="170">
+        <el-table-column prop="created_at" :label="$t('common.time')" width="170">
           <template #default="{ row }">
             <span class="mono-text nowrap-text">{{ formatTime(row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="user_email" label="操作人" min-width="180">
+        <el-table-column prop="user_email" :label="$t('audit.operator')" min-width="180">
           <template #default="{ row }">
             <div class="user-cell">
               <el-avatar :size="24" :style="getAvatarStyle(row.user_email)">
@@ -75,32 +75,32 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="action" label="动作" min-width="150">
+        <el-table-column prop="action" :label="$t('audit.actionColumn')" min-width="150">
           <template #default="{ row }">
             <el-tag :type="getActionTagType(row.action)" effect="light" class="mono-tag">
               {{ row.action }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="resource_type" label="资源类型" width="110">
+        <el-table-column prop="resource_type" :label="$t('audit.resourceTypeColumn')" width="110">
           <template #default="{ row }">
             <span class="resource-text">{{ row.resource_type || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="resource_id" label="资源 ID" min-width="320" show-overflow-tooltip>
+        <el-table-column prop="resource_id" :label="$t('audit.resourceId')" min-width="320" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="mono-text sm-text text-gray">{{ row.resource_id || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="ip_address" label="IP 地址" min-width="140">
+        <el-table-column prop="ip_address" :label="$t('audit.ipAddress')" min-width="140">
           <template #default="{ row }">
-            <span class="mono-text sm-text">{{ row.ip_address || '内部/未知' }}</span>
+            <span class="mono-text sm-text">{{ row.ip_address || $t('audit.internalUnknown') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right" align="center">
+        <el-table-column :label="$t('common.action')" width="100" fixed="right" align="center">
           <template #default="{ row }">
             <el-button link type="primary" @click="viewDetails(row)">
-              查看详情
+              {{ $t('audit.viewDetails') }}
             </el-button>
           </template>
         </el-table-column>
@@ -116,15 +116,15 @@
           @size-change="fetchLogs"
           @current-change="fetchLogs"
         />
-        <span class="pagination-hint" v-if="logs.length === pageSize">（总数较多，请按需翻页）</span>
+        <span class="pagination-hint" v-if="logs.length === pageSize">{{ $t('audit.paginationHint') }}</span>
       </div>
     </el-card>
 
     <!-- Details Dialog -->
-    <el-dialog 
-      v-model="detailsVisible" 
-      title="日志详情" 
-      width="600px" 
+    <el-dialog
+      v-model="detailsVisible"
+      :title="$t('audit.logDetails')"
+      width="600px"
       custom-class="details-dialog"
       destroy-on-close
     >
@@ -140,15 +140,15 @@
         </div>
 
         <el-descriptions :column="1" border class="modern-descriptions mt-4">
-          <el-descriptions-item label="操作人">{{ currentLog.user_email || 'System' }}</el-descriptions-item>
-          <el-descriptions-item label="资源类型">{{ currentLog.resource_type || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="资源 ID"><span class="mono-text">{{ currentLog.resource_id || '-' }}</span></el-descriptions-item>
-          <el-descriptions-item label="来源 IP"><span class="mono-text">{{ currentLog.ip_address || '-' }}</span></el-descriptions-item>
+          <el-descriptions-item :label="$t('audit.operator')">{{ currentLog.user_email || 'System' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('audit.resourceTypeColumn')">{{ currentLog.resource_type || '-' }}</el-descriptions-item>
+          <el-descriptions-item :label="$t('audit.resourceId')"><span class="mono-text">{{ currentLog.resource_id || '-' }}</span></el-descriptions-item>
+          <el-descriptions-item :label="$t('audit.sourceIp')"><span class="mono-text">{{ currentLog.ip_address || '-' }}</span></el-descriptions-item>
         </el-descriptions>
 
         <div class="detail-section mt-4">
           <div class="section-title">
-            <span>执行上下文 (Context details)</span>
+            <span>{{ $t('audit.executionContext') }}</span>
           </div>
           <div class="json-viewer">
             <pre>{{ formatJson(currentLog.details) }}</pre>
@@ -157,7 +157,7 @@
       </div>
       <template #footer>
         <span class="dialog-footer">
-          <el-button @click="detailsVisible = false">关闭</el-button>
+          <el-button @click="detailsVisible = false">{{ $t('common.close') }}</el-button>
         </span>
       </template>
     </el-dialog>
@@ -170,6 +170,9 @@ import { Refresh, Platform } from '@element-plus/icons-vue'
 import { getAuditLogs, type AuditLog, type GetAuditLogsParams } from '@/api/audit'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const logs = ref<AuditLog[]>([])
 const loading = ref(false)
@@ -204,7 +207,7 @@ const fetchLogs = async () => {
     logs.value = data || []
   } catch (error) {
     console.error('Failed to fetch audit logs:', error)
-    ElMessage.error('无法加载审计日志')
+    ElMessage.error(t('audit.fetchFailed'))
   } finally {
     loading.value = false
   }
@@ -232,7 +235,7 @@ const formatTime = (isoStr: string) => {
 }
 
 const formatJson = (obj: any) => {
-  if (!obj || Object.keys(obj).length === 0) return '无详细上下文参数'
+  if (!obj || Object.keys(obj).length === 0) return t('audit.noContextParams')
   return JSON.stringify(obj, null, 2)
 }
 
