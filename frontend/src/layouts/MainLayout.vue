@@ -48,7 +48,11 @@
     </nav>
 
     <div class="main-content">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <keep-alive include="TaskCenter">
+          <component :is="Component" />
+        </keep-alive>
+      </router-view>
     </div>
   </div>
 </template>

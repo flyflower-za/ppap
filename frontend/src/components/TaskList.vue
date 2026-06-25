@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onActivated, onDeactivated, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { filesApi } from '@/api/files'
@@ -317,9 +317,9 @@ watch(() => props.status, () => {
   fetchTasks()
 })
 
-onMounted(fetchTasks)
+onActivated(fetchTasks)
 
-onUnmounted(() => {
+onDeactivated(() => {
   stopPolling()
 })
 

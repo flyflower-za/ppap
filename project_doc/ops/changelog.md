@@ -14,6 +14,7 @@
 - **AI 介入规划文档**：创建 `project_doc/ops/ai_integration_plan.md`，系统评估 8 个模块的 AI 介入可行性
 - **数据库字段同步**：Note 模型新增 `author_name` 列，补充迁移脚本修复仲裁记录用户名丢失问题
 - **人工仲裁流程修复**：resolve_review 后标记旧通知已读+创建结果通知；更新 verification_result 中 needs_review 标志
+- **上传队列持久化**：MainLayout 添加 KeepAlive 缓存 TaskCenterPage，切换页面不再丢失文件队列和上传状态
 
 ### 影响范围
 - ✅ 全后端时间处理（模型默认值、API 赋值、服务逻辑、Celery 任务）
@@ -23,6 +24,7 @@
 - ✅ 数据库字段同步（Note 模型新增 author_name + 迁移脚本）
 - ✅ 人工仲裁通知闭环（标记旧通知已读 + 创建结果通知）
 - ✅ 消息中心 UX（清除全部 + 无限刷新修复）
+- ✅ 上传队列切换页面不丢失（MainLayout KeepAlive 缓存）
 
 ---
 
