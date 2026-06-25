@@ -959,11 +959,11 @@
             </div>
 
             <el-table :data="filteredUsers" style="width: 100%">
-              <el-table-column prop="email" :label="$t('settings.email')" min-width="200" />
-              <el-table-column prop="username" :label="$t('settings.username')" width="130" />
-              <el-table-column prop="full_name" :label="$t('settings.fullName')" width="120" />
-              <el-table-column prop="department" :label="$t('settings.department')" width="140" />
-              <el-table-column :label="$t('settings.userGroups')" width="140">
+              <el-table-column prop="email" :label="$t('settings.email')" width="220" show-overflow-tooltip />
+              <el-table-column prop="username" :label="$t('settings.username')" width="140" show-overflow-tooltip />
+              <el-table-column prop="full_name" :label="$t('settings.fullName')" width="150" show-overflow-tooltip />
+              <el-table-column prop="department" :label="$t('settings.department')" width="180" show-overflow-tooltip />
+              <el-table-column :label="$t('settings.userGroups')" width="200" show-overflow-tooltip>
                 <template #default="scope">
                   <el-tag v-if="scope.row.groups && scope.row.groups.length > 0" size="small" type="info">
                     {{ scope.row.groups.map((g: UserGroup) => g.name).join(', ') }}
@@ -971,7 +971,7 @@
                   <span v-else class="text-muted text-sm">-</span>
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('settings.role')" width="110">
+              <el-table-column :label="$t('settings.role')" width="120">
                 <template #default="scope">
                   <el-select
                     v-model="scope.row.role"
@@ -985,7 +985,7 @@
                   </el-select>
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('settings.status')" width="90">
+              <el-table-column :label="$t('settings.status')" width="100">
                 <template #default="scope">
                   <el-switch
                     v-model="scope.row.is_active"
@@ -994,12 +994,12 @@
                   />
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('settings.lastLogin')" width="140">
+              <el-table-column :label="$t('settings.lastLogin')" width="170">
                 <template #default="scope">
                   {{ scope.row.last_login_at ? formatDate(scope.row.last_login_at) : '-' }}
                 </template>
               </el-table-column>
-              <el-table-column :label="$t('settings.operation')" width="130" fixed="right">
+              <el-table-column :label="$t('settings.operation')" width="140" fixed="right">
                 <template #default="scope">
                   <el-dropdown trigger="click" @command="(cmd: string) => handleUserCommand(cmd, scope.row)">
                     <el-button link type="primary" size="small">
@@ -1129,16 +1129,6 @@
               <el-select v-model="userForm.role" :placeholder="$t('settings.selectRole')">
                 <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
                 <el-option :label="$t('settings.roleUser')" value="USER" />
-              </el-select>
-            </el-form-item>
-            <el-form-item :label="$t('settings.permissionGroups')" prop="group_ids">
-              <el-select v-model="userForm.group_ids" multiple :placeholder="$t('settings.selectGroups')" style="width: 100%">
-                <el-option
-                  v-for="group in userGroups"
-                  :key="group.id"
-                  :label="group.name"
-                  :value="group.id"
-                />
               </el-select>
             </el-form-item>
           </el-form>
@@ -1630,7 +1620,6 @@ const userForm = reactive({
   department: '',
   password: '',
   role: 'USER' as 'ADMIN' | 'MANAGER' | 'USER',
-  group_ids: [] as string[]
 })
 
 const userRules = computed<FormRules>(() => ({
@@ -2088,8 +2077,7 @@ function handleCreateUser() {
     full_name: '',
     department: '',
     password: '',
-    role: 'USER',
-    group_ids: []
+    role: 'USER'
   })
   userDialogVisible.value = true
 }
@@ -2102,8 +2090,7 @@ function handleEditUser(user: UserInfo) {
     full_name: user.full_name,
     department: user.department || '',
     password: '',
-    role: user.role as 'ADMIN' | 'MANAGER' | 'USER',
-    group_ids: user.groups?.map((g: UserGroupBasic) => g.id) || []
+    role: user.role as 'ADMIN' | 'MANAGER' | 'USER'
   })
   userDialogVisible.value = true
 }
@@ -2150,8 +2137,11 @@ async function handleSaveUser() {
         ElMessage.success(t('settings.userCreated'))
       }
 
-      // Update user groups
-      await ldapApi.setUserGroups(userId, userForm.group_ids)
+      // Auto-assign to permission groups matching the user's role
+      const matchingGroups = userGroups.value.filter(g => g.role === userForm.role)
+      if (matchingGroups.length > 0) {
+        await ldapApi.setUserGroups(userId, matchingGroups.map(g => g.id))
+      }
 
       userDialogVisible.value = false
       await loadUsers()
