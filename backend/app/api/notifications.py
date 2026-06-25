@@ -65,7 +65,20 @@ async def mark_as_read(
     return {"message": "Notifications marked as read"}
 
 
-@router.post("/mark-all-read")
+@router.delete("")
+async def clear_all_notifications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete all notifications for the current user."""
+    from app.models.notification import Notification
+    from sqlalchemy import delete
+
+    stmt = delete(Notification).where(Notification.user_id == current_user.id)
+    result = await db.execute(stmt)
+    await db.commit()
+
+    return {"message": f"Deleted {result.rowcount} notifications"}
 async def mark_all_as_read(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

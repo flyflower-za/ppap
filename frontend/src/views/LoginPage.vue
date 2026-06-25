@@ -18,36 +18,32 @@
 
     <!-- 右侧登录操作区域 -->
     <div class="login-right">
-      <!-- 右上角工具栏 -->
-      <div class="top-toolbar">
-        <img src="/logo.png" alt="Logo" class="logo-img" onerror="this.style.display='none'">
-        <span class="locale-switcher">
-          <el-dropdown trigger="click" @command="handleLocaleChange">
-            <span class="locale-btn">
-              {{ currentLocaleLabel }}
-              <el-icon class="el-icon--right"><arrow-down /></el-icon>
-            </span>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  v-for="loc in availableLocales"
-                  :key="loc.value"
-                  :command="loc.value"
-                  :class="{ 'is-active': loc.value === currentLocale }"
-                >
-                  {{ loc.label }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </span>
-      </div>
 
       <div class="login-card-wrapper">
         <div class="login-container">
           <div class="login-header">
             <h2>{{ $t('auth.welcomeBack') }}</h2>
             <p>{{ $t('auth.loginSubtitle') }}</p>
+            <span class="locale-switcher">
+              <el-dropdown trigger="click" @command="handleLocaleChange">
+                <span class="locale-btn">
+                  {{ currentLocaleLabel }}
+                  <el-icon class="el-icon--right"><arrow-down /></el-icon>
+                </span>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="loc in availableLocales"
+                      :key="loc.value"
+                      :command="loc.value"
+                      :class="{ 'is-active': loc.value === currentLocale }"
+                    >
+                      {{ loc.label }}
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </span>
           </div>
 
           <!-- SSO Login Button -->
@@ -365,30 +361,11 @@ async function handleLogin() {
   padding: 40px;
 }
 
-.top-toolbar {
-  position: absolute;
-  top: 20px;
-  right: 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.logo-img {
-  height: 40px;
-  width: auto;
-}
-
-.locale-switcher {
-  display: flex;
-  align-items: center;
-}
-
 .locale-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border: 1px solid #dcdfe6;
   border-radius: 6px;
   font-size: 13px;
@@ -401,10 +378,6 @@ async function handleLogin() {
 .locale-btn:hover {
   color: #409eff;
   border-color: #409eff;
-}
-
-.locale-btn .el-icon--right {
-  font-size: 12px;
 }
 
 :deep(.is-active) {
@@ -427,18 +400,27 @@ async function handleLogin() {
 .login-header {
   text-align: center;
   margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 
 .login-header h2 {
   font-size: 28px;
   font-weight: 600;
   color: #1f2937;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
 .login-header p {
   color: #6b7280;
   font-size: 14px;
+  margin: 0;
+}
+
+.locale-switcher {
+  margin-top: 4px;
 }
 
 /* SSO Styles */

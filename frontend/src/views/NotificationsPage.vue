@@ -2,7 +2,10 @@
   <div>
     <div class="flex-between mb-4">
       <h2>{{ $t('notification.center') }}</h2>
-      <el-button v-if="hasUnread" :loading="markingAll" @click="handleMarkAllRead">{{ $t('notification.markAllRead') }}</el-button>
+      <div class="header-actions">
+        <el-button v-if="hasUnread" :loading="markingAll" @click="handleMarkAllRead">{{ $t('notification.markAllRead') }}</el-button>
+        <el-button type="danger" plain :loading="clearingAll" @click="handleClearAll">{{ $t('notification.clearAll') }}</el-button>
+      </div>
     </div>
 
     <el-card shadow="never" class="notifications-card">
@@ -21,7 +24,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import NotificationList from '@/components/NotificationList.vue'
 import { useNotificationStore } from '@/stores/notification'
 import client from '@/api/client'
@@ -32,6 +35,7 @@ const notificationStore = useNotificationStore()
 const activeTab = ref('all')
 const hasUnread = ref(true)
 const markingAll = ref(false)
+const clearingAll = ref(false)
 const refreshKey = ref(0)
 
 async function handleMarkAllRead() {
@@ -49,6 +53,31 @@ async function handleMarkAllRead() {
   }
 }
 
+async function handleClearAll() {
+  try {
+    await ElMessageBox.confirm(
+      t('notification.clearAllConfirm'),
+      t('notification.clearAllTitle'),
+      { confirmButtonText: t('notification.clearAll'), cancelButtonText: t('common.cancel'), type: 'warning' }
+    )
+  } catch {
+    return
+  }
+
+  clearingAll.value = true
+  try {
+    await client.delete('/notifications')
+    ElMessage.success(t('notification.clearSuccess'))
+    hasUnread.value = false
+    notificationStore.markAllRead()
+    refreshKey.value++
+  } catch {
+    ElMessage.error(t('notification.clearFailed'))
+  } finally {
+    clearingAll.value = false
+  }
+}
+
 function onUnreadChange(count: number) {
   hasUnread.value = count > 0
   notificationStore.setUnreadCount(count)
@@ -58,5 +87,9 @@ function onUnreadChange(count: number) {
 <style scoped>
 .notifications-card {
   border-radius: 12px;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 </style>
