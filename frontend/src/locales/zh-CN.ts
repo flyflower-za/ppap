@@ -587,6 +587,8 @@ export default {
     department: '部门',
     email: '邮箱',
     loginMethod: '登录方式',
+    loginMethodSso: 'SSO',
+    loginMethodPassword: '密码',
     profileLdapHint: '个人信息由企业 LDAP/SSO 系统统一管理，如需修改请联系系统管理员。',
     changePassword: '修改密码',
     notificationTitle: '邮件通知设置',

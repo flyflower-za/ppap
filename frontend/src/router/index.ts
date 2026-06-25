@@ -75,12 +75,6 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
-  {
-    path: '/rules/fullscreen',
-    name: 'FullscreenRuleEditor',
-    component: () => import('@/views/FullscreenRuleEditor.vue'),
-    meta: { requiresAuth: true, requiresAdmin: true },
-  },
 ]
 
 const router = createRouter({

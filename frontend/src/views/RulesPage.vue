@@ -143,10 +143,7 @@
               </el-table-column>
               <el-table-column prop="rule_content" label="规则内容" min-width="250" show-overflow-tooltip>
                 <template #default="scope">
-                  <span v-if="scope.row.rule_type === 'logic_graph'" class="text-placeholder">
-                    [可视化流程] {{ scope.row.logic_config?.nodes?.length || 0 }} 个节点, {{ scope.row.logic_config?.edges?.length || 0 }} 条连线
-                  </span>
-                  <span v-else>{{ scope.row.rule_content }}</span>
+                  <span>{{ scope.row.rule_content }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="is_active" label="状态" width="70" align="center">
@@ -203,20 +200,12 @@
     <!-- 规则弹窗 -->
     <el-dialog
       v-model="ruleDialogVisible"
-      :width="ruleForm.rule_type === 'logic_graph' ? '95%' : '80%'"
+      :width="'80%'"
       destroy-on-close
     >
       <template #header>
         <div class="rule-dialog-header">
           <span>{{ ruleForm.id ? '编辑规则' : '添加规则' }}</span>
-          <el-button
-            v-if="ruleForm.rule_type === 'logic_graph'"
-            type="primary"
-            size="small"
-            @click="openFullscreenEditor"
-          >
-            <el-icon><FullScreen /></el-icon> 全屏编辑
-          </el-button>
         </div>
       </template>
       <el-form :model="ruleForm" label-width="100px">
@@ -229,7 +218,6 @@
         <el-form-item label="规则类型" prop="rule_type" required v-if="showAdvancedTypes || ruleForm.id">
           <el-select v-model="ruleForm.rule_type" style="width: 100%">
             <el-option label="自定义校验规则" value="plugin" />
-            <el-option label="可视化节点图 (Logic Graph)" value="logic_graph" />
             <el-option v-if="ruleForm.rule_type === 'keyword'" label="关键字 (Keyword)" value="keyword" />
             <el-option v-if="ruleForm.rule_type === 'regex'" label="正则表达式 (Regex)" value="regex" />
             <el-option v-if="ruleForm.rule_type === 'llm_prompt'" label="大模型分析 (LLM Prompt)" value="llm_prompt" />
@@ -295,7 +283,7 @@
         </el-form-item>
 
         <!-- 关联校验模块 -->
-        <el-form-item label="关联校验模块" v-if="ruleForm.rule_type !== 'logic_graph'">
+        <el-form-item label="关联校验模块">
           <el-checkbox-group v-model="selectedModuleIds">
             <el-checkbox 
               v-for="mod in availableModules" 
@@ -315,13 +303,8 @@
           </div>
         </el-form-item>
 
-        <!-- Logic Graph Editor -->
-        <el-form-item v-if="ruleForm.rule_type === 'logic_graph'" prop="logic_config" required label="逻辑图配置">
-          <RuleGraphEditor :key="ruleForm.id || 'new'" v-model="ruleForm.logic_config" />
-        </el-form-item>
-        
         <!-- Standard Content Input -->
-        <el-form-item label="规则内容" v-else-if="['keyword', 'regex', 'llm_prompt'].includes(ruleForm.rule_type)" prop="rule_content" required>
+        <el-form-item label="规则内容" v-if="['keyword', 'regex', 'llm_prompt'].includes(ruleForm.rule_type)" prop="rule_content" required>
           <el-input 
             v-model="ruleForm.rule_content" 
             type="textarea" 
@@ -376,7 +359,7 @@
                   <span class="label">级别:</span> {{ ver.severity === 'fail' ? '拦截' : ver.severity === 'warning' ? '警告' : '参考' }}
                   <el-tag v-if="vIdx < versions.length - 1 && ver.severity !== versions[vIdx + 1].severity" size="small" type="warning" effect="plain" class="diff-tag">已变更</el-tag>
                 </div>
-                <div class="version-field" v-if="ver.rule_type !== 'logic_graph'">
+                <div class="version-field">
                   <span class="label">内容:</span> <code class="text-monospace">{{ ver.rule_content }}</code>
                   <el-tag v-if="vIdx < versions.length - 1 && ver.rule_content !== versions[vIdx + 1].rule_content" size="small" type="warning" effect="plain" class="diff-tag">已变更</el-tag>
                 </div>
@@ -495,10 +478,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound, FullScreen, Management } from '@element-plus/icons-vue'
+import { useRouter } from 'vue-router'
+import { Plus, MoreFilled, Refresh, InfoFilled, Collection, Check, Search, Document, ChatDotRound, Management } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import RuleGraphEditor from '../components/RuleGraphEditor.vue'
 import {
   getCategories, createCategory, updateCategory, deleteCategory,
   getRules, createRule, updateRule, deleteRule, restoreDefaultRules,
@@ -513,7 +495,6 @@ import { verificationModulesApi, type VerificationModule } from '../api/verifica
 import { getErrorMessage } from '@/utils/formatters'
 
 const router = useRouter()
-const route = useRoute()
 
 const categories = ref<Category[]>([])
 const rules = ref<Rule[]>([])
@@ -622,30 +603,10 @@ const ruleForm = ref<Partial<Rule & { condition_institution?: string, llm_model_
   llm_operation_mode: 'verification'
 })
 
-// Watch rule_type changes to initialize logic_config
-watch(() => ruleForm.value.rule_type, (newType, oldType) => {
-  if (newType === 'logic_graph' && oldType !== 'logic_graph') {
-    // Initialize logic_config when switching to logic_graph
-    if (!ruleForm.value.logic_config ||
-        !ruleForm.value.logic_config.nodes ||
-        ruleForm.value.logic_config.nodes.length === 0) {
-      ruleForm.value.logic_config = { nodes: [], edges: [] }
-    }
-  }
-})
 
 const activeCategoryName = computed(() => {
   const cat = categories.value.find(c => c.id === activeCategoryId.value)
   return cat ? cat.name : ''
-})
-
-// Watch for route changes to refresh rules when returning from fullscreen editor
-watch(() => route.query.refresh, async (newValue) => {
-  if (newValue === 'true' && activeCategoryId.value) {
-    await fetchRules()
-    // Remove the refresh query param
-    router.replace({ query: {} })
-  }
 })
 
 onMounted(async () => {
@@ -752,15 +713,6 @@ const openRuleDialog = async (rule?: Rule) => {
     ruleForm.value.llm_model_type = rule.logic_config?.llm_model_type || 'text'
     ruleForm.value.llm_operation_mode = rule.logic_config?.llm_operation_mode || 'verification'
 
-    // Ensure logic_config is properly initialized for logic_graph rules
-    if (rule.rule_type === 'logic_graph') {
-      if (!rule.logic_config || !rule.logic_config.nodes || rule.logic_config.nodes.length === 0) {
-        ruleForm.value.logic_config = { nodes: [], edges: [] }
-      } else {
-        // Deep clone to avoid reactivity issues
-        ruleForm.value.logic_config = JSON.parse(JSON.stringify(rule.logic_config))
-      }
-    }
     await loadRuleModules(rule.id)
   } else {
     ruleForm.value = {
@@ -787,14 +739,7 @@ const saveRule = async () => {
   }
 
   // Validation based on rule type
-  if (ruleForm.value.rule_type === 'logic_graph') {
-    if (!ruleForm.value.logic_config ||
-        !ruleForm.value.logic_config.nodes ||
-        ruleForm.value.logic_config.nodes.length === 0) {
-      ElMessage.warning('请配置逻辑图节点')
-      return
-    }
-  } else if (['keyword', 'regex', 'llm_prompt'].includes(ruleForm.value.rule_type) && !ruleForm.value.rule_content) {
+  if (['keyword', 'regex', 'llm_prompt'].includes(ruleForm.value.rule_type) && !ruleForm.value.rule_content) {
     ElMessage.warning('请填写规则内容')
     return
   }
@@ -825,11 +770,6 @@ const saveRule = async () => {
   delete payload.llm_model_type
   delete payload.llm_operation_mode
 
-  // Ensure rule_content is present for backend validation
-  if (payload.rule_type === 'logic_graph' && !payload.rule_content) {
-    payload.rule_content = ''
-  }
-
   try {
     let savedRule;
     if (payload.id) {
@@ -840,8 +780,8 @@ const saveRule = async () => {
       ElMessage.success('添加成功')
     }
 
-    // Save rule module association if not logic_graph
-    if (payload.rule_type !== 'logic_graph' && savedRule && savedRule.id) {
+    // Save rule module association
+    if (savedRule && savedRule.id) {
       await verificationModulesApi.assignRuleModules(savedRule.id, { module_ids: selectedModuleIds.value })
     }
 
@@ -878,17 +818,6 @@ const toggleRuleStatus = async (rule: Rule) => {
   }
 }
 
-// Fullscreen Editor
-const openFullscreenEditor = () => {
-  const query: Record<string, string> = {
-    categoryId: activeCategoryId.value
-  }
-  if (ruleForm.value.id) {
-    query.ruleId = ruleForm.value.id
-  }
-  router.push({ name: 'FullscreenRuleEditor', query })
-}
-
 const handleRestoreDefaults = () => {
   ElMessageBox.confirm('确定要恢复所有系统的预置默认规则吗？此操作将重置系统规则的内容配置，但不会删除您自定义的规则。', '恢复系统规则', {
     type: 'warning'
@@ -915,7 +844,6 @@ const getRuleTypeName = (type: string) => {
     'regex': '正则',
     'llm_prompt': '大模型',
     'plugin': '插件',
-    'logic_graph': '可视化流程',
   }
   return map[type] || type
 }
@@ -926,7 +854,6 @@ const getRuleTypeTag = (type: string) => {
     'regex': 'success',
     'llm_prompt': 'primary',
     'plugin': 'warning',
-    'logic_graph': 'danger',
   }
   return map[type] || 'info'
 }

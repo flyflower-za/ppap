@@ -11,6 +11,7 @@ export interface User {
   email_notifications_enabled: boolean
   created_at: string
   last_login_at?: string
+  sso_id?: string | null
 }
 
 export interface LoginRequest {

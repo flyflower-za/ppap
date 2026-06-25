@@ -587,6 +587,8 @@ export default {
     department: 'Department',
     email: 'Email',
     loginMethod: 'Login Method',
+    loginMethodSso: 'SSO',
+    loginMethodPassword: 'Password',
     profileLdapHint: 'Profile information is managed by the enterprise LDAP/SSO system. Please contact the system administrator for changes.',
     changePassword: 'Change Password',
     notificationTitle: 'Email Notification Settings',

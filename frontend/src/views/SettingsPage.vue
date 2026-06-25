@@ -64,7 +64,7 @@
             <el-descriptions-item :label="$t('settings.department')">{{ authStore.user?.department || '-' }}</el-descriptions-item>
             <el-descriptions-item :label="$t('settings.email')">{{ authStore.user?.email }}</el-descriptions-item>
             <el-descriptions-item :label="$t('settings.loginMethod')">
-              <el-tag size="small">SSO</el-tag>
+              <el-tag size="small">{{ authStore.user?.sso_id ? $t('settings.loginMethodSso') : $t('settings.loginMethodPassword') }}</el-tag>
             </el-descriptions-item>
           </el-descriptions>
 
@@ -656,15 +656,7 @@
                 <span class="form-tip">{{ $t('settings.adminGroupTip') }}</span>
               </el-form-item>
 
-              <el-form-item :label="$t('settings.managerGroup')" prop="ad_manager_group">
-                <el-input
-                  v-model="ldapConfig.ad_manager_group"
-                  placeholder="cn=PPAP-Managers,ou=groups,dc=example,dc=com"
-                  clearable
-                />
-                <span class="form-tip">{{ $t('settings.managerGroupTip') }}</span>
-              </el-form-item>
-
+              <!-- Manager group field hidden as MANAGER role is enabled -->
               <el-form-item :label="$t('settings.userGroup')" prop="ad_user_group">
                 <el-input
                   v-model="ldapConfig.ad_user_group"
@@ -759,10 +751,6 @@
                 <el-radio value="USER">
                   <span>{{ $t('settings.roleUser') }}</span>
                   <span class="radio-tip"> {{ $t('settings.roleUserDesc') }}</span>
-                </el-radio>
-                <el-radio value="MANAGER">
-                  <span>{{ $t('settings.roleManager') }}</span>
-                  <span class="radio-tip"> {{ $t('settings.roleManagerDesc') }}</span>
                 </el-radio>
                 <el-radio value="ADMIN">
                   <span>{{ $t('settings.roleAdmin') }}</span>
@@ -990,6 +978,7 @@
                     @change="handleRoleChange(scope.row)"
                   >
                     <el-option :label="$t('settings.roleAdmin')" value="ADMIN" />
+                    <el-option :label="$t('settings.roleManager')" value="MANAGER" />
                     <el-option :label="$t('settings.roleUser')" value="USER" />
                   </el-select>
                 </template>
@@ -1310,7 +1299,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { getLocale } from '@/locales'
@@ -1444,18 +1433,18 @@ const profileForm = reactive<Omit<ModelProfile, 'id'> & { id?: string }>({
   is_default_vision: false
 })
 
-const profileRules: FormRules = {
+const profileRules = computed<FormRules>(() => ({
   name: [{ required: true, message: t('settings.enterProfileName'), trigger: 'blur' }],
   base_url: [{ required: true, message: t('settings.enterBaseUrl'), trigger: 'blur' }],
   model_name: [{ required: true, message: t('settings.enterModelName'), trigger: 'blur' }]
-}
+}))
 const fileRetentionSettings = reactive<FileRetentionSettings>({
   retention_days: 30,
   auto_cleanup_enabled: true,
   cleanup_hour: 2
 })
 
-const fileRetentionRules: FormRules = {
+const fileRetentionRules = computed<FormRules>(() => ({
   retention_days: [
     { required: true, message: t('settings.enterRetentionDays'), trigger: 'blur' },
     { type: 'number', min: 1, max: 3650, message: t('settings.retentionDaysRange'), trigger: 'blur' }
@@ -1463,7 +1452,7 @@ const fileRetentionRules: FormRules = {
   cleanup_hour: [
     { required: true, message: t('settings.selectCleanupHour'), trigger: 'change' }
   ]
-}
+}))
 
 const smtpFormRef = ref<FormInstance>()
 
@@ -1477,7 +1466,7 @@ const smtpConfig = reactive({
   password: ''
 })
 
-const smtpRules: FormRules = {
+const smtpRules = computed<FormRules>(() => ({
   host: [
     { required: true, message: t('settings.enterSmtpServer'), trigger: 'blur' }
   ],
@@ -1491,7 +1480,7 @@ const smtpRules: FormRules = {
   from_name: [
     { required: true, message: t('settings.enterSenderName'), trigger: 'blur' }
   ]
-}
+}))
 
 const emailEnabled = ref(true)
 const notifyOnFailure = ref(true)
@@ -1519,7 +1508,7 @@ const testingLDAP = ref(false)
 const ldapSaveSuccess = ref(false)
 const ldapFormRef = ref<FormInstance>()
 
-const ldapRules: FormRules = {
+const ldapRules = computed<FormRules>(() => ({
   ldap_server: [
     { required: true, message: t('settings.enterLdapServer'), trigger: 'blur' }
   ],
@@ -1561,7 +1550,7 @@ const ldapRules: FormRules = {
     { required: true, message: t('settings.enterCallbackUrl'), trigger: 'blur' },
     { type: 'url', message: t('settings.invalidUrl'), trigger: 'blur' }
   ]
-}
+}))
 
 const ldapConfig = reactive<LDAPConfig>({
   ldap_enabled: false,
@@ -1633,7 +1622,7 @@ const userForm = reactive({
   group_ids: [] as string[]
 })
 
-const userRules: FormRules = {
+const userRules = computed<FormRules>(() => ({
   email: [
     { required: true, message: t('settings.enterEmail'), trigger: 'blur' },
     { type: 'email', message: t('settings.invalidEmail'), trigger: 'blur' }
@@ -1644,7 +1633,7 @@ const userRules: FormRules = {
   role: [
     { required: true, message: t('settings.selectRole'), trigger: 'change' }
   ]
-}
+}))
 
 const groupForm = reactive({
   name: '',
@@ -1653,14 +1642,14 @@ const groupForm = reactive({
   role: 'USER' as 'ADMIN' | 'MANAGER' | 'USER'
 })
 
-const groupRules: FormRules = {
+const groupRules = computed<FormRules>(() => ({
   name: [
     { required: true, message: t('settings.enterGroupName'), trigger: 'blur' }
   ],
   role: [
     { required: true, message: t('settings.selectRole'), trigger: 'change' }
   ]
-}
+}))
 
 // Helper functions
 function formatDate(dateStr: string): string {
@@ -1702,7 +1691,7 @@ const templateForm = reactive({
   is_active: true
 })
 
-const templateRules: FormRules = {
+const templateRules = computed<FormRules>(() => ({
   id: [
     { required: true, message: t('settings.enterTemplateId'), trigger: 'blur' },
     { pattern: /^[a-z_][a-z0-9_]*$/, message: t('settings.templateIdPattern'), trigger: 'blur' }
@@ -1716,7 +1705,7 @@ const templateRules: FormRules = {
   html_content: [
     { required: true, message: t('settings.enterHtmlContent'), trigger: 'blur' }
   ]
-}
+}))
 
 function handleMenuSelect(index: string) {
   activeMenu.value = index
@@ -2754,8 +2743,8 @@ code {
 
 /* LDAP/SSO Configuration Styles */
 .ldap-config-card {
-  max-width: 1200px;
-  margin: 0 auto;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .card-header-content {
