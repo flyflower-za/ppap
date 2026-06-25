@@ -255,6 +255,18 @@ class FileService:
             duration = int((file.completed_at - file.uploaded_at).total_seconds())
             file.duration_seconds = duration
 
+        # Update verification_result summary.needs_review to false
+        if file.verification_result:
+            try:
+                vresult = json.loads(file.verification_result)
+                if isinstance(vresult, dict) and "summary" in vresult:
+                    vresult["summary"]["needs_review"] = False
+                    vresult["summary"]["review_resolved_by"] = user_name
+                    vresult["summary"]["review_resolved_action"] = action
+                    file.verification_result = json.dumps(vresult)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         # Add note
         from app.models.note import Note
         note_content = f"已通过仲裁：{comment}" if action == 'approve' else f"已驳回仲裁：{comment}"
@@ -268,6 +280,39 @@ class FileService:
             content=note_content,
         )
         self.db.add(note)
+
+        # Mark existing arbitration notification as read
+        from app.models.notification import Notification, NotificationType
+        stmt = (
+            select(Notification)
+            .where(
+                Notification.user_id == file.uploaded_by,
+                Notification.type == NotificationType.WARNING.value,
+                Notification.link == f"/files/{file_id}",
+                Notification.is_read == False,
+            )
+            .order_by(Notification.created_at.desc())
+            .limit(1)
+        )
+        result = await self.db.execute(stmt)
+        old_notif = result.scalar_one_or_none()
+        if old_notif:
+            old_notif.is_read = True
+            old_notif.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        # Create a new notification about the resolution
+        approved = action == 'approve'
+        notif = Notification(
+            user_id=file.uploaded_by,
+            type=NotificationType.SUCCESS if approved else NotificationType.ERROR,
+            title="PDF【{}】仲裁完成".format(file.original_filename),
+            message="已通过仲裁放行" if approved else "已确认仲裁驳回",
+            link=f"/files/{file_id}",
+            is_read=False,
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        self.db.add(notif)
+
         await self.db.commit()
 
         return await self.get_file_detail(file_id)

@@ -247,7 +247,7 @@ class StampDetectionOperator(BaseOperator):
         """
         tasks = [
             self._verify_candidate_vlm(pix, i)
-            for i, pix in enumerate(pixmaps)
+            for i, pix in enumerate(crop_jpegs)
         ]
         results = await asyncio.gather(*tasks)
         return results

@@ -27,6 +27,7 @@
 | 2.5 | 前端固定 2 秒轮询 | `setInterval(fetchTasks, 2000)` | 改为指数退避 `setTimeout`（2s→30s） | ✅ | 2026-06-24 |
 | 2.6 | URLFetchOperator 临时文件未清理 | `mkstemp` 创建后未删除 | 记录到 `_temp_files` 列表，任务完成后清理 | ✅ | 2026-06-24 |
 | 2.7 | Note 模型缺少 author_name 列 | 模型定义缺失字段，file_service.py 传入的 author_name 被静默丢弃 | 模型新增 `author_name` 列 + 迁移脚本 | ✅ | 2026-06-25 |
+| 2.8 | 人工仲裁后未更新通知和 verification_result | resolve_review 只改 status，旧仲裁通知仍为未读，verification_result.needs_review 仍为 true | 标记旧通知已读+创建结果通知；更新 needs_review 为 false | ✅ | 2026-06-25 |
 
 ### 🟡 部署期间发现的运行时问题（已修复 15/15）
 
