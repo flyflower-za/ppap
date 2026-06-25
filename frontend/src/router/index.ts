@@ -58,26 +58,31 @@ const routes: RouteRecordRaw[] = [
         path: 'rules',
         name: 'Rules',
         component: () => import('@/views/RulesPage.vue'),
+        meta: { requiresAdmin: true },
       },
       {
         path: 'modules',
         name: 'Modules',
         component: () => import('@/views/ModulesPage.vue'),
+        meta: { requiresAdmin: true },
       },
       {
         path: 'sandbox',
         name: 'Sandbox',
         component: () => import('@/views/ModuleSandboxPage.vue'),
+        meta: { requiresAdmin: true },
       },
       {
         path: 'audit',
         name: 'Audit',
         component: () => import('@/views/AuditLogPage.vue'),
+        meta: { requiresAdmin: true },
       },
       {
         path: 'approvals',
         name: 'Approvals',
         component: () => import('@/views/ApprovalsPage.vue'),
+        meta: { requiresAdmin: true },
       },
     ],
   },
@@ -85,7 +90,7 @@ const routes: RouteRecordRaw[] = [
     path: '/rules/fullscreen',
     name: 'FullscreenRuleEditor',
     component: () => import('@/views/FullscreenRuleEditor.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, requiresAdmin: true },
   },
 ]
 
@@ -114,6 +119,9 @@ router.beforeEach(async (to, _from, next) => {
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.name === 'Login' && authStore.isAuthenticated) {
+    next({ name: 'TaskCenter' })
+  } else if (to.meta.requiresAdmin && !authStore.user?.is_admin) {
+    // Non-admin user trying to access admin-only route
     next({ name: 'TaskCenter' })
   } else {
     next()
