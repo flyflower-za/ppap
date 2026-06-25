@@ -72,6 +72,7 @@ project_doc/
 | [问题修复清单](ops/bugfix_history.md) | 70 项问题修复记录（55/70 已完成） |
 | [变更日志](ops/changelog.md) | 版本发布历史（v1.0.0 - v1.1.3） |
 | [优化建议](ops/optimization_suggestions.md) | 36 项优化建议与实施路线图 |
+| [算子精准度审计](ops/accuracy_analysis.md) | 13 个算子算法分析、AI 使用情况与 24 项精准度改进建议 |
 
 ## 外部文档
 
