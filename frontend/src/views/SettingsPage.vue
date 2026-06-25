@@ -2825,6 +2825,8 @@ code {
   min-width: 180px;
   border-radius: 12px;
   overflow: hidden;
+  background-color: #ffffff;
+  border: 1px solid #e4e7ed;
 }
 
 .settings-menu :deep(.el-menu-item) {
