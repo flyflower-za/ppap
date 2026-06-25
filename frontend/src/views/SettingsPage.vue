@@ -3,44 +3,55 @@
     <h2 class="mb-4">{{ $t('settings.title') }}</h2>
 
     <el-row :gutter="32">
-      <el-col :span="7">
-        <el-menu :default-active="activeMenu" @select="handleMenuSelect">
-          <el-menu-item index="profile">
-            <el-icon><User /></el-icon>
-            <span>{{ $t('settings.menuProfile') }}</span>
-          </el-menu-item>
-          <el-menu-item index="notification">
-            <el-icon><Bell /></el-icon>
-            <span>{{ $t('settings.menuNotification') }}</span>
-          </el-menu-item>
-          <el-menu-item index="file-retention" v-if="canAccessSettings('file_retention')">
-            <el-icon><FolderOpened /></el-icon>
-            <span>{{ $t('settings.menuFileRetention') }}</span>
-          </el-menu-item>
-          <el-menu-item index="smtp" v-if="canAccessSettings('smtp')">
-            <el-icon><Setting /></el-icon>
-            <span>{{ $t('settings.menuSmtp') }}</span>
-          </el-menu-item>
-          <el-menu-item index="templates" v-if="canAccessSettings('email_templates')">
-            <el-icon><Document /></el-icon>
-            <span>{{ $t('settings.menuTemplates') }}</span>
-          </el-menu-item>
-          <el-menu-item index="ldap" v-if="canAccessSettings('ldap')">
-            <el-icon><Lock /></el-icon>
-            <span>{{ $t('settings.menuLdap') }}</span>
-          </el-menu-item>
-          <el-menu-item index="ai-model" v-if="canAccessSettings('ai_model')">
-            <el-icon><Cpu /></el-icon>
-            <span>{{ $t('settings.menuAiModel') }}</span>
-          </el-menu-item>
-          <el-menu-item index="users" v-if="canAccessSettings('users')">
-            <el-icon><UserFilled /></el-icon>
-            <span>{{ $t('settings.menuUsers') }}</span>
-          </el-menu-item>
+      <el-col :span="5">
+        <el-menu :default-active="activeMenu" @select="handleMenuSelect" class="settings-menu">
+          <!-- 个人设置组 -->
+          <el-menu-item-group title="个人设置">
+            <el-menu-item index="profile">
+              <el-icon><User /></el-icon>
+              <span>{{ $t('settings.menuProfile') }}</span>
+            </el-menu-item>
+            <el-menu-item index="notification">
+              <el-icon><Bell /></el-icon>
+              <span>{{ $t('settings.menuNotification') }}</span>
+            </el-menu-item>
+          </el-menu-item-group>
+
+          <!-- 系统配置组 -->
+          <el-menu-item-group title="系统配置" v-if="canAccessSettings('file_retention') || canAccessSettings('smtp') || canAccessSettings('email_templates') || canAccessSettings('ldap') || canAccessSettings('ai_model')">
+            <el-menu-item index="file-retention" v-if="canAccessSettings('file_retention')">
+              <el-icon><FolderOpened /></el-icon>
+              <span>{{ $t('settings.menuFileRetention') }}</span>
+            </el-menu-item>
+            <el-menu-item index="smtp" v-if="canAccessSettings('smtp')">
+              <el-icon><Setting /></el-icon>
+              <span>{{ $t('settings.menuSmtp') }}</span>
+            </el-menu-item>
+            <el-menu-item index="templates" v-if="canAccessSettings('email_templates')">
+              <el-icon><Document /></el-icon>
+              <span>{{ $t('settings.menuTemplates') }}</span>
+            </el-menu-item>
+            <el-menu-item index="ldap" v-if="canAccessSettings('ldap')">
+              <el-icon><Lock /></el-icon>
+              <span>{{ $t('settings.menuLdap') }}</span>
+            </el-menu-item>
+            <el-menu-item index="ai-model" v-if="canAccessSettings('ai_model')">
+              <el-icon><Cpu /></el-icon>
+              <span>{{ $t('settings.menuAiModel') }}</span>
+            </el-menu-item>
+          </el-menu-item-group>
+
+          <!-- 用户管理组 -->
+          <el-menu-item-group title="用户管理" v-if="canAccessSettings('users')">
+            <el-menu-item index="users" v-if="canAccessSettings('users')">
+              <el-icon><UserFilled /></el-icon>
+              <span>{{ $t('settings.menuUsers') }}</span>
+            </el-menu-item>
+          </el-menu-item-group>
         </el-menu>
       </el-col>
 
-      <el-col :span="17">
+      <el-col :span="19">
         <!-- Profile Section -->
         <el-card v-if="activeMenu === 'profile'" shadow="never">
           <template #header>
@@ -2768,5 +2779,25 @@ code {
 
 :deep(.el-card__header) {
   border-radius: 12px 12px 0 0;
+}
+
+/* Settings menu styling */
+.settings-menu :deep(.el-menu-item) {
+  height: 48px;
+  line-height: 48px;
+  padding: 0 16px;
+}
+
+.settings-menu :deep(.el-menu-item-group__title) {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #909399;
+}
+
+.settings-menu :deep(.el-icon) {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
 }
 </style>
