@@ -8,6 +8,7 @@
 project_doc/
 ├── README.md                    # 本文件
 ├── core/                        # 核心文档
+│   ├── project_overview.md     # 项目架构总览与技术栈
 │   ├── function.md             # 功能清单与模块说明
 │   ├── implementation_plan.md  # 实施计划与架构设计
 │   ├── status.md               # 项目状态与进度跟踪
@@ -23,6 +24,7 @@ project_doc/
 
 | 文档 | 描述 |
 |------|------|
+| [project_overview.md](core/project_overview.md) | 项目架构总览、技术栈与核心功能分析 |
 | [function.md](core/function.md) | 项目功能清单与模块说明 |
 | [implementation_plan.md](core/implementation_plan.md) | 实施计划与架构设计 |
 | [status.md](core/status.md) | 项目状态与进度跟踪 |
@@ -54,4 +56,4 @@ project_doc/
 
 ---
 
-*文档整理日期: 2026-06-23*
+*文档整理日期: 2026-06-25*

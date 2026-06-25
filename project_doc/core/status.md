@@ -131,6 +131,51 @@
 
 ---
 
+## 前端国际化 (i18n) ✅ 已完成 (2026-06-25)
+
+### 基础设施
+| 变更项 | 文件 | 状态 |
+|--------|------|------|
+| vue-i18n v11 安装与注册 | `frontend/src/main.ts` | ✅ |
+| 中文 locale 文件 (947 keys) | `frontend/src/locales/zh-CN.ts` | ✅ |
+| 英文 locale 文件 (947 keys) | `frontend/src/locales/en-US.ts` | ✅ |
+| i18n 实例 + localStorage 持久化 | `frontend/src/locales/index.ts` | ✅ |
+| Element Plus 动态 locale 绑定 | `frontend/src/App.vue` | ✅ |
+| 语言切换 UI (导航栏) | `frontend/src/layouts/MainLayout.vue` | ✅ |
+| 登录页语言切换按钮 | `frontend/src/views/LoginPage.vue` | ✅ |
+
+### 页面迁移 (15/19 文件完成，~85%)
+| 文件 | 状态 |
+|------|------|
+| SettingsPage.vue (模板 + script 全量) | ✅ |
+| LoginPage / DashboardPage / HistoryPage | ✅ |
+| FileDetailPage / TaskCenterPage / AuditLogPage | ✅ |
+| ModulesPage / ModuleSandboxPage / ApprovalsPage | ✅ |
+| NotificationsPage / NotificationList / TaskList | ✅ |
+| Rules 子系统 (3 文件) | ⏳ 延后 |
+
+### 其他优化
+| 变更项 | 说明 |
+|--------|------|
+| CanceledError 静默处理 | client.ts 拦截器统一处理，never-resolving promise |
+| 设置页英文适配 | 加宽左侧菜单和表单 label-width |
+| fallback 文本国际化 | client.ts / formatters.ts |
+
+---
+
+## 前端 6 项优化 ✅ 已完成 (2026-06-25)
+
+| 优化项 | 说明 |
+|--------|------|
+| Notification Store | 统一通知状态管理，消除组件间重复逻辑 |
+| 请求取消机制 | 路由切换时自动取消未完成的请求 |
+| 类型安全 | 消除 any 类型，增强 TypeScript 类型约束 |
+| 响应式设计 | 适配不同屏幕尺寸 |
+| 印章检测参数调优 | 缩小膨胀核 (7→5) 与合并间距 (40→15)，避免独立印章融合 |
+| Toast 去重 | 相同错误消息 2s 内只显示一次 |
+
+---
+
 ## 启动与测试命令
 
 ```bash

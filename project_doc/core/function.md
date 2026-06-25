@@ -12,7 +12,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 | 层级 | 技术选型 |
 |------|----------|
-| 前端 | Vue 3.4 + TypeScript 5.3 + Element Plus 2.5 + Vite 5.0 |
+| 前端 | Vue 3.4 + TypeScript 5.3 + Element Plus 2.5 + Vite 5.0 + vue-i18n v11 |
 | 后端 | FastAPI 0.109 + Python 3.11 + SQLAlchemy 2.0 (async) |
 | 数据库 | PostgreSQL |
 | 缓存 | Redis |
@@ -20,6 +20,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 | AI 服务 | 阿里云 Agent |
 | 任务队列 | Celery |
 | 容器化 | Docker + Docker Compose |
+| 国际化 | vue-i18n v11 (zh-CN / en-US, 947 keys) |
 
 ---
 
@@ -244,7 +245,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 | 页面 | 组件 | 功能描述 |
 |------|------|----------|
-| 登录页 | `LoginPage.vue` | 用户登录界面，支持 LDAP/SSO |
+| 登录页 | `LoginPage.vue` | 用户登录界面，支持 LDAP/SSO，右上角语言切换按钮 |
 | 任务中心 | `TaskCenterPage.vue` | 文件上传、任务列表管理 |
 | 历史记录 | `HistoryPage.vue` | 文件历史记录，支持筛选 |
 | 文件详情 | `FileDetailPage.vue` | 文件验证详情、PDF 预览、规则匹配、人工仲裁 |
@@ -253,7 +254,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 | 模块沙盒 | `ModuleSandboxPage.vue` | 模块测试沙盒 |
 | 审批中心 | `ApprovalsPage.vue` | 规则变更审批工单管理 |
 | 审计日志 | `AuditLogPage.vue` | 操作审计日志查询 |
-| 系统设置 | `SettingsPage.vue` | LDAP、SMTP、SSO、用户角色配置 |
+| 系统设置 | `SettingsPage.vue` | LDAP、SMTP、SSO、用户角色、AI 模型、文件保留配置 |
 | 通知中心 | `NotificationsPage.vue` | 用户通知查看 |
 | 合规大屏 | `DashboardPage.vue` | 数据统计仪表盘 |
 
@@ -271,7 +272,27 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.3 规则图编辑器功能
+### 2.3 国际化 (i18n)
+
+**目录**: `frontend/src/locales/`
+
+| 文件 | 说明 |
+|------|------|
+| `index.ts` | vue-i18n 实例创建、locale 切换、localStorage 持久化 |
+| `zh-CN.ts` | 中文翻译 (947 keys) |
+| `en-US.ts` | 英文翻译 (947 keys) |
+| `I18N_PROGRESS.md` | 国际化迁移进度跟踪 |
+
+**切换方式**:
+- 导航栏底部语言切换按钮（已登录状态）
+- 登录页右上角语言切换下拉（未登录状态）
+- Element Plus 组件自动跟随切换
+
+**完成度**: ~85%（15/19 文件），Rules 子系统延后处理
+
+---
+
+### 2.4 规则图编辑器功能
 
 **文件**: `frontend/src/components/RuleGraphEditor.vue`
 
@@ -287,7 +308,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.4 人工仲裁 (HITL)
+### 2.5 人工仲裁 (HITL)
 
 **文件**: `frontend/src/views/FileDetailPage.vue`
 
@@ -300,7 +321,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.5 规则配置与版本管理
+### 2.6 规则配置与版本管理
 
 **文件**: `frontend/src/views/RulesPage.vue`
 
@@ -321,7 +342,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.6 审批流程
+### 2.7 审批流程
 
 **文件**: `frontend/src/views/ApprovalsPage.vue`
 
@@ -334,7 +355,7 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 
 ---
 
-### 2.7 API 客户端
+### 2.8 API 客户端
 
 **目录**: `frontend/src/api/`
 
@@ -487,8 +508,8 @@ PPAP 是一个基于 AI 的 PDF 文件验证平台，用于自动化检测生产
 3. **批量文件处理**: 支持批量上传与验证
 4. **报表导出**: PDF/Excel 格式验证报告
 5. **移动端适配**: 响应式布局优化
-6. **国际化**: 多语言支持
+6. **国际化**: 已完成 ~85%（vue-i18n 基础设施 + 15 个页面），剩余 Rules 子系统 3 个文件待迁移
 
 ---
 
-*最后更新: 2026-06-23*
+*最后更新: 2026-06-25*
