@@ -18,6 +18,12 @@ function Write-ColorOutput {
     Write-Host $Message -ForegroundColor $Color
 }
 
+# Write UTF-8 without BOM (compatible with PS 5.x and 7+)
+function Write-Utf8NoBom {
+    param([string]$Path, [string]$Content)
+    [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
 function Write-Success {
     param([string]$Message)
     Write-ColorOutput $Message "Green"
@@ -59,9 +65,10 @@ function Test-Docker {
 function Invoke-DockerCompose {
     if (Test-DockerCompose) {
         $fullArgs = @("compose") + $args
-        & docker $fullArgs
+        & docker @fullArgs
     } else {
-        & docker-compose $args
+        $dcArgs = @($args)
+        & docker-compose @dcArgs
     }
 }
 
@@ -128,20 +135,37 @@ cd deploy
 $envFile = ".env"
 $envExample = ".env.example"
 
+# Sync new keys from .env.example to existing .env
+if ((Test-Path $envFile) -and (Test-Path $envExample)) {
+    $exampleLines = Get-Content $envExample
+    $envContent = Get-Content $envFile -Raw
+    foreach ($line in $exampleLines) {
+        if ($line -match '^\s*#' -or $line -match '^\s*$') { continue }
+        if ($line -match '^([^=]+)=') {
+            $key = $Matches[1].Trim()
+            if (-not ($envContent -match "^${key}=")) {
+                Add-Content -Path $envFile -Value $line
+                Write-Host "Added new config: $key"
+            }
+        }
+    }
+}
+
 if (-not (Test-Path $envFile)) {
     if (Test-Path $envExample) {
         Copy-Item $envExample $envFile
         Write-Success "[+] Created .env from .env.example"
     } else {
         Write-Warning "Creating basic .env file..."
-@"
+        $basicEnv = @"
 # PPAP Environment Configuration
 SECRET_KEY=change-this-in-production
 POSTGRES_PASSWORD=ppap123
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=minioadmin
 REDIS_PASSWORD=redis-secret-pass
-"@ | Out-File -FilePath $envFile -Encoding UTF8
+"@
+        Write-Utf8NoBom -Path $envFile -Content $basicEnv
         Write-Success "[+] Created basic .env file"
     }
 
@@ -153,10 +177,12 @@ REDIS_PASSWORD=redis-secret-pass
     $redisPass = -join ((1..16) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
     $adminPass = -join ((1..12) | ForEach-Object { $charSet[(Get-Random -Maximum 62)] })
 
-    (Get-Content $envFile) -replace '^SECRET_KEY=.*', "SECRET_KEY=$secretKey" | Set-Content $envFile
-    (Get-Content $envFile) -replace '^POSTGRES_PASSWORD=.*', "POSTGRES_PASSWORD=$dbPass" | Set-Content $envFile
-    (Get-Content $envFile) -replace '^MINIO_ROOT_PASSWORD=.*', "MINIO_ROOT_PASSWORD=$minioPass" | Set-Content $envFile
-    (Get-Content $envFile) -replace '^REDIS_PASSWORD=.*', "REDIS_PASSWORD=$redisPass" | Set-Content $envFile
+    $envContent = Get-Content $envFile -Raw
+    $envContent = $envContent -replace '^SECRET_KEY=.*', "SECRET_KEY=$secretKey"
+    $envContent = $envContent -replace '^POSTGRES_PASSWORD=.*', "POSTGRES_PASSWORD=$dbPass"
+    $envContent = $envContent -replace '^MINIO_ROOT_PASSWORD=.*', "MINIO_ROOT_PASSWORD=$minioPass"
+    $envContent = $envContent -replace '^REDIS_PASSWORD=.*', "REDIS_PASSWORD=$redisPass"
+    Write-Utf8NoBom -Path $envFile -Content $envContent
 
     Write-Success "[+] Auto-generated strong secrets (saved to .env)"
     Write-Warning "  ⚠ Save these credentials securely! DB password: $dbPass"
@@ -177,7 +203,7 @@ sys.stdout.write(bcrypt.hashpw(b'$adminPass', bcrypt.gensalt()).decode())
                 # Replace the bcrypt hash pattern in init-db.sql
                 $content = Get-Content $initDbPath -Raw
                 $updated = $content -replace '\$2b\$\d+\$[A-Za-z0-9./]+', $adminHash
-                $updated | Out-File -FilePath $initDbPath -Encoding UTF8
+                Write-Utf8NoBom -Path $initDbPath -Content $updated
                 Write-Success "[+] Admin password set to: $adminPass"
             }
             # Write hash to .env for db-init container (existing databases)
