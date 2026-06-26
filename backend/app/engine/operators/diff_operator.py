@@ -1,11 +1,79 @@
+import asyncio
+import json
 import logging
 import difflib
 import httpx
 import re
 from typing import List
+from openai import AsyncOpenAI
+
 from app.engine.base import BaseOperator, DocumentContext, OperatorResult
+from app.engine.llm_utils import _get_ai_config, _safe_json_parse
 
 logger = logging.getLogger(__name__)
+
+# ── LLM Semantic Classification Prompt ──────────────────────────────────────
+
+_SEMANTIC_DIFF_PROMPT = """You are a precision document comparison analyst. You will receive two documents and a list of text differences detected by an automated diff tool. Your task is to classify each difference.
+
+## Document A (Base) Snippet
+{base_snippet}
+
+## Document B (Current) Snippet
+{current_snippet}
+
+## Detected Differences
+{changes_json}
+
+## Classification Task
+For each difference, classify it into EXACTLY ONE of these categories:
+
+### "format"
+Differences caused purely by document formatting or system-generated metadata, NOT by content changes:
+- Page numbers (e.g. "Page 1" vs "Page 2" — the actual content on those pages might be the same)
+- Headers and footers that are system-generated (copyright notices, "Confidential", file paths)
+- Timestamps or dates that appear to be auto-generated print dates (e.g. "Printed: 2024-01-15" vs "Printed: 2024-01-16") — BUT dates that are part of the document content (e.g. report date, test date) should be "meaningful"
+- Watermark text differences (e.g. "DRAFT" appearing in one but not the other)
+- Document IDs, serial numbers, or barcode values that are clearly system identifiers
+- Whitespace-only differences that don't change meaning
+
+### "equivalent"
+Content that is semantically identical but expressed differently:
+- Abbreviation vs full form (e.g. "Corp." vs "Corporation", "St." vs "Street", "No." vs "Number")
+- Phone number format variants (e.g. "+86-21-12345678" vs "021-12345678" vs "(021) 12345678")
+- Date format variants referring to the same date (e.g. "2024/01/15" vs "January 15, 2024" vs "15/01/2024")
+- Case differences in proper nouns that are clearly the same entity
+- Unit expression variants (e.g. "kg" vs "kilograms", "1000mg" vs "1g")
+- Punctuation-only differences (extra commas, dashes) that don't change meaning
+
+### "meaningful"
+Any difference that changes factual information or could affect document validity:
+- Different numerical values (test results, measurements, quantities, prices)
+- Different names, addresses, or company identifiers
+- Added or removed clauses, sentences, or paragraphs
+- Changed legal terms or conditions
+- Different product specifications
+- Any content that a human reviewer would flag as a genuine discrepancy
+
+## Critical Rules
+1. If unsure between "format" and "meaningful", classify as "meaningful" (conservative approach).
+2. Do NOT classify differences as "equivalent" unless you are highly confident the meaning is identical.
+3. A single digit change in a measurement value (e.g. 98.5 -> 98.6) IS "meaningful".
+4. A header like "TEST REPORT" appearing identically in both documents but at different text positions is "format".
+5. "N/A" vs "N/A" with different surrounding context is "format".
+
+## Output Format
+Return ONLY a JSON object with key "classifications" containing an array. Each element has "index" (integer matching the input diff index), "classification" (one of: "meaningful", "format", "equivalent"), and "reason" (brief explanation in original language, max 80 chars).
+
+Example:
+{{"classifications": [
+  {{"index": 0, "classification": "format", "reason": "页码不同（第1页 vs 第2页）"}},
+  {{"index": 1, "classification": "meaningful", "reason": "检测结果数值从98.5变为97.2"}},
+  {{"index": 3, "classification": "equivalent", "reason": "电话号码格式不同：+86-21 vs 021"}}
+]}}
+
+Return ONLY the JSON object. No markdown fences, no additional text."""
+
 
 class DocumentDiffOperator(BaseOperator):
     """
@@ -23,7 +91,148 @@ class DocumentDiffOperator(BaseOperator):
     @property
     def requires(self) -> List[str]:
         return ["pdf_bytes"]
-        
+
+    async def _classify_changes_with_llm(
+        self,
+        base_text_clean: str,
+        current_text_clean: str,
+        changes: list,
+        ai_config: dict,
+        model_name: str,
+    ) -> list:
+        """Batch all changes into a single LLM call for semantic classification.
+
+        Returns a list of dicts with "index", "classification", "reason".
+        On any failure returns an empty list (graceful degradation).
+        """
+        MAX_SNIPPET_CHARS = 500
+        MAX_CHANGES_FOR_LLM = 30
+
+        changes_to_send = changes[:MAX_CHANGES_FOR_LLM]
+        if not changes_to_send:
+            return []
+
+        # Compact representation: only send essential fields to save tokens
+        compact_changes = [
+            {
+                "index": i,
+                "type": c["type"],
+                "base_text": c["base_text"],
+                "current_text": c["current_text"],
+            }
+            for i, c in enumerate(changes_to_send)
+        ]
+
+        prompt = _SEMANTIC_DIFF_PROMPT.format(
+            base_snippet=base_text_clean[:MAX_SNIPPET_CHARS],
+            current_snippet=current_text_clean[:MAX_SNIPPET_CHARS],
+            changes_json=json.dumps(compact_changes, ensure_ascii=False, indent=2),
+        )
+
+        system_prompt = (
+            "You are a document comparison classifier. "
+            "Return ONLY a JSON object with key 'classifications'. No other text."
+        )
+
+        try:
+            client = AsyncOpenAI(
+                api_key=ai_config["api_key"],
+                base_url=ai_config.get("base_url", "https://api.openai.com/v1"),
+            )
+
+            max_retries = 3
+            base_delay = 2.0
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    api_coro = client.chat.completions.create(
+                        model=model_name,
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": prompt},
+                        ],
+                        max_tokens=ai_config.get("max_tokens", 2048),
+                        temperature=ai_config.get("temperature", 0.1),
+                        response_format={"type": "json_object"},
+                    )
+
+                    response = await asyncio.wait_for(api_coro, timeout=60.0)
+                    raw_content = response.choices[0].message.content
+                    result = _safe_json_parse(raw_content)
+
+                    # Normalize: LLM might return {"classifications": [...]} or nested
+                    if isinstance(result, list):
+                        classifications = result
+                    elif isinstance(result, dict):
+                        classifications = (
+                            result.get("classifications")
+                            or result.get("results")
+                            or result.get("data")
+                            or []
+                        )
+                        if not classifications and len(result) == 1:
+                            classifications = list(result.values())[0]
+                    else:
+                        classifications = []
+
+                    # Validate structure
+                    valid_classes = {"meaningful", "format", "equivalent"}
+                    validated = []
+                    for item in (classifications if isinstance(classifications, list) else []):
+                        if isinstance(item, dict) and "index" in item and "classification" in item:
+                            cls = item["classification"]
+                            if cls in valid_classes:
+                                validated.append({
+                                    "index": int(item["index"]),
+                                    "classification": cls,
+                                    "reason": str(item.get("reason", ""))[:200],
+                                })
+
+                    meaningful_count = sum(1 for v in validated if v["classification"] == "meaningful")
+                    format_count = sum(1 for v in validated if v["classification"] == "format")
+                    equiv_count = sum(1 for v in validated if v["classification"] == "equivalent")
+                    logger.info(
+                        "LLM diff classification: %d/%d changes classified "
+                        "(meaningful=%d, format=%d, equivalent=%d)",
+                        len(validated), len(changes_to_send),
+                        meaningful_count, format_count, equiv_count,
+                    )
+                    return validated
+
+                except asyncio.TimeoutError:
+                    if attempt < max_retries:
+                        delay = base_delay * (2 ** (attempt - 1))
+                        logger.warning(
+                            "LLM diff classification timed out (attempt %d/%d), retrying in %.1fs...",
+                            attempt, max_retries, delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    logger.error("LLM diff classification timed out after %d attempts.", max_retries)
+                    return []
+
+                except Exception as e:
+                    err_str = str(e).lower()
+                    is_transient = any(k in err_str for k in [
+                        "rate_limit", "429", "5xx", "500", "502", "503", "504",
+                        "timeout", "connection", "temporary", "service unavailable",
+                    ])
+                    if is_transient and attempt < max_retries:
+                        delay = base_delay * (2 ** (attempt - 1))
+                        logger.warning(
+                            "LLM diff classification transient error (attempt %d/%d): %s, retrying in %.1fs...",
+                            attempt, max_retries, e, delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise  # non-transient, propagate to outer catch
+
+        except Exception as e:
+            logger.warning(
+                "LLM semantic classification failed (non-fatal, falling back to unclassified): %s", e
+            )
+            return []
+
     def _extract_text_from_bytes(self, pdf_bytes: bytes) -> tuple[str, int]:
         """Extract text and page count from PDF bytes."""
         import fitz
@@ -144,38 +353,105 @@ class DocumentDiffOperator(BaseOperator):
                         })
 
             similarity_pct = round(similarity * 100, 2)
+
+            # ── 5. LLM Semantic Classification Pass (optional) ──
+            raw_changes_count = len(changes)
+            llm_classified = False
+
+            use_llm_semantic = kwargs.get("use_llm_semantic", True)
+            if use_llm_semantic and changes:
+                try:
+                    ai_config = await _get_ai_config(model_type="text")
+                    if ai_config.get("enabled") and ai_config.get("api_key"):
+                        model_name = kwargs.get("model") or ai_config.get("text_model", "gpt-4o-mini")
+                        llm_results = await self._classify_changes_with_llm(
+                            base_text_clean=base_text_clean,
+                            current_text_clean=current_text_clean,
+                            changes=changes,
+                            ai_config=ai_config,
+                            model_name=model_name,
+                        )
+                        if llm_results:
+                            llm_classified = True
+                            # Annotate each change with LLM classification
+                            class_map = {c["index"]: c for c in llm_results}
+                            meaningful_changes = []
+                            for i, change in enumerate(changes):
+                                cls_info = class_map.get(i)
+                                if cls_info:
+                                    change["llm_classification"] = cls_info["classification"]
+                                    change["llm_reason"] = cls_info["reason"]
+                                    if cls_info["classification"] == "meaningful":
+                                        meaningful_changes.append(change)
+                                else:
+                                    # Unclassified → conservative default = meaningful
+                                    change["llm_classification"] = "unclassified"
+                                    change["llm_reason"] = ""
+                                    meaningful_changes.append(change)
+
+                            # Recalculate effective similarity (meaningful changes only)
+                            meaningful_base_len = sum(len(c.get("base_text", "")) for c in meaningful_changes)
+                            meaningful_curr_len = sum(len(c.get("current_text", "")) for c in meaningful_changes)
+                            total_text_len = max(len(base_text_clean) + len(current_text_clean), 1)
+                            diff_len_effective = max(meaningful_base_len, meaningful_curr_len)
+                            effective_similarity = 1.0 - (diff_len_effective / total_text_len)
+                            effective_similarity = max(0.0, min(1.0, effective_similarity))
+                            effective_similarity_pct = round(effective_similarity * 100, 2)
+                        else:
+                            effective_similarity_pct = similarity_pct
+                    else:
+                        effective_similarity_pct = similarity_pct
+                except Exception as e:
+                    logger.warning("LLM semantic classification skipped (non-fatal): %s", e)
+                    effective_similarity_pct = similarity_pct
+            else:
+                effective_similarity_pct = similarity_pct
+
+            # Effective changes count (only meaningful ones when LLM ran)
+            if llm_classified:
+                effective_changes_count = len(meaningful_changes)
+            else:
+                effective_changes_count = len(changes)
+
             context.shared_state["diff_results"] = {
-                "similarity": similarity,
-                "changes_count": len(changes)
+                "similarity": effective_similarity if llm_classified else similarity,
+                "changes_count": effective_changes_count,
             }
-            
-            # 5. 相似度阈值判定
+
+            # ── 6. Similarity threshold decision ──
             threshold_val = kwargs.get("similarity_threshold", 100.0)
             try:
                 threshold = float(threshold_val)
             except (ValueError, TypeError):
                 threshold = 100.0
-            
-            if similarity_pct >= threshold:
+
+            if effective_similarity_pct >= threshold:
                 pass_status = True
-                msg = f"文本相似度为 {similarity_pct}%，符合阈值要求（>= {threshold}%）。"
+                msg = f"文本相似度为 {effective_similarity_pct}%，符合阈值要求（>= {threshold}%）。"
             else:
                 pass_status = False
-                msg = f"文本相似度为 {similarity_pct}%，低于阈值要求（{threshold}%）。共发现 {len(changes)} 处差异。"
+                msg = f"文本相似度为 {effective_similarity_pct}%，低于阈值要求（{threshold}%）。共发现 {effective_changes_count} 处差异。"
+
+            if llm_classified:
+                filtered_count = raw_changes_count - effective_changes_count
+                if filtered_count > 0:
+                    msg += f"（LLM 语义分析过滤了 {filtered_count} 处格式/等价差异）"
 
             return OperatorResult(
                 operator_name=self.name,
                 pass_status=pass_status,
                 message=msg,
                 extracted_data={
-                    "similarity": similarity_pct,
-                    "changes_count": len(changes),
+                    "similarity": effective_similarity_pct,
+                    "changes_count": effective_changes_count,
+                    "raw_changes_count": raw_changes_count,
+                    "llm_classified": llm_classified,
                     "current_page_count": current_page_count,
                     "base_page_count": base_page_count,
                     "current_text_length": len(current_text_clean),
                     "base_text_length": len(base_text_clean),
                     # 解开并只返回前 15 个最核心的修改细节到前端 UI，保障界面清爽和高速响应
-                    "changes": changes[:15]
+                    "changes": changes[:15],
                 }
             )
 

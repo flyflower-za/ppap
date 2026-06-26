@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from app.engine.base import BaseOperator, DocumentContext, OperatorResult
-from app.services.ai_config_service import get_ai_config
+from app.engine.llm_utils import _get_ai_config, _safe_json_parse
 
 logger = logging.getLogger(__name__)
 
@@ -30,61 +30,6 @@ def _estimate_max_chars(model_name: str) -> int:
         if key in model_lower:
             return limit
     return 3000  # safe fallback
-
-
-def _safe_json_parse(text: str) -> dict:
-    """Robust JSON extraction from LLM responses.
-
-    Handles markdown fences, nested braces, trailing commas, etc.
-    Raises ValueError if all strategies fail.
-    """
-    if not text or not text.strip():
-        raise ValueError("Empty or whitespace-only response")
-
-    text = text.strip()
-
-    # Strategy 1: Direct parse (fast path)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    # Strategy 2: Remove markdown code fences
-    fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
-    if fence_match:
-        try:
-            return json.loads(fence_match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 3: Find first JSON object with balanced braces
-    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', text)
-    if brace_match:
-        try:
-            return json.loads(brace_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 4: Clean trailing commas / single quotes and retry
-    cleaned = re.sub(r',(\s*[}\]])', r'\1', text)
-    cleaned = re.sub(r"'", '"', cleaned)
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-
-    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', cleaned)
-    if brace_match:
-        try:
-            return json.loads(brace_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    raise ValueError(f"Cannot parse JSON from response (first 300 chars): {text[:300]}")
-
-
-async def _get_ai_config(model_type: str = "text", requested_model: str = None) -> dict:
-    return await get_ai_config(model_type=model_type, requested_model=requested_model)
 
 
 class LLMOutputSchema(BaseModel):

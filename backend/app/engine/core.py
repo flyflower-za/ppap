@@ -1123,6 +1123,7 @@ class VerificationEngine:
                     elif node_type in ["document_diff", "document-diff"]:
                         base_document_url = node_data.get("base_document_url", "")
                         similarity_threshold = node_data.get("similarity_threshold", 100.0)
+                        use_llm_semantic = node_data.get("use_llm_semantic", True)
                         
                         if not base_document_url:
                             node_passed = False
@@ -1135,9 +1136,10 @@ class VerificationEngine:
                                     op = DocumentDiffOperator()
                                 
                                 res = await op.execute(
-                                    context, 
-                                    base_document_url=base_document_url, 
-                                    similarity_threshold=similarity_threshold
+                                    context,
+                                    base_document_url=base_document_url,
+                                    similarity_threshold=similarity_threshold,
+                                    use_llm_semantic=use_llm_semantic,
                                 )
                                 
                                 node_passed = res.pass_status

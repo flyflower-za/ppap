@@ -257,7 +257,8 @@ INITIAL_OPERATORS = [
             "type": "object",
             "properties": {
                 "base_document_url": {"type": "string", "description": "基准文档 URL 模板，支持变量插值（例如：https://verify.example.com/docs/{{report_number}}）"},
-                "similarity_threshold": {"type": "number", "description": "相似度阈值百分比（例如：95.0）"}
+                "similarity_threshold": {"type": "number", "description": "相似度阈值百分比（例如：95.0）"},
+                "use_llm_semantic": {"type": "boolean", "description": "启用 LLM 语义分析过滤格式/等价差异（默认开启）", "default": True}
             }
         },
         "output_schema": {

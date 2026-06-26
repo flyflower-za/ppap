@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import base64
@@ -5,13 +6,35 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 from app.engine.base import BaseOperator, DocumentContext, OperatorResult
-from app.services.ai_config_service import get_ai_config
+from app.engine.llm_utils import _get_ai_config, _safe_json_parse
 
 logger = logging.getLogger(__name__)
 
 
-async def _get_ai_config(model_type: str = "vision", requested_model: str = None) -> dict:
-    return await get_ai_config(model_type=model_type, requested_model=requested_model)
+def _compute_zoom(crop_bbox: Optional[tuple]) -> float:
+    """Compute adaptive zoom factor for PDF rendering.
+
+    - Full page: 2.0x (~144 DPI), good balance of quality vs token cost
+    - Small crop region (< 500x500 pt): 3.5x for fine detail (stamps, small text)
+    - Medium crop region: 3.0x
+    - Large crop region: 2.5x
+
+    The heuristic is based on crop area in PDF user-space points.
+    """
+    if crop_bbox is None:
+        return 2.0  # Full page baseline
+
+    x0, y0, x1, y1 = crop_bbox
+    width = abs(x1 - x0)
+    height = abs(y1 - y0)
+    area = width * height
+
+    if area < 250000:      # < 500×500 pt (roughly 17.6cm × 17.6cm)
+        return 3.5          # Stamp / small text — need high DPI
+    elif area < 1000000:   # < 1000×1000 pt
+        return 3.0
+    else:
+        return 2.5          # Large crop — moderate boost over full-page
 
 
 class VisionOutputSchema(BaseModel):
@@ -60,7 +83,7 @@ class VisionLLMOperator(BaseOperator):
         crop_bbox: Optional[tuple] = kwargs.get("crop_bbox", None)
 
         try:
-            ai_config = await _get_ai_config(requested_model=kwargs.get("model"))
+            ai_config = await _get_ai_config(model_type="vision", requested_model=kwargs.get("model"))
 
             if not ai_config.get("enabled") or not ai_config.get("api_key"):
                 # Fallback to mock when AI is not configured
@@ -91,7 +114,7 @@ class VisionLLMOperator(BaseOperator):
                     )
 
                 page = doc[target_page - 1]
-                zoom = 2.0  # 2x = ~144 DPI, good balance of quality vs cost
+                zoom = _compute_zoom(crop_bbox)
 
                 if crop_bbox:
                     # Only render the specified bounding box region
@@ -115,6 +138,8 @@ class VisionLLMOperator(BaseOperator):
                     api_key=ai_config["api_key"],
                     base_url=ai_config.get("base_url", "https://api.openai.com/v1")
                 )
+
+                model_name = kwargs.get("model") or ai_config.get("vision_model", "gpt-4o")
 
                 # Adjust system prompt based on operation mode
                 if operation_mode == "extraction":
@@ -143,35 +168,75 @@ class VisionLLMOperator(BaseOperator):
                     }}
                     """
 
-                model_name = kwargs.get("model") or ai_config.get("vision_model", "gpt-4o")
-                response = await client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": f"审核要求: {target_prompt}\n(图像来自: {region_desc})"
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{base64_image}",
-                                        "detail": "high"
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    max_tokens=ai_config.get("max_tokens", 1024),
-                    temperature=ai_config.get("temperature", 0.1),
-                    response_format={"type": "json_object"}
-                )
+                # ── API call with retry + timeout ──
+                max_retries = 3
+                base_delay = 2.0
 
-                raw_content = response.choices[0].message.content
-                response_data = json.loads(raw_content)
+                for attempt in range(1, max_retries + 1):
+                    try:
+                        api_coro = client.chat.completions.create(
+                            model=model_name,
+                            messages=[
+                                {"role": "system", "content": system_prompt},
+                                {
+                                    "role": "user",
+                                    "content": [
+                                        {
+                                            "type": "text",
+                                            "text": f"审核要求: {target_prompt}\n(图像来自: {region_desc})"
+                                        },
+                                        {
+                                            "type": "image_url",
+                                            "image_url": {
+                                                "url": f"data:image/jpeg;base64,{base64_image}",
+                                                "detail": "high"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            max_tokens=ai_config.get("max_tokens", 1024),
+                            temperature=ai_config.get("temperature", 0.1),
+                            response_format={"type": "json_object"}
+                        )
+
+                        response = await asyncio.wait_for(api_coro, timeout=60.0)
+                        raw_content = response.choices[0].message.content
+                        response_data = _safe_json_parse(raw_content)
+                        break  # success — exit retry loop
+
+                    except asyncio.TimeoutError:
+                        if attempt < max_retries:
+                            delay = base_delay * (2 ** (attempt - 1))
+                            logger.warning(
+                                "Vision LLM call timed out (attempt %d/%d), retrying in %.1fs...",
+                                attempt, max_retries, delay,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        logger.error("Vision LLM call timed out after %d attempts.", max_retries)
+                        response_data = {
+                            "passed": False,
+                            "confidence": 0.0,
+                            "reason": f"[熔断拦截] 视觉大模型响应超时 (>60s)，重试 {max_retries} 次后仍失败",
+                            "extracted_data": {},
+                        }
+
+                    except Exception as e:
+                        err_str = str(e).lower()
+                        is_transient = any(k in err_str for k in [
+                            "rate_limit", "429", "5xx", "500", "502", "503", "504",
+                            "timeout", "connection", "temporary", "service unavailable",
+                        ])
+                        if is_transient and attempt < max_retries:
+                            delay = base_delay * (2 ** (attempt - 1))
+                            logger.warning(
+                                "Vision LLM transient error (attempt %d/%d): %s, retrying in %.1fs...",
+                                attempt, max_retries, e, delay,
+                            )
+                            await asyncio.sleep(delay)
+                            continue
+                        raise  # non-transient, let outer try/except handle it
 
             # Handle extraction mode (LLM only returned extracted_data without verification fields)
             has_verification_fields = any(k in response_data for k in ("passed", "confidence", "reason"))

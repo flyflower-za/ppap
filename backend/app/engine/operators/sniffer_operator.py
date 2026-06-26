@@ -5,60 +5,9 @@ import re
 from typing import List
 from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 from app.services.aliyun_service import aliyun_service
-from app.engine.operators.vision_llm_operator import _get_ai_config
+from app.engine.llm_utils import _get_ai_config, _safe_json_parse
 
 logger = logging.getLogger(__name__)
-
-
-def _safe_json_parse(text: str) -> dict:
-    """Robust JSON extraction from LLM/VLM responses.
-
-    Handles markdown fences, nested braces, trailing commas, etc.
-    Raises ValueError if all strategies fail.
-    """
-    if not text or not text.strip():
-        raise ValueError("Empty or whitespace-only response")
-
-    text = text.strip()
-
-    # Strategy 1: Direct parse (fast path)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    # Strategy 2: Remove markdown code fences
-    fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
-    if fence_match:
-        try:
-            return json.loads(fence_match.group(1).strip())
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 3: Find first JSON object with balanced braces (handles one level of nesting)
-    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', text)
-    if brace_match:
-        try:
-            return json.loads(brace_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 4: Clean trailing commas / single quotes and retry
-    cleaned = re.sub(r',(\s*[}\]])', r'\1', text)       # trailing commas before } or ]
-    cleaned = re.sub(r"'", '"', cleaned)                  # single quotes → double quotes
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
-
-    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', cleaned)
-    if brace_match:
-        try:
-            return json.loads(brace_match.group())
-        except json.JSONDecodeError:
-            pass
-
-    raise ValueError(f"Cannot parse JSON from response (first 300 chars): {text[:300]}")
 
 
 class InstitutionSnifferOperator(BaseOperator):

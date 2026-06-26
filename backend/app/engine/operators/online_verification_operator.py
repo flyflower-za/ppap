@@ -139,10 +139,12 @@ class OnlineVerificationOperator(BaseOperator):
         # 4. 调用原件比对
         try:
             diff_op = DocumentDiffOperator()
+            use_llm_semantic = kwargs.get("use_llm_semantic", True)
             diff_result = await diff_op.execute(
-                context, 
-                base_document_url=formatted_url, 
-                similarity_threshold=similarity_threshold
+                context,
+                base_document_url=formatted_url,
+                similarity_threshold=similarity_threshold,
+                use_llm_semantic=use_llm_semantic,
             )
             
             # 5. 组装详细输出信息
