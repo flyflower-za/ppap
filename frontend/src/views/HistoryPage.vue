@@ -339,7 +339,6 @@ const LOCAL_STORAGE_KEY = 'ppap_history_table_columns_order_v1'
 const defaultColumns = [
   { prop: 'uploaded_at', label: t('file.uploadedAt'), width: 200 },
   { prop: 'original_filename', label: t('file.filename'), minWidth: 250, showOverflowTooltip: true },
-  { prop: 'file_type', label: t('file.fileType'), width: 120, showOverflowTooltip: true },
   { prop: 'institution', label: t('history.institutionLabel'), minWidth: 120, showOverflowTooltip: true },
   { prop: 'page_count', label: t('file.pageCount'), width: 60, align: 'center' },
   { prop: 'status', label: t('history.verifyStatusLabel'), width: 110 },
