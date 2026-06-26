@@ -2543,14 +2543,14 @@ onMounted(() => {
 <style scoped>
 /* Page container */
 .settings-container {
-  min-width: 900px;
-  overflow-x: auto;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* Layout container */
 .settings-row {
-  flex-wrap: nowrap !important;
-  min-width: 900px;
+  flex-wrap: wrap !important;
+  width: 100%;
   align-items: stretch;
 }
 
@@ -2811,7 +2811,7 @@ code {
 
 /* Settings menu styling */
 .settings-menu-col {
-  min-width: 200px;
+  min-width: 180px;
   flex-shrink: 0;
 }
 
