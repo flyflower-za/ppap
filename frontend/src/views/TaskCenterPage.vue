@@ -162,6 +162,8 @@
 </template>
 
 <script setup lang="ts">
+defineOptions({ name: 'TaskCenter' })
+
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
