@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File as FormFile, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,8 @@ from app.tasks.verification_tasks import queue_verification_task
 from app.core.audit_logger import log_audit_event
 
 router = APIRouter(prefix="/files", tags=["Files"])
+
+logger = logging.getLogger(__name__)
 
 
 @router.post("/upload", response_model=FileResponse)
@@ -102,7 +105,7 @@ async def list_files(
     )
 
     file_service = FileService(db)
-    files, total = await file_service.list_files(filters)
+    files, total = await file_service.list_files(filters, current_user)
 
     return FileListResponse(
         total=total,
@@ -122,12 +125,15 @@ async def get_statistics(
     from sqlalchemy import select, func, case, Date, text
     from datetime import datetime, timedelta, timezone
 
+    # Non-admin users only see their own stats
+    user_filter = [File.uploaded_by == current_user.id] if not current_user.is_admin else []
+
     # 1. Overview counts
-    total_stmt = select(func.count(File.id))
+    total_stmt = select(func.count(File.id)).where(*user_filter)
     total_res = await db.execute(total_stmt)
     total_count = total_res.scalar() or 0
 
-    status_stmt = select(File.status, func.count(File.id)).group_by(File.status)
+    status_stmt = select(File.status, func.count(File.id)).where(*user_filter).group_by(File.status)
     status_res = await db.execute(status_stmt)
     status_counts = {}
     for row in status_res.all():
@@ -157,6 +163,7 @@ async def get_statistics(
             func.sum(case((File.status.in_([FileStatus.COMPLETED, FileStatus.WARNING]), 1), else_=0)).label("passed")
         )
         .where(File.uploaded_at >= start_date)
+        .where(*user_filter)
         .group_by(func.cast(File.uploaded_at, Date))
         .order_by("date")
     )
@@ -189,37 +196,40 @@ async def get_statistics(
     # 3. Top Failing Rules Counter
     # Push aggregation into PostgreSQL using JSONB operators — avoids loading
     # 1000 full JSON blobs into Python memory and parsing them one by one.
-    files_stmt_raw = text("""
-        SELECT check_name, COUNT(*) AS cnt
-        FROM (
-            SELECT jsonb_array_elements(
-                (vr::jsonb -> 'checks')
-            ) ->> 'name' AS check_name,
-            jsonb_array_elements(
-                (vr::jsonb -> 'checks')
-            ) ->> 'status' AS check_status
-            FROM files
-            WHERE verification_result IS NOT NULL
-              AND verification_result != 'null'
-              AND verification_result::jsonb ? 'checks'
-            ORDER BY uploaded_at DESC
-            LIMIT 1000
-        ) expanded
-        WHERE check_status = 'fail'
-        GROUP BY check_name
-        ORDER BY cnt DESC
-        LIMIT 5
-    """)
+    # For non-admin users, skip this as it requires complex per-user filtering.
+    top_failing = []
+    if not user_filter:
+        files_stmt_raw = text("""
+            SELECT check_name, COUNT(*) AS cnt
+            FROM (
+                SELECT jsonb_array_elements(
+                    (vr::jsonb -> 'checks')
+                ) ->> 'name' AS check_name,
+                jsonb_array_elements(
+                    (vr::jsonb -> 'checks')
+                ) ->> 'status' AS check_status
+                FROM files
+                WHERE verification_result IS NOT NULL
+                  AND verification_result != 'null'
+                  AND verification_result::jsonb ? 'checks'
+                ORDER BY uploaded_at DESC
+                LIMIT 1000
+            ) expanded
+            WHERE check_status = 'fail'
+            GROUP BY check_name
+            ORDER BY cnt DESC
+            LIMIT 5
+        """)
 
-    try:
-        fail_res = await db.execute(files_stmt_raw)
-        top_failing = [
-            {"rule_name": row[0], "count": row[1]}
-            for row in fail_res.all()
-        ]
-    except Exception as err:
-        logger.warning(f"Failed to query top failing rules via JSONB (fallback disabled): {err}")
-        top_failing = []
+        try:
+            fail_res = await db.execute(files_stmt_raw)
+            top_failing = [
+                {"rule_name": row[0], "count": row[1]}
+                for row in fail_res.all()
+            ]
+        except Exception as err:
+            logger.warning(f"Failed to query top failing rules via JSONB (fallback disabled): {err}")
+            top_failing = []
 
     return {
         "overview": {
@@ -249,6 +259,14 @@ async def get_file_detail(
     file = await file_service.get_file_detail(file_id)
 
     if not file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    # Non-admin users can only view their own files
+    db_file = await file_service.get_file(file_id)
+    if not current_user.is_admin and db_file and db_file.uploaded_by != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="File not found",

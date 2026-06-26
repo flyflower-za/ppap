@@ -112,11 +112,15 @@ class FileService:
     async def list_files(
         self,
         filters: FileFilter,
-        user_id: Optional[str] = None,
+        current_user: User,
     ) -> Tuple[List[File], int]:
         """List files with filtering and pagination."""
         # Build query
         query = select(File).options(selectinload(File.notes)).where(File.is_deleted == False)
+
+        # Non-admin users only see their own files
+        if not current_user.is_admin:
+            query = query.where(File.uploaded_by == current_user.id)
 
         # Apply filters
         if filters.status:
