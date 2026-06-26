@@ -10,7 +10,8 @@ export const filesApi = {
     }
     return client.post<any, File>('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    })
+      skipCancel: true,  // 上传请求不做去重，避免并发上传时互相取消
+    } as any)
   },
 
   list: (params: FileFilter) =>

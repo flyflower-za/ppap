@@ -61,7 +61,7 @@ client.interceptors.response.use(
     }
 
     if (axios.isCancel(error)) {
-      return new Promise(() => {})
+      return Promise.reject(error)
     }
 
     const config = error.config as AxiosRequestConfig & { skipGlobalError?: boolean }
