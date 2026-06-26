@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import re
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -7,6 +9,78 @@ from app.engine.base import BaseOperator, DocumentContext, OperatorResult
 from app.services.ai_config_service import get_ai_config
 
 logger = logging.getLogger(__name__)
+
+# Model context-window estimation (conservative char limits for prompt text)
+_MODEL_CONTEXT_LIMITS = {
+    "gpt-4o": 15000,
+    "gpt-4-turbo": 15000,
+    "claude": 15000,
+    "gpt-4o-mini": 8000,
+    "gpt-3.5": 8000,
+    "gemini": 15000,
+    "deepseek": 15000,
+    "qwen": 15000,
+}
+
+
+def _estimate_max_chars(model_name: str) -> int:
+    """Estimate a safe prompt-text character limit based on model family."""
+    model_lower = model_name.lower()
+    for key, limit in _MODEL_CONTEXT_LIMITS.items():
+        if key in model_lower:
+            return limit
+    return 3000  # safe fallback
+
+
+def _safe_json_parse(text: str) -> dict:
+    """Robust JSON extraction from LLM responses.
+
+    Handles markdown fences, nested braces, trailing commas, etc.
+    Raises ValueError if all strategies fail.
+    """
+    if not text or not text.strip():
+        raise ValueError("Empty or whitespace-only response")
+
+    text = text.strip()
+
+    # Strategy 1: Direct parse (fast path)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Strategy 2: Remove markdown code fences
+    fence_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+    if fence_match:
+        try:
+            return json.loads(fence_match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 3: Find first JSON object with balanced braces
+    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', text)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    # Strategy 4: Clean trailing commas / single quotes and retry
+    cleaned = re.sub(r',(\s*[}\]])', r'\1', text)
+    cleaned = re.sub(r"'", '"', cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    brace_match = re.search(r'\{(?:[^{}]|\{[^{}]*\})*\}', cleaned)
+    if brace_match:
+        try:
+            return json.loads(brace_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Cannot parse JSON from response (first 300 chars): {text[:300]}")
 
 
 async def _get_ai_config(model_type: str = "text", requested_model: str = None) -> dict:
@@ -49,84 +123,72 @@ class TextLLMOperator(BaseOperator):
         target_prompt = kwargs.get("prompt", "请检查文档是否包含完整的盖章审批流程。")
         operation_mode = kwargs.get("operation_mode", "verification")
 
-        # Truncate text if too long for the context window (Safety Truncation)
-        max_chars = 3000
+        # ── Dynamic context window ──
+        ai_config = await _get_ai_config(requested_model=kwargs.get("model"))
+        model_name = kwargs.get("model") or ai_config.get("text_model", "gpt-4o-mini")
+        max_chars = _estimate_max_chars(model_name)
         text_context = full_text[:max_chars]
+        if len(full_text) > max_chars:
+            logger.info("Text truncated from %d to %d chars for model %s", len(full_text), max_chars, model_name)
 
-        # Adjust system prompt based on operation mode
+        # ── Anti-hallucination prompts ──
         if operation_mode == "extraction":
             system_prompt = """
-            你是一个文档信息提取专家。请从提供的文档文本中提取指定信息。
-            你必须且只能返回一个包含提取结果的 JSON 数据实例。
+你是一个严谨的文档信息提取专家。请根据以下文档文本提取指定信息。
 
-            严格返回以下 JSON 格式，直接包含提取的字段：
-            {
-                "field_name": "value",
-                ...
-            }
-            """
+原则：
+- 只提取文档中**明确存在**的信息，不要推测、不要补全
+- 如果信息不存在，对应字段返回 null
+- 必须引用原文内容来支持提取结果
+- 如果不确定，在 extracted_data 中标注 "uncertain": true
+
+你必须且只能返回一个包含提取结果的 JSON 数据实例。
+严格返回以下 JSON 格式，直接包含提取的字段：
+{
+    "field_name": "value",
+    ...
+}
+"""
             user_prompt = f"文档内容:\n{text_context}\n\n提取要求:\n{target_prompt}"
         else:
-            system_prompt = f"""
-            你是一个严谨的文档审核审核员。请根据以下提取的文档文本回答用户问题。
-            你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+            system_prompt = """
+你是一个严谨的文档审核员。请根据以下文档文本回答用户问题。
 
-            严格返回以下 JSON 格式：
-            {{
-                "passed": bool (是否通过审核),
-                "confidence": float (0.0 到 1.0 的置信度),
-                "reason": "string (判断的详细理由)",
-                "extracted_data": {{}} (包含任何提取的关键信息)
-            }}
-            """
+原则：
+- 严格基于提供的文档内容做出判断，**不要编造或推测**文档中没有的信息
+- 必须引用原文中的具体内容来支持你的判断，引用格式：「原文：...」
+- 如果文档内容不足以做出判断，confidence 必须 ≤ 0.5，并在 reason 中说明缺少哪些信息
+- 如果不确定文档是否包含某些内容，请明确指出不确定的部分
+
+你必须且只能返回一个包含检查结果的 JSON 数据实例。不要返回 JSON Schema 结构定义。
+
+严格返回以下 JSON 格式：
+{
+    "passed": bool (是否通过审核),
+    "confidence": float (0.0 到 1.0 的置信度),
+    "reason": "string (判断的详细理由，需引用原文)",
+    "extracted_data": {} (包含任何提取的关键信息)
+}
+"""
             user_prompt = f"文档内容:\n{text_context}\n\n审核要求:\n{target_prompt}"
 
         try:
-            ai_config = await _get_ai_config(requested_model=kwargs.get("model"))
-
             if not ai_config.get("enabled") or not ai_config.get("api_key"):
                 # Fallback to mock when AI is not configured
                 logger.warning("AI model not configured, using mock response.")
                 response_data = {
                     "passed": True,
-                    "confidence": 0.95,
-                    "reason": "[Mock] 通过大模型语义分析，提取到了符合要求的信息。",
-                    "extracted_data": {"matched_keywords": ["合格", "批准"]}
+                    "confidence": 0.5,
+                    "reason": "[Mock] LLM 未配置，使用降级响应 — 该判断未经实际 AI 分析。",
+                    "extracted_data": {}
                 }
             else:
-                from openai import AsyncOpenAI
-                import asyncio
-                client = AsyncOpenAI(
-                    api_key=ai_config["api_key"],
-                    base_url=ai_config.get("base_url", "https://api.openai.com/v1")
+                response_data = await self._call_llm_with_retry(
+                    ai_config=ai_config,
+                    model_name=model_name,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
                 )
-
-                model_name = kwargs.get("model") or ai_config.get("text_model", "gpt-4o-mini")
-                
-                # Wrap the API call in a 60-second timeout circuit breaker
-                api_coro = client.chat.completions.create(
-                    model=model_name,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=ai_config.get("max_tokens", 2048),
-                    temperature=ai_config.get("temperature", 0.1),
-                    response_format={"type": "json_object"}
-                )
-                
-                try:
-                    response = await asyncio.wait_for(api_coro, timeout=60.0)
-                    raw_content = response.choices[0].message.content
-                    response_data = json.loads(raw_content)
-                except asyncio.TimeoutError:
-                    logger.error("LLM API call timed out after 60 seconds.")
-                    response_data = {
-                        "passed": False,
-                        "confidence": 0.0,
-                        "reason": "[熔断拦截] 大模型响应超时 (>60s)，已降级",
-                        "extracted_data": {}
-                    }
 
             # Handle extraction mode (LLM only returned extracted data without verification fields)
             has_verification_fields = any(k in response_data for k in ("passed", "confidence", "reason"))
@@ -161,3 +223,74 @@ class TextLLMOperator(BaseOperator):
                 pass_status=False,
                 message=f"LLM Plugin execution failed: {str(e)}"
             )
+
+    async def _call_llm_with_retry(
+        self,
+        ai_config: dict,
+        model_name: str,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict:
+        """Call LLM with exponential backoff retry for transient failures."""
+        from openai import AsyncOpenAI
+
+        client = AsyncOpenAI(
+            api_key=ai_config["api_key"],
+            base_url=ai_config.get("base_url", "https://api.openai.com/v1")
+        )
+
+        max_retries = 3
+        base_delay = 2.0  # seconds
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                api_coro = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=ai_config.get("max_tokens", 2048),
+                    temperature=ai_config.get("temperature", 0.1),
+                    response_format={"type": "json_object"}
+                )
+
+                response = await asyncio.wait_for(api_coro, timeout=60.0)
+                raw_content = response.choices[0].message.content
+                return _safe_json_parse(raw_content)
+
+            except asyncio.TimeoutError:
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** (attempt - 1))
+                    logger.warning(
+                        "LLM call timed out (attempt %d/%d), retrying in %.1fs...",
+                        attempt, max_retries, delay
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.error("LLM call timed out after %d attempts.", max_retries)
+                return {
+                    "passed": False,
+                    "confidence": 0.0,
+                    "reason": f"[熔断拦截] 大模型响应超时 (>60s)，重试 {max_retries} 次后仍失败",
+                    "extracted_data": {}
+                }
+
+            except Exception as e:
+                err_str = str(e).lower()
+                # Only retry on transient errors: rate limits, 5xx, connection errors
+                is_transient = any(k in err_str for k in [
+                    "rate_limit", "429", "5xx", "500", "502", "503", "504",
+                    "timeout", "connection", "temporary", "service unavailable",
+                ])
+                if is_transient and attempt < max_retries:
+                    delay = base_delay * (2 ** (attempt - 1))
+                    logger.warning(
+                        "LLM call transient error (attempt %d/%d): %s, retrying in %.1fs...",
+                        attempt, max_retries, e, delay
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+
+                # Non-transient or exhausted: propagate
+                raise

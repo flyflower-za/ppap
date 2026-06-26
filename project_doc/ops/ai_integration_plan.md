@@ -9,17 +9,17 @@
 ### 1. InstitutionSnifferOperator
 **当前 AI**: LLM + VLM
 **加强方向**:
-- LLM JSON 解析脆弱性修复（改用 `json.loads` 替代正则贪婪匹配）
-- Vision fallback 接入 `ai_config_service` 统一配置，而非硬编码
-- 增加防幻觉 prompt 指令
+- ✅ LLM JSON 解析脆弱性修复（改用多策略 `_safe_json_parse`）
+- ✅ Vision fallback 接入 `ai_config_service` 统一配置（max_tokens/temperature 从 DB 读取、30s 超时）
+- ⬜ 增加防幻觉 prompt 指令（暂缓）
 
 ### 2. TextLLMOperator
 **当前 AI**: LLM（gpt-4o-mini）
 **加强方向**:
-- 上下文窗口根据 `ModelProfile.max_tokens` 动态调整而非固定 3000 字符
-- Mock fallback 置信度从 0.95 降至 0.5 或标记 `skipped`
-- 添加防幻觉 prompt（要求引用原文证据）
-- 增加指数退避重试机制
+- ✅ 上下文窗口根据模型类型动态调整（gpt-4o/claude/gemini → 15000 字符，gpt-4o-mini → 8000 字符）
+- ✅ Mock fallback 置信度从 0.95 降至 0.5（降低误判风险）
+- ✅ 添加防幻觉 prompt（要求引用原文证据 + 不确定性标注）
+- ✅ 增加指数退避重试机制（最多 3 次，初始 2s，仅对瞬态错误重试）
 
 ### 3. VisionLLMOperator
 **当前 AI**: VLM（gpt-4o）

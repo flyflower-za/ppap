@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-26] - AI 算子加固系列
+
+### 功能描述
+- **JSON 解析加固**：新增 `_safe_json_parse()` 多策略解析函数（直接解析 → markdown fence 提取 → 平衡括号匹配 → 清理重试），替代原有的 `re.search(r'\{.*\}')` 贪婪匹配
+- **Vision fallback 配置统一**：`_run_vision_first_page` 从 `ai_config` 读取 max_tokens/temperature，而非硬编码 128/0.1；新增 30s API 超时
+- **TextLLMOperator 加固**：防幻觉 prompt（要求引用原文证据 + 不确定性标注）；指数退避重试（最多 3 次，仅瞬态错误）；上下文窗口根据模型动态调整（大模型 15000 字符 / 小模型 8000 字符）；Mock 降级置信度从 0.95 降至 0.5；JSON 解析改用 `_safe_json_parse`
+
+### 影响范围
+- ✅ InstitutionSnifferOperator JSON 解析成功率提升（LLM 返回 markdown 代码块、多余文本、缺失逗号等场景均可兜底）
+- ✅ Vision fallback 参数与 VisionLLMOperator 对齐，可从系统设置中配置
+- ✅ TextLLMOperator 减少幻觉输出、增加 API 容错、支持更多上下文
+
+---
+
 ## [2026-06-26] - 数据库字段同步与任务中心稳定性修复
 
 ### 功能描述
