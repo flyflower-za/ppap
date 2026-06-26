@@ -410,8 +410,8 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    # Prevent self-modification of role
-    if user.id == current_user.id and user_data.role is not None:
+    # Prevent self-modification of role (only reject if role is actually changing)
+    if user.id == current_user.id and user_data.role is not None and user_data.role != user.role.value:
         raise HTTPException(status_code=400, detail="不能修改自己的角色")
 
     if user_data.full_name is not None:

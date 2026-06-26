@@ -2117,11 +2117,16 @@ async function handleSaveUser() {
       if (editingUser.value?.id) {
         // Update existing user
         userId = editingUser.value.id
-        await ldapApi.updateUser(userId, {
+        const updateData: any = {
           full_name: userForm.full_name,
-          department: userForm.department || undefined,
           role: userForm.role
-        })
+        }
+        // Only include department if it has a value
+        if (userForm.department && userForm.department.trim()) {
+          updateData.department = userForm.department.trim()
+        }
+
+        await ldapApi.updateUser(userId, updateData)
         ElMessage.success(t('settings.userUpdated'))
       } else {
         // Create new user
